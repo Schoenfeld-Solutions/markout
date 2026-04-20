@@ -1,83 +1,82 @@
-# Contribute to this code sample 
+# Contributing to MarkOut
 
-Thank you for your interest in this sample! Your contributions and improvements will help the developer community. 
+MarkOut is an Outlook compose add-in that is actively maintained as a fork of
+`SierraSoftworks/markout`. Contributions should keep the repo releasable,
+security-conscious, and consistent with the Outlook add-in runtime and manifest
+constraints documented in [README.md](README.md).
 
-## Ways to contribute 
+## Working baseline
 
-There are several ways you can contribute to this sample: providing better code comments, fixing open issues, and adding new features. 
+- Node.js support policy is `>=25 <27`.
+- The validated CI baseline is Node 25.
+- Before changing dependencies, treat `package.json` as the source of truth and
+  keep `package-lock.json` synchronized.
+- `jsdom`, `@types/jsdom`, and `markdown-it-emoji` are intentionally pinned below
+  `latest` because newer majors are not green in this repo today.
 
-### Provide better code comments 
+## Branches and pull requests
 
-Code comments make code samples even better by helping developers learn to use the code correctly in their own applications. If you spot a class, method, or section of code that you think could use better descriptions, then create a pull request with your code comments.
+- Do not commit feature work directly on `main`.
+- Use a short-lived feature branch such as `codex/<topic>` or another explicitly
+  requested branch name.
+- Keep pull requests focused and behaviorally coherent.
+- Update README and manifests in the same workstream when setup, hosting,
+  support URLs, or Outlook behavior changes.
 
+## Commit format
 
-In general we want our code comments to follow these guidelines: 
+Conventional Commits are mandatory for tracked changes.
 
-- Any code that has associated documentation displayed in an IDE (such as IntelliSense, or JavaDocs) has code comments.
-- Classes, methods, parameters, and return values have clear descriptions.
-- Exceptions and errors are documented.
-- Remarks exist for anything special or notable about the code.
-- Sections of code that have complex algorithms have appropriate comments describing what they do.
-- Code added from Stack Overflow, or any other source, is clearly attributed. 
+- Required format: `<type>(<scope>): <description>`
+- Allowed types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`,
+  `build`, `perf`, `revert`
+- Use a meaningful scope such as `taskpane`, `renderer`, `manifest`, `tooling`,
+  `ci`, `docs`, `commands`, `launchevent`, or `security`
+- Keep the subject imperative, specific, and lowercase after the colon
+- Do not use vague subjects such as `misc`, `updates`, `cleanup`, `stuff`, `tmp`,
+  or `wip`
 
-### Fix open issues 
+Examples:
 
-Sometimes we get a lot of issues, and it can be hard to keep up. If you have a solution to an open issue that hasn't been addressed, fix the issue and then submit a pull request. 
+- `feat(taskpane): lazy-load preview renderer`
+- `fix(manifest): switch production support url to fork`
+- `chore(tooling): widen node policy to 25 and 26`
+- `docs(readme): document github pages sideload urls`
 
-### Add a new feature 
+## Required quality gates
 
-New features are great! Be sure to check with the repository admin first to be sure the feature will fit the intent of the sample. Start by opening an issue in the repository that proposes and describes the feature. The repository admin will respond and may ask for more information. If the admin agrees to the new feature, create the feature and submit a pull request. 
+Run these before every commit, push, or pull request update:
 
-## Contribution guidelines 
+```bash
+npm run check
+```
 
-We have some guidelines to help maintain a healthy repo and code for everyone. 
+This includes formatting checks, linting, type checking, unit tests, the
+production build, and deployable manifest validation.
 
-### The Contribution License Agreement 
+Additional checks when relevant:
 
-For most contributions, you'll be asked to sign a Contribution License Agreement (CLA). This will happen when you submit a pull request. Microsoft will send a link to the CLA to sign via email. Once you sign the CLA, your pull request can proceed. Read the CLA carefully, because you may need to have your employer sign it. 
+- `npm run validate:manifest:localhost` for local manifest work
+- `npm run dev` plus manual **Add from File** sideload with `manifest-localhost.xml`
+- `npm run start:desktop` if desktop auto-sideload behavior is the thing being changed
+- `npm run test:host-smoke` for changes that affect Outlook compose flows, task
+  pane behavior, Smart Alerts, selectors, or send-time rendering
 
-### Code contribution checklist 
+If the host smoke cannot be run because credentials or Outlook test
+infrastructure are unavailable, call that out explicitly in the PR.
 
-Be sure to satisfy all of the requirements in the following list before submitting a pull request: 
+## Dependency and automation policy
 
-- Follow the code style that is appropriate for the platform and language in this repo. For example, Android code follows the style conventions found in the [Code Style for Contributors guide](https://source.android.com/source/code-style.html).
-- Test your code.
-- Test the UI thoroughly to be sure nothing has been broken by your change.
-- Keep the size of your code change reasonable. if the repository owner cannot review your code change in 4 hours or less, your pull request may not be reviewed and approved quickly.
-- Avoid unnecessary changes. The reviewer will check differences between your code and the original code. Whitespace changes are called out along with your code. Be sure your changes will help improve the content. 
+- Dependabot version updates are grouped into one weekly tooling PR across
+  `npm` and `github-actions`.
+- Security updates are intentionally separate from normal version updates.
+- Because this repository is a fork, Dependabot security updates and grouped
+  security updates must be enabled in GitHub settings for the fork.
+- Do not add new runtime dependencies without explicit approval.
 
-### Submit a pull request to the master branch 
+## Documentation and licensing
 
-When you're finished with your work and are ready to have it merged into the master repository, follow these steps. Note: pull requests are typically reviewed within 10 business days. If your pull request is accepted you will be credited for your submission. 
-
-1. Submit your pull request against the master branch.
-2. Sign the CLA, if you haven't already done so.
-3. One of the repo admins will process your pull request, including performing a code review. If there are questions, discussions, or change requests in the pull request, be sure to respond.
-4. When the repo admins are satisfied, they will accept and merge the pull request. 
-
-Congratulations, you have successfully contributed to the sample! 
-
-## FAQ 
-
-### Where do I get a Contributor's License Agreement? 
-
-You will automatically be sent a notice that you need to sign the Contributor's License Agreement (CLA) if your pull request requires one. 
-
-As a community member, you must sign the CLA before you can contribute large submissions to this project. You only need complete and submit the CLA document once. Carefully review the document. You may be required to have your employer sign the document. 
-
-### What happens with my contributions? 
-
-When you submit your changes, via a pull request, our team will be notified and will review your pull request. You will receive notifications about your pull request from GitHub; you may also be notified by someone from our team if we need more information. We reserve the right to edit your submission for legal, style, clarity, or other issues. 
-
-### Who approves pull requests? 
-
-The admin of the repository approves pull requests. 
-
-### How soon will I get a response about my change request or issue? 
-
-We typically review pull requests and respond to issues within 10 business days. 
-
-## More resources 
-
-- To learn more about Markdown, see [Daring Fireball](http://daringfireball.net/).
-- To learn more about using Git and GitHub, check out the [GitHub Help section](http://help.github.com/). 
+- Keep source code, UI copy, and Markdown docs in English.
+- Preserve visible credit to the upstream source in README.
+- Do not change the license text unless there is a verified legal reason to do
+  so.
