@@ -29,7 +29,9 @@ interface TaskpaneElements {
   preview: HTMLElement;
   refreshPreview: HTMLButtonElement;
   renderButton: HTMLButtonElement;
+  sideloadCopy: HTMLElement;
   sideloadMessage: HTMLElement;
+  sideloadTitle: HTMLElement;
   statusMessage: HTMLElement;
   themeEditor: HTMLTextAreaElement;
 }
@@ -63,7 +65,9 @@ function getElements(): TaskpaneElements {
     preview: getRequiredElement("mo-preview"),
     refreshPreview: getRequiredElement("refresh-preview"),
     renderButton: getRequiredElement("render-button"),
+    sideloadCopy: getRequiredElement("sideload-copy"),
     sideloadMessage: getRequiredElement("sideload-msg"),
+    sideloadTitle: getRequiredElement("sideload-title"),
     statusMessage: getRequiredElement("status-message"),
     themeEditor: getRequiredElement("theme-editor"),
   };
@@ -103,6 +107,25 @@ function updateAutoRenderButton(
   enabled: boolean
 ): void {
   elements.autoRenderButton.textContent = `Auto-render on send: ${enabled ? "On" : "Off"}`;
+}
+
+function showFallback(
+  elements: TaskpaneElements,
+  title: string,
+  message: string
+): void {
+  elements.sideloadTitle.textContent = title;
+  elements.sideloadCopy.textContent = message;
+  elements.sideloadMessage.hidden = false;
+  elements.appBody.hidden = true;
+}
+
+function getInitializationFailureMessage(): string {
+  if (window.location.hostname === "localhost") {
+    return "Use Outlook's Add from File flow with manifest-localhost.xml to load the local development build.";
+  }
+
+  return "Reload Outlook on the web and reopen MarkOut from Apps. If the problem persists, remove and reinstall the beta manifest.";
 }
 
 async function updatePreview(
@@ -202,11 +225,23 @@ async function initializeTaskpane(): Promise<void> {
 }
 
 void Office.onReady((info) => {
+  const elements = getElements();
+
   if (info.host !== Office.HostType.Outlook) {
+    showFallback(
+      elements,
+      "Open MarkOut from Outlook",
+      "This task pane is only available when MarkOut is launched inside Outlook compose."
+    );
     return;
   }
 
   void initializeTaskpane().catch((error: unknown) => {
     console.error("MarkOut failed to initialize the task pane.", error);
+    showFallback(
+      elements,
+      "MarkOut could not initialize",
+      getInitializationFailureMessage()
+    );
   });
 });

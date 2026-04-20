@@ -39,6 +39,20 @@ describe("settings store", () => {
     expect(settingsStore.getAutoRender()).toBe(true);
   });
 
+  it("falls back to in-memory settings when roaming settings are unavailable", async () => {
+    const settingsStore = createOfficeSettingsStore(undefined);
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(settingsStore.getAutoRender()).toBe(false);
+
+    settingsStore.setStylesheet(".mo { color: rgb(4, 5, 6); }");
+    settingsStore.setAutoRender(true);
+    await expect(settingsStore.save()).resolves.toBeUndefined();
+
+    expect(settingsStore.getStylesheet()).toBe(".mo { color: rgb(4, 5, 6); }");
+    expect(settingsStore.getAutoRender()).toBe(true);
+  });
+
   it("surfaces save failures from roaming settings", async () => {
     const roamingSettings = new FakeRoamingSettings();
     const settingsStore = createOfficeSettingsStore(roamingSettings);
