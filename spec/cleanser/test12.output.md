@@ -2,7 +2,7 @@
 This is a full test of what an ideal Markdown file should look like.
 
 It includes **emphasized text**, *italicized text*, and ~~strikethrough text~~.
-You'll also find [links](https://google.com), ![images](https://cdn.sierrasoftworks.com/logos/icon.ico), and `inline code`.
+You'll also find [links](https://google.com), ![images](https://example.com/icon.ico), and `inline code`.
 
 ```json
 {

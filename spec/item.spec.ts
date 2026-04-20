@@ -1,0 +1,160 @@
+import type { BodyAccessor } from "../src/lib/body-accessor";
+import { DefaultHtmlSanitizer } from "../src/lib/html-sanitizer";
+import { createItemRenderer } from "../src/lib/item";
+import type { MarkdownRenderer } from "../src/lib/renderer";
+import type {
+  RenderState,
+  RenderStateStore,
+} from "../src/lib/render-state-store";
+import { installDomParser } from "./helpers";
+
+class InMemoryBodyAccessor implements BodyAccessor {
+  public constructor(private html: string) {}
+
+  public getHtml(): Promise<string> {
+    return Promise.resolve(this.html);
+  }
+
+  public setHtml(html: string): Promise<void> {
+    this.html = html;
+    return Promise.resolve();
+  }
+}
+
+class InMemoryRenderStateStore implements RenderStateStore {
+  private renderState: RenderState | null = null;
+
+  public clearRenderState(): Promise<void> {
+    this.renderState = null;
+    return Promise.resolve();
+  }
+
+  public getRenderState(): Promise<RenderState | null> {
+    return Promise.resolve(this.renderState);
+  }
+
+  public setPendingRenderState(originalHtml: string): Promise<void> {
+    this.renderState = {
+      originalHtml,
+      phase: "pending",
+    };
+    return Promise.resolve();
+  }
+
+  public setRenderedRenderState(originalHtml: string): Promise<void> {
+    this.renderState = {
+      originalHtml,
+      phase: "rendered",
+    };
+    return Promise.resolve();
+  }
+}
+
+describe("item renderer", () => {
+  beforeEach(() => {
+    installDomParser();
+  });
+
+  it("renders the draft and restores the original html on the next toggle", async () => {
+    const originalHtml = "<div><strong>Hello</strong> team</div>";
+    const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
+    const renderStateStore = new InMemoryRenderStateStore();
+    const markdownRenderer: MarkdownRenderer = {
+      render(): Promise<string> {
+        return Promise.resolve(
+          `<div class="mo"><p>Rendered output</p><img src="https://example.com/safe.png" onerror="alert(1)"></div>`
+        );
+      },
+    };
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer,
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return ".mo { color: rgb(1, 2, 3); }";
+        },
+      },
+    });
+
+    expect(await itemRenderer.renderItem()).toBe("rendered");
+    expect(await renderStateStore.getRenderState()).toEqual({
+      originalHtml,
+      phase: "rendered",
+    });
+    expect(await bodyAccessor.getHtml()).toContain(
+      `<img src="https://example.com/safe.png">`
+    );
+    expect(await bodyAccessor.getHtml()).not.toContain("onerror");
+
+    expect(await itemRenderer.renderItem()).toBe("restored");
+    expect(await renderStateStore.getRenderState()).toBeNull();
+    expect(await bodyAccessor.getHtml()).toBe(originalHtml);
+  });
+
+  it("skips ensureRendered when the item is already rendered", async () => {
+    const bodyAccessor = new InMemoryBodyAccessor(
+      "<div>Already rendered</div>"
+    );
+    const renderStateStore = new InMemoryRenderStateStore();
+    await renderStateStore.setRenderedRenderState("<div>Original</div>");
+    let renderCalls = 0;
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render(): Promise<string> {
+          renderCalls += 1;
+          return Promise.resolve('<div class="mo">Should not run</div>');
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.ensureRendered()).toBe(false);
+    expect(renderCalls).toBe(0);
+  });
+
+  it("recovers pending state by restoring the original html before re-rendering", async () => {
+    const originalHtml = "<div>Original draft</div>";
+    const bodyAccessor = new InMemoryBodyAccessor("<div>Half rendered</div>");
+    const renderStateStore = new InMemoryRenderStateStore();
+    await renderStateStore.setPendingRenderState(originalHtml);
+    let renderInput = "";
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render({ markdown }): Promise<string> {
+          renderInput = markdown;
+          return Promise.resolve(
+            '<div class="mo"><p>Recovered output</p></div>'
+          );
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.ensureRendered()).toBe(true);
+    expect(renderInput).toContain("Original draft");
+    expect(await renderStateStore.getRenderState()).toEqual({
+      originalHtml,
+      phase: "rendered",
+    });
+    expect(await bodyAccessor.getHtml()).toContain("Recovered output");
+  });
+});

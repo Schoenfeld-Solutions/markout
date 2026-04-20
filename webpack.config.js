@@ -1,81 +1,87 @@
 const devCerts = require("office-addin-dev-certs");
-const path = require("path")
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const path = require("path");
 const webpack = require("webpack");
 
-module.exports = async (env, options) => {
-  const config = {
+module.exports = async (_env, options) => {
+  const isProduction = options.mode === "production";
+  const httpsOptions =
+    !isProduction && options.https === undefined
+      ? await devCerts.getHttpsServerOptions()
+      : options.https;
+
+  return {
     devtool: "source-map",
-    target: "web",
     entry: {
-      taskpane: "./src/taskpane/taskpane.ts",
       commands: "./src/commands/commands.ts",
-      debug: "./src/debug/debug.ts",
+      launchevent: "./src/launchevent/launchevent.ts",
+      taskpane: "./src/taskpane/taskpane.ts",
     },
-    resolve: {
-      extensions: [".ts", ".tsx", ".html", ".js"],
-      alias: { "superagent-proxy": path.resolve(__dirname, "src/shims/superagent-proxy") },
-      fallback: {
-        "assert": require.resolve("assert/"),
-        "buffer": require.resolve("buffer/"),
-        "https": require.resolve("https-browserify"),
-        "fs": false,
-        "os": require.resolve("os-browserify/browser"),
-        "stream": require.resolve("stream-browserify"),
-        "url": false,
-      }
-    },
+    mode: isProduction ? "production" : "development",
     module: {
       rules: [
         {
           test: /\.ts$/,
           exclude: /node_modules/,
-          use: "babel-loader"
+          use: {
+            loader: "ts-loader",
+          },
+        },
+        {
+          test: /\.css$/,
+          use: ["style-loader", "css-loader"],
         },
         {
           test: /\.html$/,
           exclude: /node_modules/,
-          use: "html-loader"
+          use: "html-loader",
         },
         {
-          test: /\.(png|jpg|jpeg|gif)$/,
-          use: "file-loader"
-        }
-      ]
+          test: /\.(png|jpg|jpeg|gif)$/i,
+          type: "asset/resource",
+          generator: {
+            filename: "assets/[name][ext]",
+          },
+        },
+      ],
+    },
+    optimization: {
+      runtimeChunk: false,
+    },
+    output: {
+      chunkFilename: "[name].chunk.js",
+      clean: true,
+      filename: "[name].js",
+      path: path.resolve(__dirname, "dist"),
     },
     plugins: [
       new webpack.DefinePlugin({
-        "process.env.NODE_DEBUG": false
-      }),
-      new CleanWebpackPlugin(),
-      new HtmlWebpackPlugin({
-        filename: "taskpane.html",
-        template: "./src/taskpane/taskpane.html",
-        chunks: ["polyfill", "taskpane"]
+        "process.env.NODE_DEBUG": JSON.stringify(""),
       }),
       new HtmlWebpackPlugin({
+        chunks: ["commands", "launchevent"],
         filename: "commands.html",
         template: "./src/commands/commands.html",
-        chunks: ["polyfill", "commands"]
       }),
       new HtmlWebpackPlugin({
-        filename: "debug.html",
-        template: "./src/debug/debug.html",
-        chunks: ["polyfill", "debug"]
-      })
+        chunks: ["taskpane"],
+        filename: "taskpane.html",
+        template: "./src/taskpane/taskpane.html",
+      }),
     ],
+    resolve: {
+      extensions: [".ts", ".html", ".js"],
+    },
+    target: "web",
     devServer: {
       headers: {
-        "Access-Control-Allow-Origin": "*"
+        "Access-Control-Allow-Origin": "*",
       },
       port: process.env.npm_package_config_dev_server_port || 3000,
       server: {
-        type: 'https',
-        options: (options.https !== undefined) ? options.https : await devCerts.getHttpsServerOptions().catch(err => {}),
-      }
-    }
+        type: "https",
+        options: httpsOptions,
+      },
+    },
   };
-
-  return config;
 };

@@ -1,105 +1,147 @@
-import { renderMarkdown } from "./renderer";
 import { cleanse } from "./cleanser";
+import { createOfficeBodyAccessor, type BodyAccessor } from "./body-accessor";
+import { createOfficeSettingsStore, type SettingsStore } from "./config";
+import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
+import { createMarkdownRenderer, type MarkdownRenderer } from "./renderer";
+import {
+  createOfficeRenderStateStore,
+  type RenderState,
+  type RenderStateStore,
+} from "./render-state-store";
 
-export async function renderItem() {
-  const [current, customProperties] = await Promise.all([
-    getContent(Office.CoercionType.Html),
-    getCustomProperties()
-  ]);
+export type RenderItemResult = "rendered" | "restored";
 
-  const originalContent = getRenderState(customProperties)
-  if (originalContent) {
-    await Promise.all([
-      updateRenderState(customProperties, null),
-      setContent(cleanse(current), Office.CoercionType.Html),
-    ])
-  } else {
-    const rendered = await renderMarkdown({
-      markdown: cleanse(current)
-    });
+export interface RenderDependencies {
+  bodyAccessor: BodyAccessor;
+  htmlSanitizer: HtmlSanitizer;
+  markdownRenderer: MarkdownRenderer;
+  renderStateStore: RenderStateStore;
+  settingsStore: Pick<SettingsStore, "getStylesheet">;
+}
 
-    await Promise.all([
-      updateRenderState(customProperties, current),
-      setContent(rendered, Office.CoercionType.Html),
-    ]);
+export interface ItemRenderer {
+  ensureRendered(): Promise<boolean>;
+  renderItem(): Promise<RenderItemResult>;
+}
+
+export function createItemRenderer(
+  dependencies: RenderDependencies
+): ItemRenderer {
+  return {
+    ensureRendered: async () => ensureRenderedInternal(dependencies),
+    renderItem: async () => renderItemInternal(dependencies),
+  };
+}
+
+export async function renderItem(): Promise<RenderItemResult> {
+  return createItemRenderer(createDefaultDependencies()).renderItem();
+}
+
+export async function ensureRendered(): Promise<boolean> {
+  return createItemRenderer(createDefaultDependencies()).ensureRendered();
+}
+
+async function applyRenderedContent(
+  dependencies: RenderDependencies,
+  originalHtml: string
+): Promise<void> {
+  const markdownSource = cleanse(originalHtml);
+  const renderedHtml = await dependencies.markdownRenderer.render({
+    css: dependencies.settingsStore.getStylesheet(),
+    markdown: markdownSource,
+  });
+  const sanitizedHtml = dependencies.htmlSanitizer.sanitize(renderedHtml);
+
+  await dependencies.renderStateStore.setPendingRenderState(originalHtml);
+
+  try {
+    await dependencies.bodyAccessor.setHtml(sanitizedHtml);
+  } catch (error) {
+    await clearRenderStateQuietly(dependencies.renderStateStore);
+    throw error;
+  }
+
+  await dependencies.renderStateStore.setRenderedRenderState(originalHtml);
+}
+
+async function clearRenderStateQuietly(
+  renderStateStore: RenderStateStore
+): Promise<void> {
+  try {
+    await renderStateStore.clearRenderState();
+  } catch {
+    // Preserve the original error when recovery cleanup also fails.
   }
 }
 
-export async function ensureRendered() {
-  const [current, customProperties] = await Promise.all([
-    getContent(Office.CoercionType.Html),
-    getCustomProperties()
-  ]);
+function createDefaultDependencies(): RenderDependencies {
+  return {
+    bodyAccessor: createOfficeBodyAccessor(),
+    htmlSanitizer: new DefaultHtmlSanitizer(),
+    markdownRenderer: createMarkdownRenderer(),
+    renderStateStore: createOfficeRenderStateStore(),
+    settingsStore: createOfficeSettingsStore(),
+  };
+}
 
-  const originalContent = getRenderState(customProperties)
-  if (originalContent) {
-    return;
-  } else {
-    const rendered = await renderMarkdown({
-      markdown: cleanse(current)
-    });
+async function ensureRenderedInternal(
+  dependencies: RenderDependencies
+): Promise<boolean> {
+  const renderState = await dependencies.renderStateStore.getRenderState();
 
-    await Promise.all([
-      updateRenderState(customProperties, current),
-      setContent(rendered, Office.CoercionType.Html),
-    ]);
+  if (renderState?.phase === "rendered") {
+    return false;
   }
+
+  if (renderState?.phase === "pending") {
+    const originalHtml = await recoverPendingRenderState(
+      dependencies,
+      renderState
+    );
+    await applyRenderedContent(dependencies, originalHtml);
+    return true;
+  }
+
+  const currentHtml = await dependencies.bodyAccessor.getHtml();
+  await applyRenderedContent(dependencies, currentHtml);
+  return true;
 }
 
-export async function updateRenderState(customProperties: Office.CustomProperties, original: string): Promise<void> {
-  if (original)
-    customProperties.set("mo-original", "false")
-  else
-    customProperties.remove("mo-original")
+async function recoverPendingRenderState(
+  dependencies: RenderDependencies,
+  renderState: RenderState
+): Promise<string> {
+  const currentHtml = await dependencies.bodyAccessor.getHtml();
 
-  return await new Promise((resolve, reject) => {
-    customProperties.saveAsync(result => {
-      if (result.status === Office.AsyncResultStatus.Failed) {
-        return reject(result.error)
-      }
+  if (currentHtml !== renderState.originalHtml) {
+    await dependencies.bodyAccessor.setHtml(renderState.originalHtml);
+  }
 
-      return resolve()
-    })
-  })
+  await clearRenderStateQuietly(dependencies.renderStateStore);
+  return renderState.originalHtml;
 }
 
-export function getRenderState(customProperties: Office.CustomProperties): string {
-  return customProperties.get("mo-original")
-}
+async function renderItemInternal(
+  dependencies: RenderDependencies
+): Promise<RenderItemResult> {
+  const renderState = await dependencies.renderStateStore.getRenderState();
 
-export function getCustomProperties(): Promise<Office.CustomProperties> {
-  return new Promise((resolve, reject) => {
-    Office.context.mailbox.item.loadCustomPropertiesAsync(result => {
-      if (result.status === Office.AsyncResultStatus.Failed)
-        return reject(result.error);
+  if (renderState?.phase === "rendered") {
+    await dependencies.bodyAccessor.setHtml(renderState.originalHtml);
+    await dependencies.renderStateStore.clearRenderState();
+    return "restored";
+  }
 
-      resolve(result.value);
-    });
-  });
-}
+  if (renderState?.phase === "pending") {
+    const originalHtml = await recoverPendingRenderState(
+      dependencies,
+      renderState
+    );
+    await applyRenderedContent(dependencies, originalHtml);
+    return "rendered";
+  }
 
-export async function getContent(type: Office.CoercionType = Office.CoercionType.Html): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    Office.context.mailbox.item.body.getAsync(
-      type,
-      result => {
-        if (result.status === Office.AsyncResultStatus.Failed)
-          return reject(result.error);
-
-        return resolve(result.value);
-      });
-  });
-}
-
-export function setContent(value: string, type: Office.CoercionType = Office.CoercionType.Html): Promise<void> {
-  return new Promise((resolve, reject) => {
-    Office.context.mailbox.item.body.setAsync(value, {
-      coercionType: type,
-    }, result => {
-      if (result.status === Office.AsyncResultStatus.Failed)
-        return reject(result.error);
-
-      return resolve();
-    });
-  });
+  const currentHtml = await dependencies.bodyAccessor.getHtml();
+  await applyRenderedContent(dependencies, currentHtml);
+  return "rendered";
 }

@@ -7,12 +7,13 @@
   <Version>1.0.1.0</Version>
   <ProviderName>Schoenfeld Solutions</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="MarkOut" />
+  <DisplayName DefaultValue="MarkOut (Local)" />
   <Description DefaultValue="Write Outlook drafts in Markdown and safely render them into email HTML." />
   <IconUrl DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-128.png" />
   <SupportUrl DefaultValue="https://github.com/Schoenfeld-Solutions/markout" />
   <AppDomains>
+    <AppDomain>https://localhost:3000</AppDomain>
     <AppDomain>https://schoenfeld-solutions.github.io</AppDomain>
   </AppDomains>
   <Hosts>
@@ -26,7 +27,7 @@
   <FormSettings>
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html" />
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
       </DesktopSettings>
     </Form>
   </FormSettings>
@@ -89,7 +90,6 @@
                 </Group>
               </OfficeTab>
             </ExtensionPoint>
-
             <ExtensionPoint xsi:type="AppointmentOrganizerCommandSurface">
               <OfficeTab id="TabDefault">
                 <Group id="mtngMarkoutGroup">
@@ -144,10 +144,10 @@
           <bt:Image id="Icon.80x80" DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-128.png" />
         </bt:Images>
         <bt:Urls>
-          <bt:Url id="Commands.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook/commands.html" />
-          <bt:Url id="Taskpane.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html" />
-          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook/commands.html" />
-          <bt:Url id="JSRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook/launchevent.js" />
+          <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html" />
+          <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
+          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://localhost:3000/commands.html" />
+          <bt:Url id="JSRuntime.Url" DefaultValue="https://localhost:3000/launchevent.js" />
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="GroupLabel" DefaultValue="MarkOut" />

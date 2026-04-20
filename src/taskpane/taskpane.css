@@ -1,77 +1,232 @@
-/* 
- * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
- * See LICENSE in the project root for license information.
- */
-
- html,
- body {
-     width: 100%;
-     height: 100%;
-     margin: 0;
-     padding: 0;
- }
- 
- ul {
-     margin: 0;
-     padding: 0;
- }
- 
- .mo-welcome__header {
-    padding: 20px;
-    padding-bottom: 30px;
-    padding-top: 10px;
-    display: -webkit-flex;
-    display: flex;
-    -webkit-flex-direction: column;
-    flex-direction: column;
-    align-items: center;
- }
-
- .mo-welcome__main {
-    display: -webkit-flex;
-    display: flex;
-    -webkit-flex-direction: column;
-    flex-direction: column;
-    -webkit-flex-wrap: nowrap;
-    flex-wrap: nowrap;
-    -webkit-align-items: center;
-    align-items: center;
-    -webkit-flex: 1 0 0;
-    flex: 1 0 0;
-    padding: 10px 20px;
- }
- 
- .mo-welcome__main > h2 {
-     width: 100%;
-     text-align: center;
- }
- 
- .mo-welcome__main .ms-Icon {
-     vertical-align: middle;
-     font-size: 1em;
- }
-
-textarea.mo-theme-editor {
-    font-size: 12px;
-    font-family: Consolas, Inconsolata, Courier, monospace;
-    width: 100%;
-    border: none;
-    border-radius: 2px;
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
+  line-height: 1.5;
+  --accent: #0f6cbd;
+  --accent-strong: #0b4f8a;
+  --canvas: #f5f7fb;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(15, 108, 189, 0.12);
+  --ink: #12263a;
+  --muted: #536579;
+  --success: #0f7b0f;
+  --error: #c4314b;
 }
 
-b {
-    font-weight: bold;
+html,
+body {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(15, 108, 189, 0.14),
+      transparent 34%
+    ),
+    linear-gradient(180deg, #f8fbff 0%, var(--canvas) 100%);
+  color: var(--ink);
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-.mo-save-state {
-    opacity: 0;
-    transition: 0.2s opacity ease-in-out;
+body {
+  min-height: 100%;
 }
 
-.mo-button {
-    text-decoration: none;
-    color: #0366d6;
-    font-weight: 100;
-    font-size: 18px;
-    padding: 10px;
+button,
+textarea {
+  font: inherit;
+}
+
+code {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.shell {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1.1rem;
+}
+
+.shell--center {
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-card,
+.notice-card,
+.panel {
+  backdrop-filter: blur(12px);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(18, 38, 58, 0.08);
+}
+
+.hero-card,
+.notice-card {
+  padding: 1.25rem 1.25rem 1rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-height: 0;
+  padding: 1rem;
+}
+
+.panel-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin: 0 0 0.45rem;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: 1.05rem;
+}
+
+.hero-copy,
+.panel-heading p,
+.notice-card p {
+  color: var(--muted);
+}
+
+.panel-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.preview-frame {
+  background: linear-gradient(
+    180deg,
+    rgba(243, 247, 252, 0.9) 0%,
+    #ffffff 100%
+  );
+  border: 1px solid rgba(18, 38, 58, 0.08);
+  border-radius: 16px;
+  flex: 1 1 auto;
+  min-height: 12rem;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.theme-editor {
+  background: #0f1724;
+  border: 1px solid rgba(15, 108, 189, 0.18);
+  border-radius: 16px;
+  color: #f4f7fb;
+  min-height: 18rem;
+  padding: 1rem;
+  resize: vertical;
+}
+
+.status-message {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  width: fit-content;
+}
+
+.status-message[data-tone="idle"],
+.status-message[data-tone="info"] {
+  background: rgba(15, 108, 189, 0.08);
+  color: var(--accent-strong);
+}
+
+.status-message[data-tone="success"] {
+  background: rgba(15, 123, 15, 0.12);
+  color: var(--success);
+}
+
+.status-message[data-tone="error"] {
+  background: rgba(196, 49, 75, 0.12);
+  color: var(--error);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent) 0%, #1e88d4 100%);
+  box-shadow: 0 12px 24px rgba(15, 108, 189, 0.2);
+  color: #ffffff;
+}
+
+.secondary-button {
+  background: rgba(15, 108, 189, 0.1);
+  color: var(--accent-strong);
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--accent);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover {
+  transform: translateY(-1px);
+}
+
+@media (min-width: 720px) {
+  .panel-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
 }
