@@ -1,68 +1,50 @@
-import { ensureRendered, renderItem } from "../lib/item";
-import { getAutoRender } from "../lib/config";
+import { renderItem } from "../lib/item";
 
-/*
- * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
- * See LICENSE in the project root for license information.
- */
+export const COMMAND_ERROR_MESSAGE =
+  "MarkOut could not render this draft. Open the task pane to inspect the content and try again.";
 
-
-Office.onReady(info => {
-  // If needed, Office.js is ready to be called
-});
-
-/**
- * Shows a notification when the add-in command is executed.
- * @param event 
- */
-async function render(event: Office.AddinCommands.Event) {
+export async function renderCurrentItem(
+  event: Office.AddinCommands.Event
+): Promise<void> {
   try {
     await renderItem();
-    event.completed({ allowEvent: true });
-  } catch (err) {
-    const message: Office.NotificationMessageDetails = {
-      type: Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage,
-      message: "Failed to render Markdown in your email",
-      icon: "Icon.80x80",
-      persistent: true
+  } catch (error) {
+    console.error("MarkOut failed to render the current draft.", error);
+    const currentItem = Office.context.mailbox.item;
+
+    if (currentItem === undefined) {
+      return;
     }
 
-    Office.context.mailbox.item.notificationMessages.replaceAsync("markout.render", message);
-    event.completed({ allowEvent: false });
-  }
-}
-
-async function onSend(event: Office.AddinCommands.Event) {
-  if (!getAutoRender()) {
-    event.completed({ allowEvent: true });
-    return;
-  }
-
-  try {
-    await ensureRendered();
-    event.completed({ allowEvent: true });
-  } catch (err) {
-    const message: Office.NotificationMessageDetails = {
-      type: Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage,
-      message: "Failed to render Markdown in your email",
+    const notification: Office.NotificationMessageDetails = {
       icon: "Icon.80x80",
-      persistent: true
-    }
+      message: COMMAND_ERROR_MESSAGE,
+      persistent: true,
+      type: Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage,
+    };
 
-    Office.context.mailbox.item.notificationMessages.replaceAsync("markout.render", message);
-    event.completed({ allowEvent: false });
+    try {
+      currentItem.notificationMessages.replaceAsync(
+        "markout.render",
+        notification
+      );
+    } catch (notificationError) {
+      console.error(
+        "MarkOut could not show the render failure notification.",
+        notificationError
+      );
+    }
+  } finally {
+    event.completed();
   }
 }
 
-function getGlobal() {
-  return (typeof self !== "undefined") ? self :
-    (typeof window !== "undefined") ? window :
-      (typeof global !== "undefined") ? global :
-        undefined;
+export function registerCommandHandlers(): void {
+  Office.actions.associate("renderCurrentItem", renderCurrentItem);
 }
 
-const g = getGlobal() as any;
-
-// the add-in command functions need to be available in global scope
-g.render = render;
-g.onSend = onSend;
+if (typeof Office !== "undefined") {
+  void Office.onReady(() => {
+    registerCommandHandlers();
+  });
+}

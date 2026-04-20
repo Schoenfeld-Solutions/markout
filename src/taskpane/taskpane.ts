@@ -1,95 +1,212 @@
-import { renderMarkdown } from "../lib/renderer";
-import { getStylesheet, saveStylesheet, setStylesheet, getAutoRender, setAutoRender } from "../lib/config";
+// @ts-expect-error Webpack resolves taskpane CSS side-effect imports at build time.
+import "./taskpane.css";
+import { createOfficeSettingsStore } from "../lib/config";
 import { Debounce } from "../lib/debounce";
-import { renderItem } from "../lib/item";
+import type { RenderItemResult } from "../lib/item";
+import type { RenderOptions } from "../lib/renderer";
 
-/*
- * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
- * See LICENSE in the project root for license information.
- */
+const PREVIEW_MARKDOWN = `
+# MarkOut Preview
 
-Office.onReady(info => {
-  if (info.host === Office.HostType.Outlook) {
-    document.getElementById("sideload-msg").style.display = "none";
-    document.getElementById("app-body").style.display = "flex";
+Compose your draft in Markdown, then render it into Outlook-ready email HTML.
 
-    (document.getElementById("mo-theme") as HTMLTextAreaElement).value = getStylesheet();
+## What this pane controls
 
-    document.getElementById("mo-theme").onchange = updateStylesheet;
-    document.getElementById("mo-theme").onkeyup = updateStylesheet;
-    updateRender()
+- Preview the active email theme
+- Edit the inline stylesheet
+- Enable or disable auto-render on send
 
-    const renderButton = document.getElementById("mo-render");
-    const renderButtonText = document.getElementById("mo-render__text");
-    const updateRenderButton = () => {
-      renderButtonText.removeAttribute("disabled")
-    }
-
-    const autoRenderButton = document.getElementById("mo-autorender");
-    const autoRenderButtonText = document.getElementById("mo-autorender__text");
-    const autoRenderButtonIcon = document.getElementById("mo-autorender__icon");
-    const updateAutoRenderButton = (enabled: boolean) => {
-      if (enabled) {
-        autoRenderButtonText.innerText = "Auto Render On"
-        autoRenderButtonIcon.setAttribute("class", "ms-Icon ms-Icon--InboxCheck")
-      } else {
-        autoRenderButtonText.innerText = "Auto Render Off"
-        autoRenderButtonIcon.setAttribute("class", "ms-Icon ms-Icon--Inbox")
-      }
-    }
-
-
-    renderButton.onclick = () => {
-      renderButton.setAttribute("disabled", "disabled");
-      renderItem().then(updateRenderButton);
-
-      return false;
-    };
-
-    autoRenderButton.onclick = () => {
-      setAutoRender(!getAutoRender()).then(updateAutoRenderButton)
-
-      return false;
-    };
-
-    updateRenderButton();
-    updateAutoRenderButton(getAutoRender());
-  }
-});
-
-const example = `
-## Example
-Write your emails in *Markdown* with no fuss. Make your
-content **pop** or show some \`code\`.
-
-\`\`\`js
-console.log("Hello world!");
+\`\`\`ts
+console.log("MarkOut keeps the authoring flow Markdown-first.");
 \`\`\`
-
-:warning: You can use \`Ctrl+Z\` to undo rendering when using Outlook for Web, otherwise use the Toggle Markdown button.
-
 `.trim();
 
-const debounce = new Debounce(() => {
-  saveStylesheet().then(() => {
-    document.getElementById("mo-changes-saved").style.opacity = "1";
-  }, err => {
-    document.getElementById("mo-changes-lost").style.opacity = "1";
-  });
-}, 2000)
+type StatusTone = "error" | "idle" | "info" | "success";
 
-export async function updateStylesheet() {
-  const newStyle = (document.getElementById("mo-theme") as HTMLTextAreaElement).value
-  setStylesheet(newStyle);
-  await updateRender();
-
-  document.getElementById("mo-changes-saved").style.opacity = "0";
-  document.getElementById("mo-changes-lost").style.opacity = "0";
-  debounce.trigger();
+interface TaskpaneElements {
+  appBody: HTMLElement;
+  autoRenderButton: HTMLButtonElement;
+  preview: HTMLElement;
+  refreshPreview: HTMLButtonElement;
+  renderButton: HTMLButtonElement;
+  sideloadMessage: HTMLElement;
+  statusMessage: HTMLElement;
+  themeEditor: HTMLTextAreaElement;
 }
 
-export async function updateRender() {
-  document.getElementById("mo-preview").innerHTML = await renderMarkdown({
-    markdown: example
+interface PreviewDependencies {
+  renderMarkdown: (options: RenderOptions) => Promise<string>;
+  sanitize: (html: string) => string;
+}
+
+interface RenderItemModule {
+  renderItem: () => Promise<RenderItemResult>;
+}
+
+let itemModulePromise: Promise<RenderItemModule> | null = null;
+let previewDependenciesPromise: Promise<PreviewDependencies> | null = null;
+
+function getRequiredElement<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+
+  if (!(element instanceof HTMLElement)) {
+    throw new Error(`Required element "${id}" was not found.`);
+  }
+
+  return element as T;
+}
+
+function getElements(): TaskpaneElements {
+  return {
+    appBody: getRequiredElement("app-body"),
+    autoRenderButton: getRequiredElement("autorender-button"),
+    preview: getRequiredElement("mo-preview"),
+    refreshPreview: getRequiredElement("refresh-preview"),
+    renderButton: getRequiredElement("render-button"),
+    sideloadMessage: getRequiredElement("sideload-msg"),
+    statusMessage: getRequiredElement("status-message"),
+    themeEditor: getRequiredElement("theme-editor"),
+  };
+}
+
+async function loadItemModule(): Promise<RenderItemModule> {
+  itemModulePromise ??= import("../lib/item");
+  return itemModulePromise;
+}
+
+async function loadPreviewDependencies(): Promise<PreviewDependencies> {
+  previewDependenciesPromise ??= Promise.all([
+    import("../lib/html-sanitizer"),
+    import("../lib/renderer"),
+  ]).then(([htmlSanitizerModule, rendererModule]) => {
+    const htmlSanitizer = new htmlSanitizerModule.DefaultHtmlSanitizer();
+    return {
+      renderMarkdown: rendererModule.renderMarkdown,
+      sanitize: (html: string) => htmlSanitizer.sanitize(html),
+    };
+  });
+
+  return previewDependenciesPromise;
+}
+
+function setStatus(
+  elements: TaskpaneElements,
+  tone: StatusTone,
+  message: string
+): void {
+  elements.statusMessage.dataset.tone = tone;
+  elements.statusMessage.textContent = message;
+}
+
+function updateAutoRenderButton(
+  elements: TaskpaneElements,
+  enabled: boolean
+): void {
+  elements.autoRenderButton.textContent = `Auto-render on send: ${enabled ? "On" : "Off"}`;
+}
+
+async function updatePreview(
+  elements: TaskpaneElements,
+  stylesheet: string
+): Promise<void> {
+  const previewDependencies = await loadPreviewDependencies();
+  const previewHtml = await previewDependencies.renderMarkdown({
+    css: stylesheet,
+    markdown: PREVIEW_MARKDOWN,
+  });
+
+  elements.preview.innerHTML = previewDependencies.sanitize(previewHtml);
+}
+
+async function initializeTaskpane(): Promise<void> {
+  const elements = getElements();
+  const settingsStore = createOfficeSettingsStore();
+
+  elements.sideloadMessage.hidden = true;
+  elements.appBody.hidden = false;
+  elements.themeEditor.value = settingsStore.getStylesheet();
+  updateAutoRenderButton(elements, settingsStore.getAutoRender());
+  await updatePreview(elements, settingsStore.getStylesheet());
+
+  const saveTheme = new Debounce(async () => {
+    try {
+      await settingsStore.save();
+      setStatus(elements, "success", "Theme saved.");
+    } catch (error) {
+      console.error("MarkOut failed to save theme changes.", error);
+      setStatus(elements, "error", "Theme changes could not be saved.");
+    }
+  }, 900);
+
+  elements.themeEditor.addEventListener("input", async () => {
+    settingsStore.setStylesheet(elements.themeEditor.value);
+    setStatus(elements, "info", "Saving theme changes...");
+    await updatePreview(elements, settingsStore.getStylesheet());
+    saveTheme.trigger();
+  });
+
+  elements.refreshPreview.addEventListener("click", async () => {
+    setStatus(elements, "info", "Refreshing preview...");
+    await updatePreview(elements, settingsStore.getStylesheet());
+    setStatus(elements, "success", "Preview refreshed.");
+  });
+
+  elements.renderButton.addEventListener("click", async () => {
+    elements.renderButton.disabled = true;
+    setStatus(
+      elements,
+      "info",
+      "Applying Markdown rendering to the current draft..."
+    );
+
+    try {
+      const itemModule = await loadItemModule();
+      const result = await itemModule.renderItem();
+      setStatus(
+        elements,
+        "success",
+        result === "rendered"
+          ? "Draft rendered successfully."
+          : "Original draft HTML restored successfully."
+      );
+    } catch (error) {
+      console.error("MarkOut failed to render the current draft.", error);
+      setStatus(
+        elements,
+        "error",
+        "MarkOut could not update the current draft."
+      );
+    } finally {
+      elements.renderButton.disabled = false;
+    }
+  });
+
+  elements.autoRenderButton.addEventListener("click", async () => {
+    const nextValue = !settingsStore.getAutoRender();
+    settingsStore.setAutoRender(nextValue);
+
+    try {
+      await settingsStore.save();
+      updateAutoRenderButton(elements, nextValue);
+      setStatus(
+        elements,
+        "success",
+        `Auto-render on send ${nextValue ? "enabled" : "disabled"}.`
+      );
+    } catch (error) {
+      console.error("MarkOut failed to update the auto-render setting.", error);
+      settingsStore.setAutoRender(!nextValue);
+      setStatus(elements, "error", "Auto-render setting could not be updated.");
+    }
   });
 }
+
+void Office.onReady((info) => {
+  if (info.host !== Office.HostType.Outlook) {
+    return;
+  }
+
+  void initializeTaskpane().catch((error: unknown) => {
+    console.error("MarkOut failed to initialize the task pane.", error);
+  });
+});

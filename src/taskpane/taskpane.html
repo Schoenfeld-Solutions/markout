@@ -1,58 +1,90 @@
-<!DOCTYPE html>
-<html>
-
-<head>
+<!doctype html>
+<html lang="en">
+  <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MarkOut</title>
-
-    <!-- Office JavaScript API -->
-    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
-
-    <!-- For more information on Office UI Fabric, visit https://developer.microsoft.com/en-us/fluentui. -->
-    <link rel="stylesheet"
-        href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css" />
-
-    <!-- Template styles -->
-    <link href="taskpane.css" rel="stylesheet" type="text/css" />
-</head>
-
-<body class="ms-font-m mo-welcome ms-Fabric">
-    <header id="mo-preview" class="mo-welcome__header">
-
-    </header>
-    <section id="sideload-msg" class="mo-welcome__main">
-        <h2 class="ms-font-xl">Please sideload your add-in to be able to use it.</h2>
+    <script
+      type="text/javascript"
+      src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"
+    ></script>
+  </head>
+  <body>
+    <section id="sideload-msg" class="shell shell--center">
+      <div class="notice-card">
+        <p class="eyebrow">MarkOut</p>
+        <h1>Sideload the add-in to continue</h1>
+        <p>
+          Use Outlook's <strong>Add from File</strong> flow with
+          <code>manifest-localhost.xml</code> to load the local development
+          build.
+        </p>
+      </div>
     </section>
-    <main id="app-body" class="mo-welcome__main ms-bgColor-neutralLighter" style="display: none;">
-        <h3>
-            <i class="ms-Icon ms-Icon--CSS ms-font-xl"></i>
-            <span class="ms-font-m">Customize your theme</span>
-        </h3>
 
-        <textarea name="theme" id="mo-theme" rows="20" class="mo-theme-editor"></textarea>
-
-        <p id="mo-changes-saved" class="mo-save-state">
-            <i class="ms-Icon ms-Icon--ReceiptCheck ms-font-xl" style="color: #0b6a0b;"></i>
-            <span class="ms-font-m">Changes saved</span>
+    <main id="app-body" class="shell" hidden>
+      <header class="hero-card">
+        <p class="eyebrow">MarkOut</p>
+        <h1>Markdown-first Outlook compose</h1>
+        <p class="hero-copy">
+          Render the current draft, preview the inline theme, and optionally
+          auto-render on send through Smart Alerts.
         </p>
+      </header>
 
-        <p id="mo-changes-lost" class="mo-save-state">
-            <i class="ms-Icon ms-Icon--ReceiptUndelivered ms-font-xl" style="color: #a4262c;"></i>
-            <span class="ms-font-m">Changes not saved</span>
-        </p>
+      <section class="panel-grid">
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Preview</h2>
+              <p>
+                Rendered with the same inline CSS pipeline used for the draft
+                body.
+              </p>
+            </div>
+            <button id="refresh-preview" class="ghost-button" type="button">
+              Refresh
+            </button>
+          </div>
+          <div id="mo-preview" class="preview-frame" aria-live="polite"></div>
+        </section>
 
-        <a id="mo-render" class="mo-button" href="">
-            <i class="ms-Icon ms-Icon--FabricTextHighlight"></i>
-            <span id="mo-render__text">Render Markdown</span>
-        </a>
-
-        <a id="mo-autorender" class="mo-button" href="">
-            <i id="mo-autorender__icon" class="ms-Icon ms-Icon--Inbox"></i>
-            <span id="mo-autorender__text">Render on Save</span>
-        </a>
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Theme</h2>
+              <p>
+                Customize the stylesheet that gets inlined into rendered
+                Markdown output.
+              </p>
+            </div>
+          </div>
+          <label class="field-label" for="theme-editor"
+            >Inline stylesheet</label
+          >
+          <textarea
+            id="theme-editor"
+            class="theme-editor"
+            spellcheck="false"
+          ></textarea>
+          <p id="status-message" class="status-message" data-tone="idle">
+            Ready.
+          </p>
+          <div class="button-row">
+            <button id="render-button" class="primary-button" type="button">
+              Render current draft
+            </button>
+            <button
+              id="autorender-button"
+              class="secondary-button"
+              type="button"
+            >
+              Auto-render on send: Off
+            </button>
+          </div>
+        </section>
+      </section>
     </main>
-</body>
-
+  </body>
 </html>

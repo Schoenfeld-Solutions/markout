@@ -1,17 +1,19 @@
 export class Debounce {
-    constructor(public action: () => void, public delay: number = 500) {
+  private triggerHandle: ReturnType<typeof setTimeout> | null = null;
 
+  public constructor(
+    private readonly action: () => void | Promise<void>,
+    private readonly delay = 500
+  ) {}
+
+  public trigger(): void {
+    if (this.triggerHandle !== null) {
+      clearTimeout(this.triggerHandle);
     }
 
-    private triggerHandle: any = null;
-
-    public trigger() {
-        if (this.triggerHandle)
-            clearTimeout(this.triggerHandle);
-
-        this.triggerHandle = setTimeout(() => {
-            this.action();
-            this.triggerHandle = null;
-        }, this.delay);
-    }
+    this.triggerHandle = setTimeout(() => {
+      void this.action();
+      this.triggerHandle = null;
+    }, this.delay);
+  }
 }

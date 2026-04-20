@@ -1,24 +1,48 @@
-import { renderMarkdown } from "../src/lib/renderer"
-import { expect } from "chai";
-import { JSDOM } from "jsdom"
-
-const jsdom = new JSDOM()
-global["DOMParser"] = jsdom.window.DOMParser;
+import { renderMarkdown } from "../src/lib/renderer";
+import { installDomParser } from "./helpers";
 
 describe("renderer", () => {
-    it("should generate HTML for basic markdown", async () => {
-        const input = `# Example\nThis is a test`
-        const expected = `<div class="mo">\n<h1>Example</h1>\n<p>This is a test</p>\n</div>\n`
-        const output = await renderMarkdown({ markdown: input, css: "html {}" })
+  beforeEach(() => {
+    installDomParser();
+  });
 
-        expect(output).to.be.equal(expected)
-    })
+  it("generates HTML for basic markdown", async () => {
+    const input = "# Example\nThis is a test";
+    const expected = `<div class="mo">\n<h1>Example</h1>\n<p>This is a test</p>\n</div>\n`;
+    const output = await renderMarkdown({ css: "html {}", markdown: input });
 
-    it("should render elements when there is HTML present", async () => {
-        const input = `# Example\nThis is a test with HTML elements\n<img src="http://example.com/img.png">`
-        const expected = `<div class="mo">\n<h1>Example</h1>\n<p>This is a test with HTML elements\n<img src="http://example.com/img.png"></p>\n</div>\n`
-        const output = await renderMarkdown({ markdown: input, css: "html {}" })
+    expect(output).toBe(expected);
+  });
 
-        expect(output).to.be.equal(expected)
-    })
-})
+  it("renders supported HTML that is present inside markdown", async () => {
+    const input = `# Example\nThis is a test with HTML elements\n<img src="http://example.com/img.png">`;
+    const expected =
+      `<div class="mo">\n<h1>Example</h1>\n<p>This is a test with HTML elements\n` +
+      `<img src="http://example.com/img.png"></p>\n</div>\n`;
+    const output = await renderMarkdown({ css: "html {}", markdown: input });
+
+    expect(output).toBe(expected);
+  });
+
+  it("inlines stylesheet rules that target supported selectors", async () => {
+    const output = await renderMarkdown({
+      css: ".mo { color: rgb(1, 2, 3); } p { margin-top: 12px; }",
+      markdown: "Paragraph text",
+    });
+
+    expect(output).toContain(`<div class="mo" style="color: rgb(1, 2, 3);">`);
+    expect(output).toContain(`<p style="margin-top: 12px;">Paragraph text</p>`);
+  });
+
+  it("ignores pseudo selectors and invalid stylesheet fragments", async () => {
+    const output = await renderMarkdown({
+      css: ".mo::before { content: 'x'; } p { color: rgb(1, 2, 3); } .mo {",
+      markdown: "Paragraph text",
+    });
+
+    expect(output).toContain(
+      `<p style="color: rgb(1, 2, 3);">Paragraph text</p>`
+    );
+    expect(output).not.toContain("content:");
+  });
+});

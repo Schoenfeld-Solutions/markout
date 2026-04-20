@@ -1,4 +1,3 @@
-
 export const defaultStylesheet = `
 .mo {
   font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
@@ -206,47 +205,98 @@ a {
 `;
 
 const SETTING_STYLESHEET = "markout.stylesheet";
-const SETTING_AUTORENDER = "markout.autorender"
+const SETTING_AUTORENDER = "markout.autorender";
+
+interface RoamingSettingsLike {
+  get(name: string): unknown;
+  saveAsync(callback: (result: Office.AsyncResult<void>) => void): void;
+  set(name: string, value: unknown): void;
+}
+
+export interface SettingsStore {
+  getAutoRender(): boolean;
+  getStylesheet(): string;
+  save(): Promise<void>;
+  setAutoRender(enabled: boolean): void;
+  setStylesheet(stylesheet: string): void;
+}
+
+class OfficeSettingsStore implements SettingsStore {
+  public constructor(private readonly roamingSettings: RoamingSettingsLike) {}
+
+  public getAutoRender(): boolean {
+    return this.roamingSettings.get(SETTING_AUTORENDER) === true;
+  }
+
+  public getStylesheet(): string {
+    const storedStylesheet = this.roamingSettings.get(SETTING_STYLESHEET);
+
+    if (
+      typeof storedStylesheet === "string" &&
+      storedStylesheet.trim().length > 0
+    ) {
+      return storedStylesheet;
+    }
+
+    return defaultStylesheet;
+  }
+
+  public async save(): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.roamingSettings.saveAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          const error = new Error(result.error.message);
+          error.name = result.error.name;
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  public setAutoRender(enabled: boolean): void {
+    this.roamingSettings.set(SETTING_AUTORENDER, enabled);
+  }
+
+  public setStylesheet(stylesheet: string): void {
+    this.roamingSettings.set(SETTING_STYLESHEET, stylesheet);
+  }
+}
+
+export function createOfficeSettingsStore(
+  roamingSettings: RoamingSettingsLike = Office.context.roamingSettings
+): SettingsStore {
+  return new OfficeSettingsStore(roamingSettings);
+}
 
 export function getStylesheet(): string {
-  return Office.context.roamingSettings.get(SETTING_STYLESHEET) || defaultStylesheet;
+  return createOfficeSettingsStore().getStylesheet();
 }
 
-export function setStylesheet(style: string) {
-  Office.context.roamingSettings.set(SETTING_STYLESHEET, style);
+export function setStylesheet(stylesheet: string): void {
+  createOfficeSettingsStore().setStylesheet(stylesheet);
 }
 
-export function saveStylesheet(style?: string): Promise<string> {
-  style && setStylesheet(style);
-  return new Promise((resolve, reject) => {
-    Office.context.roamingSettings.saveAsync(state => {
-      if (state.status === Office.AsyncResultStatus.Failed) {
-        const err = new Error(state.error.message);
-        err.name = state.error.name;
-        return reject(err);
-      }
+export async function saveStylesheet(stylesheet?: string): Promise<string> {
+  const settingsStore = createOfficeSettingsStore();
 
-      return resolve(getStylesheet());
-    });
-  });
+  if (stylesheet !== undefined) {
+    settingsStore.setStylesheet(stylesheet);
+  }
+
+  await settingsStore.save();
+  return settingsStore.getStylesheet();
 }
 
 export function getAutoRender(): boolean {
-  return Office.context.roamingSettings.get(SETTING_AUTORENDER) || false
+  return createOfficeSettingsStore().getAutoRender();
 }
 
-export function setAutoRender(enabled: boolean): Promise<boolean> {
-  Office.context.roamingSettings.set(SETTING_AUTORENDER, enabled)
-
-  return new Promise((resolve, reject) => {
-    Office.context.roamingSettings.saveAsync(state => {
-      if (state.status === Office.AsyncResultStatus.Failed) {
-        const err = new Error(state.error.message);
-        err.name = state.error.name;
-        return reject(err);
-      }
-
-      return resolve(enabled);
-    });
-  });
+export async function setAutoRender(enabled: boolean): Promise<boolean> {
+  const settingsStore = createOfficeSettingsStore();
+  settingsStore.setAutoRender(enabled);
+  await settingsStore.save();
+  return enabled;
 }
