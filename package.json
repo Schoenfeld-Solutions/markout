@@ -1,98 +1,86 @@
 {
-  "name": "office-addin-markout",
-  "version": "1.0.0",
+  "name": "markout",
+  "version": "1.0.1",
+  "description": "Outlook compose add-in for rendering Markdown into safe email HTML.",
+  "author": "Schoenfeld Solutions (https://schoenfeld.solutions)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sierrasoftworks/markout.git"
+    "url": "https://github.com/Schoenfeld-Solutions/markout.git"
   },
+  "bugs": {
+    "url": "https://github.com/Schoenfeld-Solutions/markout/issues"
+  },
+  "homepage": "https://schoenfeld-solutions.github.io/markout/",
   "license": "MIT",
+  "engines": {
+    "node": ">=25 <27"
+  },
   "config": {
     "app-to-debug": "outlook",
     "app-type-to-debug": "web",
     "dev-server-port": 3000
   },
-  "babel": {
-    "presets": [
-      [
-        "@babel/preset-env",
-        {
-          "targets": "> 0.25%, not dead",
-          "useBuiltIns": "usage",
-          "corejs": {
-            "version": "3.9"
-          }
-        }
-      ],
-      "@babel/preset-typescript"
-    ],
-    "plugins": [
-      "babel-plugin-transform-class-properties",
-      "babel-plugin-syntax-dynamic-import"
-    ]
-  },
   "scripts": {
     "build": "webpack --mode production",
-    "build:dev": "webpack --mode development --https false",
+    "build:dev": "webpack --mode development",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run validate:manifest",
+    "dev": "npm run dev-server",
     "dev-server": "webpack serve --mode development",
-    "start": "office-addin-debugging start manifest.test.xml",
-    "start:desktop": "office-addin-debugging start manifest.test.xml desktop",
-    "start:web": "office-addin-debugging start manifest.test.xml web",
-    "start:web:test": "office-addin-debugging start manifest.test.xml web",
-    "stop": "office-addin-debugging stop manifest.test.xml",
-    "validate": "office-toolbox validate -m manifest.xml",
-    "watch": "webpack --mode development --watch",
-    "test": "jest",
-    "test:watch": "jest --watchAll"
+    "format": "prettier --cache --write \"AGENTS.md\" \"CONTRIBUTING.md\" \"README.md\" \".github/**/*.{yml,yaml}\" \"eslint.config.cjs\" \"jest.config.cjs\" \"package.json\" \"spec/**/*.ts\" \"src/**/*.{ts,html,css}\" \"tsconfig.json\" \"webpack.config.js\"",
+    "format:check": "prettier --cache --check \"AGENTS.md\" \"CONTRIBUTING.md\" \"README.md\" \".github/**/*.{yml,yaml}\" \"eslint.config.cjs\" \"jest.config.cjs\" \"package.json\" \"spec/**/*.ts\" \"src/**/*.{ts,html,css}\" \"tsconfig.json\" \"webpack.config.js\"",
+    "lint": "eslint .",
+    "start": "npm run dev",
+    "start:desktop": "office-addin-debugging start manifest-localhost.xml desktop",
+    "start:web": "npm run dev",
+    "stop": "office-addin-debugging stop manifest-localhost.xml",
+    "test": "jest --runInBand",
+    "test:host-smoke": "tsx spec/outlook-host-smoke.ts",
+    "test:watch": "jest --watch",
+    "typecheck": "tsc --noEmit",
+    "validate:manifest": "office-toolbox validate -m manifest.xml && office-toolbox validate -m manifest.beta.xml",
+    "validate:manifest:localhost": "office-toolbox validate -m manifest-localhost.xml",
+    "watch": "webpack --mode development --watch"
   },
   "dependencies": {
-    "@types/highlight.js": "^10.1.0",
-    "@types/inline-css": "3.0.3",
-    "@types/markdown-it": "^14.1.2",
-    "assert": "^2.1.0",
-    "buffer": "^6.0.3",
-    "highlight.js": "^11.10.0",
-    "https-browserify": "^1.0.0",
-    "inline-css": "^4.0.2",
+    "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.1",
     "markdown-it-emoji": "^2.0.2",
-    "markdown-it-footnote": "^4.0.0",
-    "os-browserify": "^0.3.0",
-    "stream-browserify": "^3.0.0"
+    "markdown-it-footnote": "^4.0.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.9",
-    "@babel/polyfill": "^7.12.1",
-    "@babel/preset-env": "^7.25.9",
-    "@babel/preset-typescript": "^7.25.7",
-    "@types/chai": "^4.3.16",
-    "@types/expect": "^24.3.2",
-    "@types/highlight.js": "^10.1.0",
-    "@types/jest": "^27.5.0",
-    "@types/jsdom": "^21.1.1",
-    "@types/office-js": "^1.0.437",
-    "@types/office-runtime": "^1.0.35",
-    "babel-loader": "^9.2.1",
-    "babel-plugin-syntax-dynamic-import": "^6.18.0",
-    "babel-plugin-transform-class-properties": "^6.24.1",
-    "chai": "^4.5.0",
-    "clean-webpack-plugin": "^4.0.0",
-    "core-js": "^3.38.1",
-    "css-loader": "^7.1.2",
-    "file-loader": "^6.2.0",
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/jsdom": "^21.1.7",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^25.6.0",
+    "@types/office-js": "^1.0.589",
+    "@types/office-runtime": "^1.0.36",
+    "@typescript-eslint/eslint-plugin": "^8.59.0",
+    "@typescript-eslint/parser": "^8.59.0",
+    "css-loader": "^7.1.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint": "^10.2.1",
     "html-loader": "^5.1.0",
-    "html-webpack-plugin": "^5.6.3",
-    "jest": "^27.5.1",
+    "html-webpack-plugin": "^5.6.7",
+    "jest": "^30.3.0",
     "jsdom": "^21.1.2",
-    "office-addin-debugging": "^5.1.6",
-    "office-addin-dev-certs": "^1.13.3",
+    "office-addin-debugging": "^6.0.7",
+    "office-addin-dev-certs": "^2.0.7",
     "office-toolbox": "^0.3.0",
+    "playwright-core": "^1.56.0",
+    "prettier": "^3.6.2",
     "source-map-loader": "^5.0.0",
     "style-loader": "^4.0.0",
-    "terser-webpack-plugin": "^5.4.0",
-    "ts-jest": "^27.1.4",
-    "typescript": "^4.9.5",
-    "webpack": "^5.105.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.2.1"
+    "ts-jest": "^29.4.9",
+    "ts-loader": "^9.5.1",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.3",
+    "webpack": "^5.106.2",
+    "webpack-cli": "^7.0.2",
+    "webpack-dev-server": "^5.2.3"
+  },
+  "prettier": {
+    "singleQuote": false,
+    "trailingComma": "es5"
   }
 }
