@@ -53,6 +53,7 @@ module.exports = async (_env, options) => {
       clean: true,
       filename: "[name].js",
       path: path.resolve(__dirname, "dist"),
+      publicPath: "",
     },
     plugins: [
       new webpack.DefinePlugin({
