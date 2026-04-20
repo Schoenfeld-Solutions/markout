@@ -2,8 +2,9 @@
 import "./taskpane.css";
 import { createOfficeSettingsStore } from "../lib/config";
 import { Debounce } from "../lib/debounce";
-import type { RenderItemResult } from "../lib/item";
-import type { RenderOptions } from "../lib/renderer";
+import { DefaultHtmlSanitizer } from "../lib/html-sanitizer";
+import { renderItem } from "../lib/item";
+import { renderMarkdown } from "../lib/renderer";
 
 const PREVIEW_MARKDOWN = `
 # MarkOut Preview
@@ -30,23 +31,15 @@ interface TaskpaneElements {
   refreshPreview: HTMLButtonElement;
   renderButton: HTMLButtonElement;
   sideloadCopy: HTMLElement;
+  sideloadDetails: HTMLElement;
   sideloadMessage: HTMLElement;
+  sideloadStage: HTMLElement;
   sideloadTitle: HTMLElement;
   statusMessage: HTMLElement;
   themeEditor: HTMLTextAreaElement;
 }
 
-interface PreviewDependencies {
-  renderMarkdown: (options: RenderOptions) => Promise<string>;
-  sanitize: (html: string) => string;
-}
-
-interface RenderItemModule {
-  renderItem: () => Promise<RenderItemResult>;
-}
-
-let itemModulePromise: Promise<RenderItemModule> | null = null;
-let previewDependenciesPromise: Promise<PreviewDependencies> | null = null;
+const htmlSanitizer = new DefaultHtmlSanitizer();
 
 function getRequiredElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -66,31 +59,13 @@ function getElements(): TaskpaneElements {
     refreshPreview: getRequiredElement("refresh-preview"),
     renderButton: getRequiredElement("render-button"),
     sideloadCopy: getRequiredElement("sideload-copy"),
+    sideloadDetails: getRequiredElement("sideload-details"),
     sideloadMessage: getRequiredElement("sideload-msg"),
+    sideloadStage: getRequiredElement("sideload-stage"),
     sideloadTitle: getRequiredElement("sideload-title"),
     statusMessage: getRequiredElement("status-message"),
     themeEditor: getRequiredElement("theme-editor"),
   };
-}
-
-async function loadItemModule(): Promise<RenderItemModule> {
-  itemModulePromise ??= import("../lib/item");
-  return itemModulePromise;
-}
-
-async function loadPreviewDependencies(): Promise<PreviewDependencies> {
-  previewDependenciesPromise ??= Promise.all([
-    import("../lib/html-sanitizer"),
-    import("../lib/renderer"),
-  ]).then(([htmlSanitizerModule, rendererModule]) => {
-    const htmlSanitizer = new htmlSanitizerModule.DefaultHtmlSanitizer();
-    return {
-      renderMarkdown: rendererModule.renderMarkdown,
-      sanitize: (html: string) => htmlSanitizer.sanitize(html),
-    };
-  });
-
-  return previewDependenciesPromise;
 }
 
 function setStatus(
@@ -109,15 +84,58 @@ function updateAutoRenderButton(
   elements.autoRenderButton.textContent = `Auto-render on send: ${enabled ? "On" : "Off"}`;
 }
 
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
+}
+
+function setBootState(
+  elements: TaskpaneElements,
+  message: string,
+  tone: Exclude<StatusTone, "idle"> = "info"
+): void {
+  elements.sideloadStage.dataset.tone = tone;
+  elements.sideloadStage.textContent = message;
+}
+
 function showFallback(
   elements: TaskpaneElements,
   title: string,
-  message: string
+  message: string,
+  error?: unknown
 ): void {
   elements.sideloadTitle.textContent = title;
   elements.sideloadCopy.textContent = message;
+  elements.sideloadDetails.hidden = error === undefined;
+  elements.sideloadDetails.textContent =
+    error === undefined ? "" : formatError(error);
+  setBootState(
+    elements,
+    error === undefined ? message : "Initialization failed.",
+    error === undefined ? "info" : "error"
+  );
   elements.sideloadMessage.hidden = false;
   elements.appBody.hidden = true;
+}
+
+function reportBootFailure(error: unknown): void {
+  try {
+    const elements = getElements();
+    showFallback(
+      elements,
+      "MarkOut could not initialize",
+      getInitializationFailureMessage(),
+      error
+    );
+  } catch (fallbackError) {
+    console.error(
+      "MarkOut failed to render the fallback state.",
+      fallbackError
+    );
+  }
 }
 
 function getInitializationFailureMessage(): string {
@@ -132,24 +150,36 @@ async function updatePreview(
   elements: TaskpaneElements,
   stylesheet: string
 ): Promise<void> {
-  const previewDependencies = await loadPreviewDependencies();
-  const previewHtml = await previewDependencies.renderMarkdown({
+  const previewHtml = await renderMarkdown({
     css: stylesheet,
     markdown: PREVIEW_MARKDOWN,
   });
 
-  elements.preview.innerHTML = previewDependencies.sanitize(previewHtml);
+  elements.preview.innerHTML = htmlSanitizer.sanitize(previewHtml);
 }
 
 async function initializeTaskpane(): Promise<void> {
   const elements = getElements();
   const settingsStore = createOfficeSettingsStore();
 
+  setBootState(elements, "Task pane script loaded. Initializing settings...");
   elements.sideloadMessage.hidden = true;
   elements.appBody.hidden = false;
   elements.themeEditor.value = settingsStore.getStylesheet();
   updateAutoRenderButton(elements, settingsStore.getAutoRender());
-  await updatePreview(elements, settingsStore.getStylesheet());
+
+  try {
+    setBootState(elements, "Rendering initial preview...");
+    await updatePreview(elements, settingsStore.getStylesheet());
+  } catch (error) {
+    console.error("MarkOut failed to render the initial preview.", error);
+    setBootState(elements, "Initial preview failed.", "error");
+    setStatus(
+      elements,
+      "error",
+      "Preview could not be rendered, but the task pane is ready."
+    );
+  }
 
   const saveTheme = new Debounce(async () => {
     try {
@@ -164,14 +194,26 @@ async function initializeTaskpane(): Promise<void> {
   elements.themeEditor.addEventListener("input", async () => {
     settingsStore.setStylesheet(elements.themeEditor.value);
     setStatus(elements, "info", "Saving theme changes...");
-    await updatePreview(elements, settingsStore.getStylesheet());
-    saveTheme.trigger();
+
+    try {
+      await updatePreview(elements, settingsStore.getStylesheet());
+      saveTheme.trigger();
+    } catch (error) {
+      console.error("MarkOut failed to refresh the preview.", error);
+      setStatus(elements, "error", "Preview could not be refreshed.");
+    }
   });
 
   elements.refreshPreview.addEventListener("click", async () => {
     setStatus(elements, "info", "Refreshing preview...");
-    await updatePreview(elements, settingsStore.getStylesheet());
-    setStatus(elements, "success", "Preview refreshed.");
+
+    try {
+      await updatePreview(elements, settingsStore.getStylesheet());
+      setStatus(elements, "success", "Preview refreshed.");
+    } catch (error) {
+      console.error("MarkOut failed to refresh the preview.", error);
+      setStatus(elements, "error", "Preview could not be refreshed.");
+    }
   });
 
   elements.renderButton.addEventListener("click", async () => {
@@ -183,8 +225,7 @@ async function initializeTaskpane(): Promise<void> {
     );
 
     try {
-      const itemModule = await loadItemModule();
-      const result = await itemModule.renderItem();
+      const result = await renderItem();
       setStatus(
         elements,
         "success",
@@ -224,8 +265,37 @@ async function initializeTaskpane(): Promise<void> {
   });
 }
 
-void Office.onReady((info) => {
+window.addEventListener("error", (event) => {
+  console.error(
+    "MarkOut captured a window error.",
+    event.error ?? event.message
+  );
+  reportBootFailure(event.error ?? event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("MarkOut captured an unhandled rejection.", event.reason);
+  reportBootFailure(event.reason);
+});
+
+async function bootTaskpane(): Promise<void> {
   const elements = getElements();
+  console.info("[MarkOut] taskpane script loaded");
+  setBootState(
+    elements,
+    "Task pane script loaded. Waiting for Office.onReady..."
+  );
+
+  if (typeof Office === "undefined") {
+    reportBootFailure(
+      new Error("Office.js did not load before taskpane startup.")
+    );
+    return;
+  }
+
+  const info = await Office.onReady();
+  console.info("[MarkOut] Office.onReady", { host: info.host });
+  setBootState(elements, `Office.onReady resolved for ${String(info.host)}.`);
 
   if (info.host !== Office.HostType.Outlook) {
     showFallback(
@@ -236,12 +306,10 @@ void Office.onReady((info) => {
     return;
   }
 
-  void initializeTaskpane().catch((error: unknown) => {
-    console.error("MarkOut failed to initialize the task pane.", error);
-    showFallback(
-      elements,
-      "MarkOut could not initialize",
-      getInitializationFailureMessage()
-    );
-  });
+  await initializeTaskpane();
+}
+
+void bootTaskpane().catch((error: unknown) => {
+  console.error("MarkOut failed to initialize the task pane.", error);
+  reportBootFailure(error);
 });
