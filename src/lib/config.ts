@@ -221,6 +221,32 @@ export interface SettingsStore {
   setStylesheet(stylesheet: string): void;
 }
 
+class InMemorySettingsStore implements SettingsStore {
+  private autoRender = false;
+  private stylesheet = defaultStylesheet;
+
+  public getAutoRender(): boolean {
+    return this.autoRender;
+  }
+
+  public getStylesheet(): string {
+    return this.stylesheet;
+  }
+
+  public async save(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public setAutoRender(enabled: boolean): void {
+    this.autoRender = enabled;
+  }
+
+  public setStylesheet(stylesheet: string): void {
+    this.stylesheet =
+      stylesheet.trim().length > 0 ? stylesheet : defaultStylesheet;
+  }
+}
+
 class OfficeSettingsStore implements SettingsStore {
   public constructor(private readonly roamingSettings: RoamingSettingsLike) {}
 
@@ -265,9 +291,36 @@ class OfficeSettingsStore implements SettingsStore {
   }
 }
 
+function getDefaultRoamingSettings(): RoamingSettingsLike | undefined {
+  if (typeof Office === "undefined") {
+    return undefined;
+  }
+
+  return Office.context.roamingSettings;
+}
+
+function isRoamingSettingsLike(
+  roamingSettings: RoamingSettingsLike | null | undefined
+): roamingSettings is RoamingSettingsLike {
+  return (
+    roamingSettings !== undefined &&
+    roamingSettings !== null &&
+    typeof roamingSettings.get === "function" &&
+    typeof roamingSettings.set === "function" &&
+    typeof roamingSettings.saveAsync === "function"
+  );
+}
+
 export function createOfficeSettingsStore(
-  roamingSettings: RoamingSettingsLike = Office.context.roamingSettings
+  roamingSettings:
+    | RoamingSettingsLike
+    | null
+    | undefined = getDefaultRoamingSettings()
 ): SettingsStore {
+  if (!isRoamingSettingsLike(roamingSettings)) {
+    return new InMemorySettingsStore();
+  }
+
   return new OfficeSettingsStore(roamingSettings);
 }
 
