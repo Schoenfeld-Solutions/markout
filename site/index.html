@@ -15,12 +15,22 @@
         color-scheme: light;
         --page: #f4f7fb;
         --card: rgba(255, 255, 255, 0.92);
+        --card-strong: rgba(255, 255, 255, 0.98);
         --card-border: rgba(14, 64, 115, 0.1);
+        --card-border-strong: rgba(15, 108, 189, 0.22);
         --ink: #12263a;
         --muted: #5a6c7d;
         --accent: #0f6cbd;
         --accent-strong: #0a4f8c;
+        --accent-soft: rgba(15, 108, 189, 0.1);
         --shadow: 0 24px 56px rgba(18, 38, 58, 0.08);
+        --shell-max: 1080px;
+        --radius-xl: 24px;
+        --radius-lg: 18px;
+        --section-gap: 1rem;
+        --section-padding: 1.2rem;
+        --card-gap: 0.9rem;
+        --button-gap: 0.75rem;
       }
 
       * {
@@ -57,39 +67,62 @@
         text-decoration: none;
       }
 
-      .shell {
-        margin: 0 auto;
-        max-width: 1080px;
-        padding: 2rem 1.25rem 3rem;
+      img {
+        display: block;
+        max-width: 100%;
       }
 
-      .masthead,
-      .section,
+      code {
+        background: rgba(15, 108, 189, 0.08);
+        border-radius: 10px;
+        color: var(--accent-strong);
+        font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+        font-size: 0.92em;
+        overflow-wrap: anywhere;
+        padding: 0.18rem 0.38rem;
+      }
+
+      .shell {
+        display: grid;
+        gap: var(--section-gap);
+        margin: 0 auto;
+        max-width: var(--shell-max);
+        padding: 1rem 1rem 2rem;
+      }
+
+      .card,
+      .hero,
       .footer {
         backdrop-filter: blur(14px);
         background: var(--card);
         border: 1px solid var(--card-border);
-        border-radius: 24px;
+        border-radius: var(--radius-xl);
         box-shadow: var(--shadow);
       }
 
-      .masthead {
+      .hero {
         display: grid;
-        gap: 1.5rem;
-        margin-bottom: 1rem;
-        padding: 1.6rem;
+        gap: 1rem;
+        padding: clamp(1.2rem, 2vw, 1.8rem);
+      }
+
+      .hero-copy,
+      .section-heading,
+      .step-copy,
+      .footer {
+        min-width: 0;
       }
 
       .brand {
         align-items: center;
         display: inline-flex;
         gap: 0.9rem;
+        min-width: 0;
       }
 
       .brand img {
         border-radius: 14px;
-        height: 56px;
-        width: 56px;
+        flex: none;
       }
 
       .eyebrow {
@@ -104,41 +137,97 @@
       h1,
       h2,
       h3,
-      p {
+      p,
+      ol,
+      ul {
         margin: 0;
       }
 
       h1 {
-        font-size: clamp(2rem, 3.8vw, 3.5rem);
+        font-size: clamp(2rem, 4.2vw, 3.2rem);
         letter-spacing: -0.04em;
-        line-height: 0.95;
-        max-width: 10ch;
+        line-height: 1.02;
+        max-width: 13ch;
+        text-wrap: balance;
       }
 
-      .lede {
+      h2 {
+        font-size: clamp(1.35rem, 2.1vw, 1.85rem);
+        letter-spacing: -0.03em;
+        line-height: 1.08;
+        text-wrap: balance;
+      }
+
+      h3 {
+        font-size: 1rem;
+        line-height: 1.25;
+      }
+
+      .lede,
+      .section-copy,
+      .muted,
+      .step-copy p,
+      .utility-copy {
         color: var(--muted);
-        font-size: 1.08rem;
+      }
+
+      .lede,
+      .section-copy {
         max-width: 62ch;
       }
 
-      .actions {
+      .hero-meta {
+        align-items: center;
+        color: var(--muted);
         display: flex;
         flex-wrap: wrap;
-        gap: 0.9rem;
+        gap: 0.5rem 0.8rem;
+        font-size: 0.95rem;
+      }
+
+      .hero-meta span {
+        align-items: center;
+        display: inline-flex;
+        gap: 0.45rem;
+      }
+
+      .hero-meta span::before {
+        background: rgba(15, 108, 189, 0.18);
+        border-radius: 999px;
+        content: "";
+        display: inline-block;
+        height: 0.5rem;
+        width: 0.5rem;
+      }
+
+      .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--button-gap);
       }
 
       .action {
+        align-items: center;
+        border: 1px solid transparent;
         border-radius: 999px;
+        display: inline-flex;
         font-weight: 700;
-        padding: 0.9rem 1.15rem;
+        justify-content: center;
+        min-width: 0;
+        padding: 0.88rem 1.1rem;
+        text-align: center;
+        touch-action: manipulation;
         transition:
           transform 160ms ease,
           box-shadow 160ms ease,
-          background-color 160ms ease;
+          background-color 160ms ease,
+          border-color 160ms ease;
       }
 
       .action:hover,
-      .resource-link:hover {
+      .manifest-card:hover,
+      .endpoint-link:hover,
+      .inline-link:hover {
         transform: translateY(-1px);
       }
 
@@ -149,65 +238,101 @@
       }
 
       .action--secondary {
-        background: rgba(15, 108, 189, 0.1);
+        background: var(--accent-soft);
         color: var(--accent-strong);
       }
 
-      .grid {
+      .action--ghost {
+        background: rgba(255, 255, 255, 0.75);
+        border-color: rgba(18, 38, 58, 0.08);
+        color: var(--ink);
+      }
+
+      .primary-grid {
         display: grid;
-        gap: 1rem;
+        gap: var(--section-gap);
       }
 
-      .section {
-        margin-top: 1rem;
-        padding: 1.25rem;
-      }
-
-      .resource-grid {
+      .card {
         display: grid;
-        gap: 1rem;
-        margin-top: 1rem;
+        gap: var(--card-gap);
+        padding: var(--section-padding);
       }
 
-      .resource-link {
-        background: rgba(255, 255, 255, 0.8);
+      .manifest-grid,
+      .endpoint-list {
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .manifest-card,
+      .endpoint-link {
+        background: rgba(255, 255, 255, 0.82);
         border: 1px solid rgba(18, 38, 58, 0.08);
-        border-radius: 18px;
+        border-radius: var(--radius-lg);
         display: grid;
-        gap: 0.35rem;
+        gap: 0.32rem;
+        min-width: 0;
         padding: 1rem;
         transition:
           transform 160ms ease,
-          border-color 160ms ease,
-          box-shadow 160ms ease;
+          box-shadow 160ms ease,
+          border-color 160ms ease;
       }
 
-      .resource-link:hover {
+      .manifest-card:hover,
+      .endpoint-link:hover {
         border-color: rgba(15, 108, 189, 0.2);
         box-shadow: 0 16px 32px rgba(18, 38, 58, 0.08);
       }
 
-      .resource-label {
+      .manifest-card--primary {
+        background: linear-gradient(
+          180deg,
+          rgba(15, 108, 189, 0.1) 0%,
+          rgba(255, 255, 255, 0.96) 100%
+        );
+        border-color: var(--card-border-strong);
+      }
+
+      .manifest-label {
         font-size: 1.02rem;
         font-weight: 700;
       }
 
-      .resource-copy,
-      .muted {
-        color: var(--muted);
+      .manifest-meta,
+      .endpoint-path {
+        color: var(--accent-strong);
+        font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+        font-size: 0.84rem;
+        overflow-wrap: anywhere;
+      }
+
+      .inline-link {
+        align-items: center;
+        color: var(--accent-strong);
+        display: inline-flex;
+        font-weight: 700;
+        gap: 0.45rem;
+        justify-self: start;
+      }
+
+      .endpoint-link strong {
+        display: block;
       }
 
       .steps {
         display: grid;
-        gap: 0.85rem;
-        margin-top: 1rem;
+        gap: 0.9rem;
+        list-style: none;
+        padding: 0;
       }
 
       .step {
         align-items: start;
         display: grid;
-        gap: 0.75rem;
-        grid-template-columns: auto 1fr;
+        gap: 0.8rem;
+        grid-template-columns: auto minmax(0, 1fr);
       }
 
       .step-index {
@@ -223,168 +348,312 @@
         width: 2rem;
       }
 
-      .footer {
-        display: grid;
+      .utility-card {
         gap: 0.8rem;
-        margin-top: 1rem;
-        padding: 1.25rem;
       }
 
-      .footer strong {
-        color: var(--ink);
+      .endpoint-link {
+        align-content: start;
+        gap: 0.26rem;
+        padding: 0.9rem 0.95rem;
       }
 
-      @media (min-width: 760px) {
-        .masthead {
-          align-items: end;
-          grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+      .footer {
+        gap: 0.55rem;
+        padding: 1rem 1.2rem;
+      }
+
+      .footer p {
+        min-width: 0;
+      }
+
+      .footer a {
+        color: var(--accent-strong);
+      }
+
+      .footer-meta {
+        font-size: 0.95rem;
+      }
+
+      .action:focus-visible,
+      .manifest-card:focus-visible,
+      .endpoint-link:focus-visible,
+      .inline-link:focus-visible,
+      .footer a:focus-visible {
+        outline: 3px solid rgba(15, 108, 189, 0.28);
+        outline-offset: 3px;
+      }
+
+      @media (max-width: 479px) {
+        .shell {
+          padding: 0.8rem 0.8rem 1.6rem;
         }
 
-        .resource-grid {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+        .hero,
+        .card,
+        .footer {
+          border-radius: 22px;
         }
 
-        .grid {
-          grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        .action {
+          width: 100%;
+        }
+
+        .manifest-card,
+        .endpoint-link {
+          padding: 0.85rem 0.9rem;
+        }
+
+        .endpoint-path,
+        .manifest-meta {
+          font-size: 0.78rem;
+        }
+
+        .footer-meta code {
+          display: inline-block;
+          margin-top: 0.15rem;
+        }
+      }
+
+      @media (min-width: 480px) {
+        .shell {
+          padding: 1.2rem 1rem 2.2rem;
+        }
+      }
+
+      @media (min-width: 860px) {
+        .shell {
+          padding: 1.4rem 1.2rem 2.4rem;
+        }
+
+        .primary-grid {
+          grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+        }
+
+        .manifest-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .endpoint-list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (min-width: 1200px) {
+        .shell {
+          padding-top: 1.8rem;
+        }
+
+        .hero {
+          gap: 1.15rem;
         }
       }
     </style>
   </head>
   <body>
     <main class="shell">
-      <section class="masthead">
-        <div>
-          <div class="brand">
-            <img src="assets/logo-filled.png" alt="MarkOut logo" />
-            <div>
-              <p class="eyebrow">Markdown for Outlook</p>
-              <p class="muted">Schoenfeld Solutions</p>
-            </div>
+      <header class="hero">
+        <div class="brand">
+          <img
+            src="assets/logo-filled.png"
+            alt="MarkOut logo"
+            width="56"
+            height="56"
+          />
+          <div>
+            <p class="eyebrow">Markdown for Outlook</p>
+            <p class="muted" translate="no">Schoenfeld Solutions</p>
           </div>
-          <h1>Safe Markdown authoring for Outlook compose.</h1>
+        </div>
+
+        <div class="hero-copy">
+          <h1 translate="no">Safe Markdown Authoring for Outlook Compose</h1>
           <p class="lede">
-            MarkOut is an Outlook compose add-in that turns Markdown into
-            inline-styled email HTML, keeps rendering safe, and supports manual
-            rendering plus Smart Alerts auto-rendering before send.
+            MarkOut turns Markdown into inline-styled email HTML, keeps the
+            output safe, and supports both manual rendering and Smart Alerts
+            auto-rendering before send.
           </p>
         </div>
 
-        <div class="actions">
+        <div class="hero-meta" aria-label="Key capabilities">
+          <span>Compose add-in</span>
+          <span>Safe HTML rendering</span>
+          <span>Smart Alerts ready</span>
+        </div>
+
+        <div class="action-row">
           <a class="action action--primary" href="manifest.beta.xml">
-            Download beta manifest
+            Beta Manifest
           </a>
           <a class="action action--secondary" href="manifest.xml">
-            Download production manifest
+            Production Manifest
           </a>
           <a
-            class="action action--secondary"
+            class="action action--ghost"
             href="https://github.com/Schoenfeld-Solutions/markout"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             target="_blank"
           >
-            View repository
+            GitHub Repository
+          </a>
+        </div>
+      </header>
+
+      <div class="primary-grid">
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Choose a Manifest</p>
+            <h2>Start with Beta & Keep Production Close</h2>
+          </div>
+          <p class="section-copy">
+            Use the beta manifest when validating the current hosted build. Use
+            the production manifest when you want the stable rollout path.
+          </p>
+
+          <div class="manifest-grid">
+            <a
+              class="manifest-card manifest-card--primary"
+              href="manifest.beta.xml"
+            >
+              <span class="manifest-label">Beta Manifest</span>
+              <span class="muted">
+                Recommended for staged validation against the latest hosted
+                changes.
+              </span>
+              <span class="manifest-meta">/markout/manifest.beta.xml</span>
+            </a>
+
+            <a class="manifest-card" href="manifest.xml">
+              <span class="manifest-label">Production Manifest</span>
+              <span class="muted">
+                Use this when you want the stable hosted deployment rather than
+                the staging track.
+              </span>
+              <span class="manifest-meta">/markout/manifest.xml</span>
+            </a>
+          </div>
+
+          <a
+            class="inline-link"
+            href="https://github.com/Schoenfeld-Solutions/markout"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Inspect the Repository <span aria-hidden="true">↗</span>
+          </a>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <p class="eyebrow">Install</p>
+            <h2>Sideload with Add from File</h2>
+          </div>
+          <p class="section-copy">
+            Outlook no longer supports Add from URL for this workflow. Use the
+            custom add-in file flow instead.
+          </p>
+
+          <ol class="steps">
+            <li class="step">
+              <span class="step-index">1</span>
+              <div class="step-copy">
+                <h3>Open the Custom Add-in Flow</h3>
+                <p>
+                  In Outlook, open <strong>Get Add-ins</strong> and choose
+                  <strong>Add a custom add-in</strong>.
+                </p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-index">2</span>
+              <div class="step-copy">
+                <h3>Choose Add from File</h3>
+                <p>
+                  Select <strong>Add from File</strong> and point Outlook at the
+                  manifest you want to test.
+                </p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-index">3</span>
+              <div class="step-copy">
+                <h3>Prefer Beta for Validation</h3>
+                <p>
+                  Use <strong>manifest.beta.xml</strong> for current staged
+                  changes and <strong>manifest.xml</strong> for the stable
+                  hosted deployment.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
+      </div>
+
+      <section class="card utility-card">
+        <div class="section-heading">
+          <p class="eyebrow">Technical Entrypoints</p>
+          <h2>Hosted Pages Assets for Inspection</h2>
+        </div>
+        <p class="utility-copy">
+          These links are useful for runtime inspection and smoke validation,
+          but they are secondary to the manifest-based install flow above. All
+          paths are relative to <code>/markout/</code>.
+        </p>
+
+        <div class="endpoint-list">
+          <a class="endpoint-link" href="outlook/taskpane.html">
+            <strong>Production Task Pane</strong>
+            <span class="endpoint-path">outlook/taskpane.html</span>
+            <span class="muted">
+              Hosted task pane entrypoint used by the production manifest.
+            </span>
+          </a>
+
+          <a class="endpoint-link" href="outlook-beta/taskpane.html">
+            <strong>Beta Task Pane</strong>
+            <span class="endpoint-path">outlook-beta/taskpane.html</span>
+            <span class="muted">
+              Hosted task pane entrypoint for staged validation.
+            </span>
+          </a>
+
+          <a class="endpoint-link" href="outlook/commands.html">
+            <strong>Command Runtime</strong>
+            <span class="endpoint-path">outlook/commands.html</span>
+            <span class="muted">
+              Hosted ribbon command runtime for the production deployment.
+            </span>
+          </a>
+
+          <a class="endpoint-link" href="404.html">
+            <strong>Custom 404 Page</strong>
+            <span class="endpoint-path">404.html</span>
+            <span class="muted">
+              Branded fallback page for unknown GitHub Pages paths.
+            </span>
           </a>
         </div>
       </section>
 
-      <div class="grid">
-        <section class="section">
-          <p class="eyebrow">Published Assets</p>
-          <h2>Use the hosted manifests or inspect the deployed runtimes.</h2>
-          <div class="resource-grid">
-            <a class="resource-link" href="manifest.xml">
-              <span class="resource-label">manifest.xml</span>
-              <span class="resource-copy">
-                Production Outlook manifest for hosted deployment.
-              </span>
-            </a>
-            <a class="resource-link" href="manifest.beta.xml">
-              <span class="resource-label">manifest.beta.xml</span>
-              <span class="resource-copy">
-                Beta manifest for validating the latest staged changes.
-              </span>
-            </a>
-            <a
-              class="resource-link"
-              href="https://github.com/Schoenfeld-Solutions/markout"
-              rel="noreferrer"
-              target="_blank"
-            >
-              <span class="resource-label">GitHub repository</span>
-              <span class="resource-copy">
-                Source code, issues, release workflow, and fork history.
-              </span>
-            </a>
-            <a class="resource-link" href="outlook/taskpane.html">
-              <span class="resource-label">Production task pane</span>
-              <span class="resource-copy">
-                The hosted task pane entrypoint for the production manifest.
-              </span>
-            </a>
-            <a class="resource-link" href="outlook-beta/taskpane.html">
-              <span class="resource-label">Beta task pane</span>
-              <span class="resource-copy">
-                The hosted task pane entrypoint for the beta manifest.
-              </span>
-            </a>
-            <a class="resource-link" href="outlook/commands.html">
-              <span class="resource-label">Command runtime</span>
-              <span class="resource-copy">
-                Outlook command surface runtime used by the hosted add-in.
-              </span>
-            </a>
-          </div>
-        </section>
-
-        <section class="section">
-          <p class="eyebrow">Install</p>
-          <h2>Sideload via Outlook Add from File.</h2>
-          <div class="steps">
-            <div class="step">
-              <span class="step-index">1</span>
-              <p>
-                Open Outlook, then go to <strong>Get Add-ins</strong> and choose
-                <strong>Add a custom add-in</strong>.
-              </p>
-            </div>
-            <div class="step">
-              <span class="step-index">2</span>
-              <p>
-                Choose <strong>Add from File</strong>. Microsoft no longer
-                supports Add from URL for this workflow.
-              </p>
-            </div>
-            <div class="step">
-              <span class="step-index">3</span>
-              <p>
-                Use <strong>manifest.beta.xml</strong> for staged validation or
-                <strong>manifest.xml</strong> for the production deployment.
-              </p>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <section class="footer">
+      <footer class="footer">
         <p>
-          MarkOut continues as an independently maintained fork by
-          <strong>Schoenfeld Solutions</strong> and credits the original product
-          direction of
+          <span translate="no">MarkOut</span> continues as an independently
+          maintained fork by <strong>Schoenfeld Solutions</strong>, with credit
+          to
           <a
             href="https://github.com/SierraSoftworks/markout"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             target="_blank"
           >
             SierraSoftworks/markout
           </a>
-          .
+          for the original product direction.
         </p>
-        <p class="muted">
-          Hosted Pages root: <code>/markout/</code>. Add-in runtimes remain
-          under <code>/markout/outlook/</code> and
-          <code>/markout/outlook-beta/</code>.
+        <p class="muted footer-meta">
+          Pages root <code>/markout/</code> · runtime paths
+          <code>outlook/</code> and <code>outlook-beta/</code>
         </p>
-      </section>
+      </footer>
     </main>
   </body>
 </html>
