@@ -41,6 +41,18 @@ interface TaskpaneElements {
 
 const htmlSanitizer = new DefaultHtmlSanitizer();
 
+function setElementVisible(element: HTMLElement, visible: boolean): void {
+  element.hidden = !visible;
+  element.setAttribute("aria-hidden", String(!visible));
+
+  if (visible) {
+    element.style.removeProperty("display");
+    return;
+  }
+
+  element.style.display = "none";
+}
+
 function getRequiredElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
 
@@ -97,8 +109,16 @@ function setBootState(
   message: string,
   tone: Exclude<StatusTone, "idle"> = "info"
 ): void {
+  setElementVisible(elements.sideloadStage, true);
   elements.sideloadStage.dataset.tone = tone;
   elements.sideloadStage.textContent = message;
+}
+
+function clearBootState(elements: TaskpaneElements): void {
+  elements.sideloadStage.textContent = "";
+  setElementVisible(elements.sideloadStage, false);
+  elements.sideloadDetails.textContent = "";
+  setElementVisible(elements.sideloadDetails, false);
 }
 
 function showFallback(
@@ -109,16 +129,22 @@ function showFallback(
 ): void {
   elements.sideloadTitle.textContent = title;
   elements.sideloadCopy.textContent = message;
-  elements.sideloadDetails.hidden = error === undefined;
   elements.sideloadDetails.textContent =
     error === undefined ? "" : formatError(error);
+  setElementVisible(elements.sideloadDetails, error !== undefined);
   setBootState(
     elements,
     error === undefined ? message : "Initialization failed.",
     error === undefined ? "info" : "error"
   );
-  elements.sideloadMessage.hidden = false;
-  elements.appBody.hidden = true;
+  setElementVisible(elements.sideloadMessage, true);
+  setElementVisible(elements.appBody, false);
+}
+
+function showApplication(elements: TaskpaneElements): void {
+  clearBootState(elements);
+  setElementVisible(elements.sideloadMessage, false);
+  setElementVisible(elements.appBody, true);
 }
 
 function reportBootFailure(error: unknown): void {
@@ -163,8 +189,8 @@ async function initializeTaskpane(): Promise<void> {
   const settingsStore = createOfficeSettingsStore();
 
   setBootState(elements, "Task pane script loaded. Initializing settings...");
-  elements.sideloadMessage.hidden = true;
-  elements.appBody.hidden = false;
+  setElementVisible(elements.sideloadMessage, true);
+  setElementVisible(elements.appBody, false);
   elements.themeEditor.value = settingsStore.getStylesheet();
   updateAutoRenderButton(elements, settingsStore.getAutoRender());
 
@@ -180,6 +206,8 @@ async function initializeTaskpane(): Promise<void> {
       "Preview could not be rendered, but the task pane is ready."
     );
   }
+
+  showApplication(elements);
 
   const saveTheme = new Debounce(async () => {
     try {
@@ -281,6 +309,8 @@ window.addEventListener("unhandledrejection", (event) => {
 async function bootTaskpane(): Promise<void> {
   const elements = getElements();
   console.info("[MarkOut] taskpane script loaded");
+  setElementVisible(elements.sideloadMessage, true);
+  setElementVisible(elements.appBody, false);
   setBootState(
     elements,
     "Task pane script loaded. Waiting for Office.onReady..."
