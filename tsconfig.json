@@ -6,6 +6,7 @@
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["DOM", "ES2022"],
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noFallthroughCasesInSwitch": true,
@@ -19,5 +20,11 @@
     "useDefineForClassFields": true
   },
   "exclude": ["coverage", "dist", "node_modules"],
-  "include": ["spec/**/*.ts", "src/**/*.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "spec/**/*.ts",
+    "spec/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ]
 }

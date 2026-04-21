@@ -204,8 +204,11 @@ a {
 }
 `;
 
-const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_AUTORENDER = "markout.autorender";
+const SETTING_DEVELOPER_TOOLS = "markout.developerToolsEnabled";
+const SETTING_INTRO_DISMISSED = "markout.introDismissed";
+const SETTING_STYLESHEET = "markout.stylesheet";
+const SETTING_THEME_MODE = "markout.themeMode";
 
 interface RoamingSettingsLike {
   get(name: string): unknown;
@@ -213,24 +216,55 @@ interface RoamingSettingsLike {
   set(name: string, value: unknown): void;
 }
 
+export type ThemeMode = "dark" | "light" | "system";
+
 export interface SettingsStore {
   getAutoRender(): boolean;
+  getDeveloperToolsEnabled(): boolean;
+  getIntroDismissed(): boolean;
   getStylesheet(): string;
+  getThemeMode(): ThemeMode;
   save(): Promise<void>;
   setAutoRender(enabled: boolean): void;
+  setDeveloperToolsEnabled(enabled: boolean): void;
+  setIntroDismissed(dismissed: boolean): void;
   setStylesheet(stylesheet: string): void;
+  setThemeMode(mode: ThemeMode): void;
+}
+
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "dark" || value === "light" || value === "system";
+}
+
+function normalizeStylesheet(stylesheet: string): string {
+  return stylesheet.trim().length > 0 ? stylesheet : defaultStylesheet;
 }
 
 class InMemorySettingsStore implements SettingsStore {
   private autoRender = false;
+  private developerToolsEnabled = false;
+  private introDismissed = false;
   private stylesheet = defaultStylesheet;
+  private themeMode: ThemeMode = "system";
 
   public getAutoRender(): boolean {
     return this.autoRender;
   }
 
+  public getDeveloperToolsEnabled(): boolean {
+    return this.developerToolsEnabled;
+  }
+
+  public getIntroDismissed(): boolean {
+    return this.introDismissed;
+  }
+
   public getStylesheet(): string {
     return this.stylesheet;
+  }
+
+  public getThemeMode(): ThemeMode {
+    return this.themeMode;
   }
 
   public async save(): Promise<void> {
@@ -241,9 +275,20 @@ class InMemorySettingsStore implements SettingsStore {
     this.autoRender = enabled;
   }
 
+  public setDeveloperToolsEnabled(enabled: boolean): void {
+    this.developerToolsEnabled = enabled;
+  }
+
+  public setIntroDismissed(dismissed: boolean): void {
+    this.introDismissed = dismissed;
+  }
+
   public setStylesheet(stylesheet: string): void {
-    this.stylesheet =
-      stylesheet.trim().length > 0 ? stylesheet : defaultStylesheet;
+    this.stylesheet = normalizeStylesheet(stylesheet);
+  }
+
+  public setThemeMode(mode: ThemeMode): void {
+    this.themeMode = mode;
   }
 }
 
@@ -252,6 +297,14 @@ class OfficeSettingsStore implements SettingsStore {
 
   public getAutoRender(): boolean {
     return this.roamingSettings.get(SETTING_AUTORENDER) === true;
+  }
+
+  public getDeveloperToolsEnabled(): boolean {
+    return this.roamingSettings.get(SETTING_DEVELOPER_TOOLS) === true;
+  }
+
+  public getIntroDismissed(): boolean {
+    return this.roamingSettings.get(SETTING_INTRO_DISMISSED) === true;
   }
 
   public getStylesheet(): string {
@@ -265,6 +318,12 @@ class OfficeSettingsStore implements SettingsStore {
     }
 
     return defaultStylesheet;
+  }
+
+  public getThemeMode(): ThemeMode {
+    const storedThemeMode = this.roamingSettings.get(SETTING_THEME_MODE);
+
+    return isThemeMode(storedThemeMode) ? storedThemeMode : "system";
   }
 
   public async save(): Promise<void> {
@@ -286,8 +345,23 @@ class OfficeSettingsStore implements SettingsStore {
     this.roamingSettings.set(SETTING_AUTORENDER, enabled);
   }
 
+  public setDeveloperToolsEnabled(enabled: boolean): void {
+    this.roamingSettings.set(SETTING_DEVELOPER_TOOLS, enabled);
+  }
+
+  public setIntroDismissed(dismissed: boolean): void {
+    this.roamingSettings.set(SETTING_INTRO_DISMISSED, dismissed);
+  }
+
   public setStylesheet(stylesheet: string): void {
-    this.roamingSettings.set(SETTING_STYLESHEET, stylesheet);
+    this.roamingSettings.set(
+      SETTING_STYLESHEET,
+      normalizeStylesheet(stylesheet)
+    );
+  }
+
+  public setThemeMode(mode: ThemeMode): void {
+    this.roamingSettings.set(SETTING_THEME_MODE, mode);
   }
 }
 
@@ -324,12 +398,12 @@ export function createOfficeSettingsStore(
   return new OfficeSettingsStore(roamingSettings);
 }
 
-export function getStylesheet(): string {
-  return createOfficeSettingsStore().getStylesheet();
+export function getAutoRender(): boolean {
+  return createOfficeSettingsStore().getAutoRender();
 }
 
-export function setStylesheet(stylesheet: string): void {
-  createOfficeSettingsStore().setStylesheet(stylesheet);
+export function getStylesheet(): string {
+  return createOfficeSettingsStore().getStylesheet();
 }
 
 export async function saveStylesheet(stylesheet?: string): Promise<string> {
@@ -341,10 +415,6 @@ export async function saveStylesheet(stylesheet?: string): Promise<string> {
 
   await settingsStore.save();
   return settingsStore.getStylesheet();
-}
-
-export function getAutoRender(): boolean {
-  return createOfficeSettingsStore().getAutoRender();
 }
 
 export async function setAutoRender(enabled: boolean): Promise<boolean> {

@@ -57,21 +57,6 @@
               <OfficeTab id="TabDefault">
                 <Group id="msgMarkoutGroup">
                   <Label resid="GroupLabel" />
-                  <Control xsi:type="Button" id="msgMarkoutToggleMarkdownButton">
-                    <Label resid="RenderDraftButton.Label" />
-                    <Supertip>
-                      <Title resid="RenderDraftButton.Label" />
-                      <Description resid="RenderDraftButton.Tooltip" />
-                    </Supertip>
-                    <Icon>
-                      <bt:Image size="16" resid="Icon.16x16" />
-                      <bt:Image size="32" resid="Icon.32x32" />
-                      <bt:Image size="80" resid="Icon.80x80" />
-                    </Icon>
-                    <Action xsi:type="ExecuteFunction">
-                      <FunctionName>renderCurrentItem</FunctionName>
-                    </Action>
-                  </Control>
                   <Control xsi:type="Button" id="msgMarkoutOpenPaneButton">
                     <Label resid="TaskpaneButton.Label" />
                     <Supertip>
@@ -94,21 +79,6 @@
               <OfficeTab id="TabDefault">
                 <Group id="mtngMarkoutGroup">
                   <Label resid="GroupLabel" />
-                  <Control xsi:type="Button" id="mtngMarkoutToggleMarkdownButton">
-                    <Label resid="RenderDraftButton.Label" />
-                    <Supertip>
-                      <Title resid="RenderDraftButton.Label" />
-                      <Description resid="RenderDraftButton.Tooltip" />
-                    </Supertip>
-                    <Icon>
-                      <bt:Image size="16" resid="Icon.16x16" />
-                      <bt:Image size="32" resid="Icon.32x32" />
-                      <bt:Image size="80" resid="Icon.80x80" />
-                    </Icon>
-                    <Action xsi:type="ExecuteFunction">
-                      <FunctionName>renderCurrentItem</FunctionName>
-                    </Action>
-                  </Control>
                   <Control xsi:type="Button" id="mtngMarkoutOpenPaneButton">
                     <Label resid="TaskpaneButton.Label" />
                     <Supertip>
@@ -152,11 +122,9 @@
         <bt:ShortStrings>
           <bt:String id="GroupLabel" DefaultValue="MarkOut" />
           <bt:String id="TaskpaneButton.Label" DefaultValue="Open MarkOut" />
-          <bt:String id="RenderDraftButton.Label" DefaultValue="Render Draft" />
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the MarkOut task pane to preview the theme and control auto-render." />
-          <bt:String id="RenderDraftButton.Tooltip" DefaultValue="Render the current draft as Markdown or restore the original draft body." />
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the MarkOut task pane to render selections, insert Markdown fragments, and control auto-render." />
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>

@@ -8,6 +8,11 @@ import markdown from "highlight.js/lib/languages/markdown";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import { getStylesheet } from "./config";
+import {
+  MARKOUT_FRAGMENT_HOST_CLASS,
+  MARKOUT_FRAGMENT_RENDERED_CLASS,
+  MARKOUT_RENDERED_CLASS,
+} from "./render-markers";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const markdownItEmoji = require("markdown-it-emoji") as (
@@ -25,6 +30,18 @@ hljs.registerLanguage("json", json);
 hljs.registerLanguage("markdown", markdown);
 hljs.registerLanguage("typescript", typescript);
 hljs.registerLanguage("xml", xml);
+
+export type RenderMode = "fragment" | "full";
+
+export interface RenderOptions {
+  css?: string;
+  markdown: string;
+  mode?: RenderMode;
+}
+
+export interface MarkdownRenderer {
+  render(options: RenderOptions): Promise<string>;
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -53,32 +70,37 @@ const markdownIt = new MarkdownIt({
   .use(markdownItFootnote)
   .use(markdownItEmoji);
 
-export interface RenderOptions {
-  css?: string;
-  markdown: string;
+function createWrapperClasses(mode: RenderMode): string {
+  return mode === "full"
+    ? `mo ${MARKOUT_RENDERED_CLASS}`
+    : `mo ${MARKOUT_FRAGMENT_RENDERED_CLASS}`;
 }
 
-export interface MarkdownRenderer {
-  render(options: RenderOptions): Promise<string>;
-}
+export const MO_CONTENT_PREFIX = (mode: RenderMode = "full"): string =>
+  `<div class="${createWrapperClasses(mode)}">\n`;
 
-export const MARKOUT_RENDERED_CLASS = "markout-rendered";
-export const MO_CONTENT_PREFIX = (): string =>
-  `<div class="mo ${MARKOUT_RENDERED_CLASS}">\n`;
 export const MO_CONTENT_SUFFIX = (): string => `</div>\n`;
 
 class InlineStyleMarkdownRenderer implements MarkdownRenderer {
   public render({
     markdown,
     css = getStylesheet(),
+    mode = "full",
   }: RenderOptions): Promise<string> {
-    const rawHtml = `${MO_CONTENT_PREFIX()}${markdownIt.render(
+    const rawHtml = `${MO_CONTENT_PREFIX(mode)}${markdownIt.render(
       markdown
     )}${MO_CONTENT_SUFFIX()}`;
     const documentFragment = new DOMParser().parseFromString(
       rawHtml,
       "text/html"
     );
+
+    if (mode === "fragment") {
+      return Promise.resolve(
+        renderFragmentHtml(documentFragment.body.innerHTML, css)
+      );
+    }
+
     applyInlineStyles(documentFragment, css);
     return Promise.resolve(documentFragment.body.innerHTML);
   }
@@ -92,7 +114,7 @@ function applyInlineStyles(
     return;
   }
 
-  const styleRules = parseInlineStyleRules(stylesheet);
+  const styleRules = parseStyleRules(stylesheet);
 
   for (const styleRule of styleRules) {
     if (!isInlineableSelector(styleRule.selectorText)) {
@@ -115,6 +137,25 @@ function applyInlineStyles(
   }
 }
 
+function buildScopedStylesheet(
+  stylesheet: string,
+  rootSelector: string
+): string {
+  return parseStyleRules(stylesheet)
+    .filter((styleRule) => isInlineableSelector(styleRule.selectorText))
+    .map((styleRule) => {
+      const scopedSelector = styleRule.selectorText
+        .split(",")
+        .map((selector) => selector.trim())
+        .filter((selector) => selector.length > 0)
+        .map((selector) => `${rootSelector} ${selector}`)
+        .join(", ");
+
+      return `${scopedSelector} { ${styleRule.declarationText} }`;
+    })
+    .join("\n");
+}
+
 function isInlineableSelector(selectorText: string): boolean {
   return selectorText
     .split(",")
@@ -122,7 +163,7 @@ function isInlineableSelector(selectorText: string): boolean {
     .every((selector) => selector.length > 0 && !selector.includes(":"));
 }
 
-function parseInlineStyleRules(
+function parseStyleRules(
   stylesheet: string
 ): { declarationText: string; selectorText: string }[] {
   return stylesheet
@@ -183,15 +224,46 @@ function mergeInlineStyles(element: Element, declarationText: string): void {
   element.setAttribute("style", cssText);
 }
 
+function renderFragmentHtml(contentHtml: string, stylesheet: string): string {
+  const scopedStylesheet = buildScopedStylesheet(
+    stylesheet,
+    `.${MARKOUT_FRAGMENT_HOST_CLASS}`
+  );
+  const styleTag =
+    scopedStylesheet.trim().length === 0
+      ? ""
+      : `<style data-markout-styles="fragment">${escapeHtml(
+          scopedStylesheet
+        )}</style>\n`;
+
+  return `<div class="${MARKOUT_FRAGMENT_HOST_CLASS}">\n${styleTag}${contentHtml}</div>\n`;
+}
+
 export function createMarkdownRenderer(): MarkdownRenderer {
   return new InlineStyleMarkdownRenderer();
 }
 
+export {
+  containsMarkOutFragmentMarker,
+  containsMarkOutFullRenderMarker,
+} from "./render-markers";
+
 export async function renderMarkdown({
   markdown,
   css,
+  mode,
 }: RenderOptions): Promise<string> {
-  return css === undefined
-    ? createMarkdownRenderer().render({ markdown })
-    : createMarkdownRenderer().render({ css, markdown });
+  if (css === undefined) {
+    if (mode === undefined) {
+      return createMarkdownRenderer().render({ markdown });
+    }
+
+    return createMarkdownRenderer().render({ markdown, mode });
+  }
+
+  if (mode === undefined) {
+    return createMarkdownRenderer().render({ css, markdown });
+  }
+
+  return createMarkdownRenderer().render({ css, markdown, mode });
 }

@@ -1,6 +1,9 @@
 import type { BodyAccessor } from "../src/lib/body-accessor";
 import { DefaultHtmlSanitizer } from "../src/lib/html-sanitizer";
-import { createItemRenderer } from "../src/lib/item";
+import {
+  FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE,
+  createItemRenderer,
+} from "../src/lib/item";
 import type { MarkdownRenderer } from "../src/lib/renderer";
 import type {
   RenderState,
@@ -13,6 +16,25 @@ class InMemoryBodyAccessor implements BodyAccessor {
 
   public getHtml(): Promise<string> {
     return Promise.resolve(this.html);
+  }
+
+  public getSelection(): Promise<{
+    hasSelection: boolean;
+    html: string | null;
+    source: "body";
+    text: string;
+  }> {
+    return Promise.resolve({
+      hasSelection: false,
+      html: null,
+      source: "body",
+      text: "",
+    });
+  }
+
+  public replaceSelectionWithHtml(html: string): Promise<void> {
+    this.html = html;
+    return Promise.resolve();
   }
 
   public setHtml(html: string): Promise<void> {
@@ -210,6 +232,33 @@ describe("item renderer", () => {
 
     await expect(itemRenderer.renderItem()).rejects.toThrow(
       "Outlook didn't preserve the original HTML for restore"
+    );
+  });
+
+  it("blocks full-draft rendering when the draft already contains a rendered MarkOut fragment", async () => {
+    const bodyAccessor = new InMemoryBodyAccessor(
+      '<div class="markout-fragment-host"><div class="mo markout-fragment-rendered">Rendered fragment</div></div>'
+    );
+    const renderStateStore = new InMemoryRenderStateStore();
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render(): Promise<string> {
+          return Promise.resolve('<div class="mo markout-rendered">noop</div>');
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    await expect(itemRenderer.renderItem()).rejects.toThrow(
+      FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE
     );
   });
 });
