@@ -17,8 +17,9 @@ constraints documented in [README.md](README.md).
 ## Branches and pull requests
 
 - Do not commit feature work directly on `main`.
-- Use a short-lived feature branch such as `codex/<topic>` or another explicitly
+- Use a short-lived feature branch such as `dev/<topic>` or another explicitly
   requested branch name.
+- Do not use `codex/<topic>` branch names in this repository.
 - Keep pull requests focused and behaviorally coherent.
 - Update README and manifests in the same workstream when setup, hosting,
   support URLs, or Outlook behavior changes.
