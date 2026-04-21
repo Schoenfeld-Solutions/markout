@@ -1,6 +1,22 @@
 import { createOfficeRenderStateStore } from "../src/lib/render-state-store";
 import { FakeMailboxItem, installOfficeEnvironment } from "./helpers";
 
+class InMemoryPersistentStorage {
+  private readonly values = new Map<string, string>();
+
+  public getItem(name: string): string | null {
+    return this.values.get(name) ?? null;
+  }
+
+  public removeItem(name: string): void {
+    this.values.delete(name);
+  }
+
+  public setItem(name: string, value: string): void {
+    this.values.set(name, value);
+  }
+}
+
 describe("render state store", () => {
   beforeEach(() => {
     installOfficeEnvironment();
@@ -74,7 +90,10 @@ describe("render state store", () => {
         "Specified argument was out of the range of valid values. Parameter name: customProperties",
       name: "Sys.ArgumentOutOfRangeException",
     };
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      undefined
+    );
     const largeHtml = "<div>" + "A".repeat(4000) + "</div>";
 
     await renderStateStore.setPendingRenderState(largeHtml);
@@ -92,6 +111,42 @@ describe("render state store", () => {
 
     await renderStateStore.clearRenderState();
     expect(mailboxItem.sessionData.get("markout.originalHtml")).toBeUndefined();
+  });
+
+  it("stores large render states in persistent browser storage when available", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    const persistentStorage = new InMemoryPersistentStorage();
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      persistentStorage
+    );
+    const largeHtml = "<div>" + "A".repeat(80000) + "</div>";
+
+    await renderStateStore.setPendingRenderState(largeHtml);
+
+    const storedPointer = mailboxItem.customProperties.get(
+      "markout.originalHtml"
+    );
+
+    expect(storedPointer).toContain('"originalHtmlStorage":"local"');
+    expect(storedPointer).not.toContain(largeHtml);
+    expect(await renderStateStore.getRenderState()).toEqual({
+      originalHtml: largeHtml,
+      phase: "pending",
+    });
+
+    const parsedPointer = JSON.parse(storedPointer ?? "{}") as {
+      originalHtmlStorageKey?: string;
+    };
+
+    expect(
+      persistentStorage.getItem(parsedPointer.originalHtmlStorageKey ?? "")
+    ).toBe(largeHtml);
+
+    await renderStateStore.clearRenderState();
+    expect(
+      persistentStorage.getItem(parsedPointer.originalHtmlStorageKey ?? "")
+    ).toBeNull();
   });
 
   it("treats missing session-data keys as an empty render state", async () => {
