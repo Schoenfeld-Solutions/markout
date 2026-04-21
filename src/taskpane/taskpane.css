@@ -37,6 +37,12 @@ textarea {
   font: inherit;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 code {
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
@@ -48,6 +54,8 @@ code {
   gap: 1rem;
   min-height: 100%;
   padding: 1.1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .shell--center {
@@ -75,6 +83,7 @@ code {
   flex-direction: column;
   gap: 0.9rem;
   min-height: 0;
+  min-width: 0;
   padding: 1rem;
 }
 
@@ -82,6 +91,7 @@ code {
   display: grid;
   gap: 1rem;
   grid-template-columns: 1fr;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -119,6 +129,11 @@ h2 {
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.panel-heading > div {
+  min-width: 0;
 }
 
 .preview-frame {
@@ -131,8 +146,30 @@ h2 {
   border-radius: 16px;
   flex: 1 1 auto;
   min-height: 12rem;
-  overflow: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
   padding: 1rem;
+}
+
+.preview-frame .mo,
+.preview-frame h1,
+.preview-frame h2,
+.preview-frame h3,
+.preview-frame h4,
+.preview-frame h5,
+.preview-frame h6,
+.preview-frame p,
+.preview-frame li,
+.preview-frame blockquote {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview-frame pre,
+.preview-frame table {
+  max-width: 100%;
 }
 
 .field-label {
@@ -147,8 +184,11 @@ h2 {
   border-radius: 16px;
   color: #f4f7fb;
   min-height: 18rem;
+  min-width: 0;
+  max-width: 100%;
   padding: 1rem;
   resize: vertical;
+  width: 100%;
 }
 
 .status-message {
@@ -180,6 +220,7 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .primary-button,
