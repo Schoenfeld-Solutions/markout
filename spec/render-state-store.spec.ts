@@ -94,6 +94,30 @@ describe("render state store", () => {
     expect(mailboxItem.sessionData.get("markout.originalHtml")).toBeUndefined();
   });
 
+  it("treats missing session-data keys as an empty render state", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.sessionData.nextGetError = {
+      message: "The specified key was not found.",
+      name: "KeyNotFound",
+    };
+    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+
+    await expect(renderStateStore.getRenderState()).resolves.toBeNull();
+  });
+
+  it("ignores missing session-data keys during cleanup", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+
+    await renderStateStore.setPendingRenderState("<div>Original</div>");
+    mailboxItem.sessionData.nextRemoveError = {
+      message: "The specified key was not found.",
+      name: "KeyNotFound",
+    };
+
+    await expect(renderStateStore.clearRenderState()).resolves.toBeUndefined();
+  });
+
   it("fails when no active compose item is available", () => {
     installOfficeEnvironment({ mailboxItem: undefined });
 

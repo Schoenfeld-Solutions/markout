@@ -153,6 +153,11 @@ class OfficeRenderStateStore implements RenderStateStore {
     await new Promise<void>((resolve, reject) => {
       sessionData.removeAsync(ORIGINAL_HTML_KEY, (result) => {
         if (result.status === Office.AsyncResultStatus.Failed) {
+          if (isMissingSessionStateError(result.error)) {
+            resolve();
+            return;
+          }
+
           reject(toOfficeError(result.error));
           return;
         }
@@ -172,6 +177,11 @@ class OfficeRenderStateStore implements RenderStateStore {
     return new Promise<string | undefined>((resolve, reject) => {
       sessionData.getAsync(ORIGINAL_HTML_KEY, (result) => {
         if (result.status === Office.AsyncResultStatus.Failed) {
+          if (isMissingSessionStateError(result.error)) {
+            resolve(undefined);
+            return;
+          }
+
           reject(toOfficeError(result.error));
           return;
         }
@@ -271,6 +281,15 @@ function isCapacityError(error: unknown): boolean {
     /ArgumentOutOfRange/i.test(error.name) ||
     /customproperties/i.test(error.message) ||
     /out of the range of valid values/i.test(error.message)
+  );
+}
+
+function isMissingSessionStateError(
+  error: { message: string; name: string } | undefined
+): boolean {
+  return (
+    /KeyNotFound/i.test(error?.name ?? "") ||
+    /specified key was not found/i.test(error?.message ?? "")
   );
 }
 
