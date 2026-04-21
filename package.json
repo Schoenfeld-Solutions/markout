@@ -23,7 +23,8 @@
   "scripts": {
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run validate:manifest",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run check:bundle && npm run validate:manifest",
+    "check:bundle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/check-bundle-budgets.ts",
     "dev": "npm run dev-server",
     "dev-server": "webpack serve --mode development",
     "format": "prettier --cache --write \"CONTRIBUTING.md\" \"README.md\" \".github/**/*.{yml,yaml}\" \"eslint.config.cjs\" \"jest.config.cjs\" \"package.json\" \"scripts/**/*.ts\" \"site/**/*.html\" \"spec/**/*.{ts,tsx}\" \"src/**/*.{ts,tsx,html,css}\" \"tsconfig.json\" \"webpack.config.js\"",
