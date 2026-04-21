@@ -61,6 +61,7 @@ export class FakeRoamingSettings {
 
 export class FakeCustomProperties {
   public failNextSave = false;
+  public nextSaveError: OfficeErrorLike | null = null;
   private readonly values = new Map<string, string>();
 
   public get(name: string): string | undefined {
@@ -72,6 +73,13 @@ export class FakeCustomProperties {
   }
 
   public saveAsync(callback: (result: Office.AsyncResult<void>) => void): void {
+    if (this.nextSaveError !== null) {
+      const saveError = this.nextSaveError;
+      this.nextSaveError = null;
+      callback(failedAsyncResult<void>(saveError));
+      return;
+    }
+
     if (this.failNextSave) {
       this.failNextSave = false;
       callback(
@@ -88,6 +96,66 @@ export class FakeCustomProperties {
 
   public set(name: string, value: string): void {
     this.values.set(name, value);
+  }
+}
+
+export class FakeSessionData {
+  public nextGetError: OfficeErrorLike | null = null;
+  public nextRemoveError: OfficeErrorLike | null = null;
+  public nextSetError: OfficeErrorLike | null = null;
+  private readonly values = new Map<string, string>();
+
+  public get(name: string): string | undefined {
+    return this.values.get(name);
+  }
+
+  public getAsync(
+    name: string,
+    callback: (result: Office.AsyncResult<string | undefined>) => void
+  ): void {
+    if (this.nextGetError !== null) {
+      const getError = this.nextGetError;
+      this.nextGetError = null;
+      callback(failedAsyncResult<string | undefined>(getError));
+      return;
+    }
+
+    callback(succeededAsyncResult<string | undefined>(this.values.get(name)));
+  }
+
+  public removeAsync(
+    name: string,
+    callback: (result: Office.AsyncResult<void>) => void
+  ): void {
+    if (this.nextRemoveError !== null) {
+      const removeError = this.nextRemoveError;
+      this.nextRemoveError = null;
+      callback(failedAsyncResult<void>(removeError));
+      return;
+    }
+
+    this.values.delete(name);
+    callback(succeededAsyncResult<void>(undefined));
+  }
+
+  public set(name: string, value: string): void {
+    this.values.set(name, value);
+  }
+
+  public setAsync(
+    name: string,
+    value: string,
+    callback: (result: Office.AsyncResult<void>) => void
+  ): void {
+    if (this.nextSetError !== null) {
+      const setError = this.nextSetError;
+      this.nextSetError = null;
+      callback(failedAsyncResult<void>(setError));
+      return;
+    }
+
+    this.values.set(name, value);
+    callback(succeededAsyncResult<void>(undefined));
   }
 }
 
@@ -143,6 +211,7 @@ export class FakeBody {
 export class FakeMailboxItem {
   public readonly body: FakeBody;
   public readonly customProperties = new FakeCustomProperties();
+  public readonly sessionData = new FakeSessionData();
   public failNextLoadCustomProperties = false;
   public throwOnNotificationReplace = false;
   public readonly notificationMessages = {

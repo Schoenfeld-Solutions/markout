@@ -67,6 +67,33 @@ describe("render state store", () => {
     });
   });
 
+  it("falls back to session data when the render state is too large for custom properties", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.customProperties.nextSaveError = {
+      message:
+        "Specified argument was out of the range of valid values. Parameter name: customProperties",
+      name: "Sys.ArgumentOutOfRangeException",
+    };
+    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const largeHtml = "<div>" + "A".repeat(4000) + "</div>";
+
+    await renderStateStore.setPendingRenderState(largeHtml);
+
+    expect(await renderStateStore.getRenderState()).toEqual({
+      originalHtml: largeHtml,
+      phase: "pending",
+    });
+    expect(
+      mailboxItem.customProperties.get("markout.originalHtml")
+    ).toBeUndefined();
+    expect(mailboxItem.sessionData.get("markout.originalHtml")).toContain(
+      '"phase":"pending"'
+    );
+
+    await renderStateStore.clearRenderState();
+    expect(mailboxItem.sessionData.get("markout.originalHtml")).toBeUndefined();
+  });
+
   it("fails when no active compose item is available", () => {
     installOfficeEnvironment({ mailboxItem: undefined });
 

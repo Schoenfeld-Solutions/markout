@@ -62,7 +62,9 @@ export interface MarkdownRenderer {
   render(options: RenderOptions): Promise<string>;
 }
 
-export const MO_CONTENT_PREFIX = (): string => `<div class="mo">\n`;
+export const MARKOUT_RENDERED_CLASS = "markout-rendered";
+export const MO_CONTENT_PREFIX = (): string =>
+  `<div class="mo ${MARKOUT_RENDERED_CLASS}">\n`;
 export const MO_CONTENT_SUFFIX = (): string => `</div>\n`;
 
 class InlineStyleMarkdownRenderer implements MarkdownRenderer {

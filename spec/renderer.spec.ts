@@ -8,7 +8,9 @@ describe("renderer", () => {
 
   it("generates HTML for basic markdown", async () => {
     const input = "# Example\nThis is a test";
-    const expected = `<div class="mo">\n<h1>Example</h1>\n<p>This is a test</p>\n</div>\n`;
+    const expected =
+      `<div class="mo markout-rendered">\n<h1>Example</h1>\n` +
+      `<p>This is a test</p>\n</div>\n`;
     const output = await renderMarkdown({ css: "html {}", markdown: input });
 
     expect(output).toBe(expected);
@@ -17,7 +19,7 @@ describe("renderer", () => {
   it("renders supported HTML that is present inside markdown", async () => {
     const input = `# Example\nThis is a test with HTML elements\n<img src="http://example.com/img.png">`;
     const expected =
-      `<div class="mo">\n<h1>Example</h1>\n<p>This is a test with HTML elements\n` +
+      `<div class="mo markout-rendered">\n<h1>Example</h1>\n<p>This is a test with HTML elements\n` +
       `<img src="http://example.com/img.png"></p>\n</div>\n`;
     const output = await renderMarkdown({ css: "html {}", markdown: input });
 
@@ -30,7 +32,9 @@ describe("renderer", () => {
       markdown: "Paragraph text",
     });
 
-    expect(output).toContain(`<div class="mo" style="color: rgb(1, 2, 3);">`);
+    expect(output).toContain(
+      `<div class="mo markout-rendered" style="color: rgb(1, 2, 3);">`
+    );
     expect(output).toContain(`<p style="margin-top: 12px;">Paragraph text</p>`);
   });
 

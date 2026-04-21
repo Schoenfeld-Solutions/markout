@@ -7,10 +7,27 @@ interface CustomPropertiesLike {
   set(name: string, value: string): void;
 }
 
+interface SessionDataLike {
+  getAsync(
+    name: string,
+    callback: (result: Office.AsyncResult<string | undefined>) => void
+  ): void;
+  removeAsync(
+    name: string,
+    callback: (result: Office.AsyncResult<void>) => void
+  ): void;
+  setAsync(
+    name: string,
+    value: string,
+    callback: (result: Office.AsyncResult<void>) => void
+  ): void;
+}
+
 interface MailboxItemWithCustomPropertiesLike {
   loadCustomPropertiesAsync(
     callback: (result: Office.AsyncResult<CustomPropertiesLike>) => void
   ): void;
+  sessionData?: SessionDataLike;
 }
 
 export type RenderStatePhase = "pending" | "rendered";
@@ -42,9 +59,16 @@ class OfficeRenderStateStore implements RenderStateStore {
     const customProperties = await this.loadCustomProperties();
     customProperties.remove(ORIGINAL_HTML_KEY);
     await this.saveCustomProperties(customProperties);
+    await this.clearSessionState();
   }
 
   public async getRenderState(): Promise<RenderState | null> {
+    const sessionState = await this.loadSessionState();
+
+    if (sessionState !== undefined) {
+      return normalizeStoredRenderState(sessionState);
+    }
+
     const customProperties = await this.loadCustomProperties();
     return normalizeStoredRenderState(customProperties.get(ORIGINAL_HTML_KEY));
   }
@@ -92,9 +116,88 @@ class OfficeRenderStateStore implements RenderStateStore {
   }
 
   private async saveRenderState(renderState: RenderState): Promise<void> {
-    const customProperties = await this.loadCustomProperties();
-    customProperties.set(ORIGINAL_HTML_KEY, JSON.stringify(renderState));
-    await this.saveCustomProperties(customProperties);
+    const serializedRenderState = JSON.stringify(renderState);
+
+    try {
+      const customProperties = await this.loadCustomProperties();
+      customProperties.set(ORIGINAL_HTML_KEY, serializedRenderState);
+      await this.saveCustomProperties(customProperties);
+      await this.clearSessionState();
+    } catch (error) {
+      if (!supportsSessionData(this.mailboxItem) || !isCapacityError(error)) {
+        throw error;
+      }
+
+      await this.saveSessionState(serializedRenderState);
+      await this.clearCustomPropertyStateQuietly();
+    }
+  }
+
+  private async clearCustomPropertyStateQuietly(): Promise<void> {
+    try {
+      const customProperties = await this.loadCustomProperties();
+      customProperties.remove(ORIGINAL_HTML_KEY);
+      await this.saveCustomProperties(customProperties);
+    } catch {
+      // Ignore cleanup failures after successfully saving a session-scoped state.
+    }
+  }
+
+  private async clearSessionState(): Promise<void> {
+    const sessionData = this.mailboxItem.sessionData;
+
+    if (sessionData === undefined) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      sessionData.removeAsync(ORIGINAL_HTML_KEY, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(toOfficeError(result.error));
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  private async loadSessionState(): Promise<string | undefined> {
+    const sessionData = this.mailboxItem.sessionData;
+
+    if (sessionData === undefined) {
+      return undefined;
+    }
+
+    return new Promise<string | undefined>((resolve, reject) => {
+      sessionData.getAsync(ORIGINAL_HTML_KEY, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(toOfficeError(result.error));
+          return;
+        }
+
+        resolve(result.value);
+      });
+    });
+  }
+
+  private async saveSessionState(renderState: string): Promise<void> {
+    const sessionData = this.mailboxItem.sessionData;
+
+    if (sessionData === undefined) {
+      throw new Error("MarkOut couldn't persist large render state data.");
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      sessionData.setAsync(ORIGINAL_HTML_KEY, renderState, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(toOfficeError(result.error));
+          return;
+        }
+
+        resolve();
+      });
+    });
   }
 }
 
@@ -157,6 +260,26 @@ function toOfficeError(
   );
   normalizedError.name = error?.name ?? "OfficeAsyncError";
   return normalizedError;
+}
+
+function isCapacityError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    /ArgumentOutOfRange/i.test(error.name) ||
+    /customproperties/i.test(error.message) ||
+    /out of the range of valid values/i.test(error.message)
+  );
+}
+
+function supportsSessionData(
+  mailboxItem: MailboxItemWithCustomPropertiesLike
+): mailboxItem is MailboxItemWithCustomPropertiesLike & {
+  sessionData: SessionDataLike;
+} {
+  return mailboxItem.sessionData !== undefined;
 }
 
 export function createOfficeRenderStateStore(
