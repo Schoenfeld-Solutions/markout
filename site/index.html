@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MarkOut is an Outlook compose add-in for Markdown-first authoring with safe HTML rendering."
+    />
+    <base href="/markout/" />
+    <link rel="icon" href="assets/icon-32.png" />
+    <title>MarkOut</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page: #f4f7fb;
+        --card: rgba(255, 255, 255, 0.92);
+        --card-border: rgba(14, 64, 115, 0.1);
+        --ink: #12263a;
+        --muted: #5a6c7d;
+        --accent: #0f6cbd;
+        --accent-strong: #0a4f8c;
+        --shadow: 0 24px 56px rgba(18, 38, 58, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(15, 108, 189, 0.18),
+            transparent 34%
+          ),
+          linear-gradient(180deg, #f8fbff 0%, var(--page) 100%);
+        color: var(--ink);
+        font-family:
+          "Segoe UI",
+          "Aptos",
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        line-height: 1.55;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .shell {
+        margin: 0 auto;
+        max-width: 1080px;
+        padding: 2rem 1.25rem 3rem;
+      }
+
+      .masthead,
+      .section,
+      .footer {
+        backdrop-filter: blur(14px);
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .masthead {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 1rem;
+        padding: 1.6rem;
+      }
+
+      .brand {
+        align-items: center;
+        display: inline-flex;
+        gap: 0.9rem;
+      }
+
+      .brand img {
+        border-radius: 14px;
+        height: 56px;
+        width: 56px;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        margin: 0 0 0.35rem;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 3.8vw, 3.5rem);
+        letter-spacing: -0.04em;
+        line-height: 0.95;
+        max-width: 10ch;
+      }
+
+      .lede {
+        color: var(--muted);
+        font-size: 1.08rem;
+        max-width: 62ch;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.9rem;
+      }
+
+      .action {
+        border-radius: 999px;
+        font-weight: 700;
+        padding: 0.9rem 1.15rem;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          background-color 160ms ease;
+      }
+
+      .action:hover,
+      .resource-link:hover {
+        transform: translateY(-1px);
+      }
+
+      .action--primary {
+        background: linear-gradient(135deg, var(--accent) 0%, #1c84d0 100%);
+        box-shadow: 0 14px 28px rgba(15, 108, 189, 0.22);
+        color: #ffffff;
+      }
+
+      .action--secondary {
+        background: rgba(15, 108, 189, 0.1);
+        color: var(--accent-strong);
+      }
+
+      .grid {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .section {
+        margin-top: 1rem;
+        padding: 1.25rem;
+      }
+
+      .resource-grid {
+        display: grid;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .resource-link {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(18, 38, 58, 0.08);
+        border-radius: 18px;
+        display: grid;
+        gap: 0.35rem;
+        padding: 1rem;
+        transition:
+          transform 160ms ease,
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .resource-link:hover {
+        border-color: rgba(15, 108, 189, 0.2);
+        box-shadow: 0 16px 32px rgba(18, 38, 58, 0.08);
+      }
+
+      .resource-label {
+        font-size: 1.02rem;
+        font-weight: 700;
+      }
+
+      .resource-copy,
+      .muted {
+        color: var(--muted);
+      }
+
+      .steps {
+        display: grid;
+        gap: 0.85rem;
+        margin-top: 1rem;
+      }
+
+      .step {
+        align-items: start;
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: auto 1fr;
+      }
+
+      .step-index {
+        align-items: center;
+        background: rgba(15, 108, 189, 0.1);
+        border-radius: 999px;
+        color: var(--accent-strong);
+        display: inline-flex;
+        font-size: 0.92rem;
+        font-weight: 800;
+        height: 2rem;
+        justify-content: center;
+        width: 2rem;
+      }
+
+      .footer {
+        display: grid;
+        gap: 0.8rem;
+        margin-top: 1rem;
+        padding: 1.25rem;
+      }
+
+      .footer strong {
+        color: var(--ink);
+      }
+
+      @media (min-width: 760px) {
+        .masthead {
+          align-items: end;
+          grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+        }
+
+        .resource-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .grid {
+          grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="masthead">
+        <div>
+          <div class="brand">
+            <img src="assets/logo-filled.png" alt="MarkOut logo" />
+            <div>
+              <p class="eyebrow">Markdown for Outlook</p>
+              <p class="muted">Schoenfeld Solutions</p>
+            </div>
+          </div>
+          <h1>Safe Markdown authoring for Outlook compose.</h1>
+          <p class="lede">
+            MarkOut is an Outlook compose add-in that turns Markdown into
+            inline-styled email HTML, keeps rendering safe, and supports manual
+            rendering plus Smart Alerts auto-rendering before send.
+          </p>
+        </div>
+
+        <div class="actions">
+          <a class="action action--primary" href="manifest.beta.xml">
+            Download beta manifest
+          </a>
+          <a class="action action--secondary" href="manifest.xml">
+            Download production manifest
+          </a>
+          <a
+            class="action action--secondary"
+            href="https://github.com/Schoenfeld-Solutions/markout"
+            rel="noreferrer"
+            target="_blank"
+          >
+            View repository
+          </a>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section class="section">
+          <p class="eyebrow">Published Assets</p>
+          <h2>Use the hosted manifests or inspect the deployed runtimes.</h2>
+          <div class="resource-grid">
+            <a class="resource-link" href="manifest.xml">
+              <span class="resource-label">manifest.xml</span>
+              <span class="resource-copy">
+                Production Outlook manifest for hosted deployment.
+              </span>
+            </a>
+            <a class="resource-link" href="manifest.beta.xml">
+              <span class="resource-label">manifest.beta.xml</span>
+              <span class="resource-copy">
+                Beta manifest for validating the latest staged changes.
+              </span>
+            </a>
+            <a
+              class="resource-link"
+              href="https://github.com/Schoenfeld-Solutions/markout"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span class="resource-label">GitHub repository</span>
+              <span class="resource-copy">
+                Source code, issues, release workflow, and fork history.
+              </span>
+            </a>
+            <a class="resource-link" href="outlook/taskpane.html">
+              <span class="resource-label">Production task pane</span>
+              <span class="resource-copy">
+                The hosted task pane entrypoint for the production manifest.
+              </span>
+            </a>
+            <a class="resource-link" href="outlook-beta/taskpane.html">
+              <span class="resource-label">Beta task pane</span>
+              <span class="resource-copy">
+                The hosted task pane entrypoint for the beta manifest.
+              </span>
+            </a>
+            <a class="resource-link" href="outlook/commands.html">
+              <span class="resource-label">Command runtime</span>
+              <span class="resource-copy">
+                Outlook command surface runtime used by the hosted add-in.
+              </span>
+            </a>
+          </div>
+        </section>
+
+        <section class="section">
+          <p class="eyebrow">Install</p>
+          <h2>Sideload via Outlook Add from File.</h2>
+          <div class="steps">
+            <div class="step">
+              <span class="step-index">1</span>
+              <p>
+                Open Outlook, then go to <strong>Get Add-ins</strong> and choose
+                <strong>Add a custom add-in</strong>.
+              </p>
+            </div>
+            <div class="step">
+              <span class="step-index">2</span>
+              <p>
+                Choose <strong>Add from File</strong>. Microsoft no longer
+                supports Add from URL for this workflow.
+              </p>
+            </div>
+            <div class="step">
+              <span class="step-index">3</span>
+              <p>
+                Use <strong>manifest.beta.xml</strong> for staged validation or
+                <strong>manifest.xml</strong> for the production deployment.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="footer">
+        <p>
+          MarkOut continues as an independently maintained fork by
+          <strong>Schoenfeld Solutions</strong> and credits the original product
+          direction of
+          <a
+            href="https://github.com/SierraSoftworks/markout"
+            rel="noreferrer"
+            target="_blank"
+          >
+            SierraSoftworks/markout
+          </a>
+          .
+        </p>
+        <p class="muted">
+          Hosted Pages root: <code>/markout/</code>. Add-in runtimes remain
+          under <code>/markout/outlook/</code> and
+          <code>/markout/outlook-beta/</code>.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -75,6 +75,9 @@ For hosted builds, download one of the published manifests first and then use **
 - `https://schoenfeld-solutions.github.io/markout/manifest.xml`
 - `https://schoenfeld-solutions.github.io/markout/manifest.beta.xml`
 
+The Pages root at `https://schoenfeld-solutions.github.io/markout/` now serves a static MarkOut
+landing page instead of a generic GitHub 404.
+
 ### Local commands
 
 ```bash
@@ -135,6 +138,8 @@ manual rendering updates the draft body, and the Smart Alerts send flow complete
 
 - Support and issue tracking live at `https://github.com/Schoenfeld-Solutions/markout`.
 - The published GitHub Pages site is `https://schoenfeld-solutions.github.io/markout/`.
+- The Pages root serves a static MarkOut landing page with links to hosted manifests, task pane runtimes, and the repository.
+- Unknown GitHub Pages paths use a custom MarkOut 404 page instead of the default GitHub Pages error screen.
 - Production assets are served from `https://schoenfeld-solutions.github.io/markout/outlook/`.
 - Staging assets are served from `https://schoenfeld-solutions.github.io/markout/outlook-beta/`.
 - Manifest variants must remain behaviorally aligned.

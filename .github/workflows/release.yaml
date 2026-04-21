@@ -39,8 +39,11 @@ jobs:
         run: |
           mkdir -p ./out/outlook/
           mkdir -p ./out/outlook-beta/
+          cp site/index.html ./out/index.html
+          cp site/404.html ./out/404.html
           cp manifest.xml ./out/manifest.xml
           cp manifest.beta.xml ./out/manifest.beta.xml
+          cp -R assets ./out/
           cp -R assets ./out/outlook/
           cp -R dist/. ./out/outlook/
           cp -R assets ./out/outlook-beta/
