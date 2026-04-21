@@ -2,7 +2,11 @@ import { cleanse } from "./cleanser";
 import { createOfficeBodyAccessor, type BodyAccessor } from "./body-accessor";
 import { createOfficeSettingsStore, type SettingsStore } from "./config";
 import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
-import { createMarkdownRenderer, type MarkdownRenderer } from "./renderer";
+import {
+  MARKOUT_RENDERED_CLASS,
+  createMarkdownRenderer,
+  type MarkdownRenderer,
+} from "./renderer";
 import {
   createOfficeRenderStateStore,
   type RenderState,
@@ -23,6 +27,9 @@ export interface ItemRenderer {
   ensureRendered(): Promise<boolean>;
   renderItem(): Promise<RenderItemResult>;
 }
+
+const LARGE_DRAFT_RESTORE_MESSAGE =
+  "This draft was rendered in an earlier compose session, but Outlook didn't preserve the original HTML for restore. Reopen the unrendered draft or continue editing the rendered version.";
 
 export function createItemRenderer(
   dependencies: RenderDependencies
@@ -103,6 +110,11 @@ async function ensureRenderedInternal(
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
+
+  if (containsRenderedMarker(currentHtml)) {
+    return false;
+  }
+
   await applyRenderedContent(dependencies, currentHtml);
   return true;
 }
@@ -142,6 +154,19 @@ async function renderItemInternal(
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
+
+  if (containsRenderedMarker(currentHtml)) {
+    throw new Error(LARGE_DRAFT_RESTORE_MESSAGE);
+  }
+
   await applyRenderedContent(dependencies, currentHtml);
   return "rendered";
+}
+
+function containsRenderedMarker(html: string): boolean {
+  const documentFragment = new DOMParser().parseFromString(html, "text/html");
+  return (
+    documentFragment.body.querySelector(`.mo.${MARKOUT_RENDERED_CLASS}`) !==
+    null
+  );
 }

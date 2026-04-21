@@ -157,4 +157,59 @@ describe("item renderer", () => {
     });
     expect(await bodyAccessor.getHtml()).toContain("Recovered output");
   });
+
+  it("skips ensureRendered when the current draft already contains a MarkOut render marker", async () => {
+    const bodyAccessor = new InMemoryBodyAccessor(
+      '<div class="mo markout-rendered"><p>Rendered output</p></div>'
+    );
+    const renderStateStore = new InMemoryRenderStateStore();
+    let renderCalls = 0;
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render(): Promise<string> {
+          renderCalls += 1;
+          return Promise.resolve('<div class="mo markout-rendered">noop</div>');
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.ensureRendered()).toBe(false);
+    expect(renderCalls).toBe(0);
+  });
+
+  it("fails restore when the rendered marker is present but the original html is unavailable", async () => {
+    const bodyAccessor = new InMemoryBodyAccessor(
+      '<div class="mo markout-rendered"><p>Rendered output</p></div>'
+    );
+    const renderStateStore = new InMemoryRenderStateStore();
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render(): Promise<string> {
+          return Promise.resolve('<div class="mo markout-rendered">noop</div>');
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    await expect(itemRenderer.renderItem()).rejects.toThrow(
+      "Outlook didn't preserve the original HTML for restore"
+    );
+  });
 });
