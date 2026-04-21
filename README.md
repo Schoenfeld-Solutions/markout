@@ -7,6 +7,26 @@ The add-in keeps the authoring experience focused on Markdown while giving users
 for previewing the default theme, customizing the stylesheet, and enabling automatic rendering
 through Outlook Smart Alerts.
 
+## Compose UX
+
+MarkOut is intentionally **taskpane-first** in Outlook compose.
+
+- `Open MarkOut` is the single compose command and opens the task pane.
+- Manual Markdown work happens inside the task pane: render the current body
+  selection, render the entire draft, or insert rendered Markdown fragments at
+  the current body selection or cursor.
+- The task pane includes light, dark, and system theme modes, first-run intro
+  content, help, credits, developer tooling, and Smart Alerts settings.
+
+MarkOut does **not** implement a native Outlook context-menu integration for
+Markdown conversion. This is a deliberate product decision based on the current
+Outlook web add-in platform constraints discussed in
+[OfficeDev/office-js#2364](https://github.com/OfficeDev/office-js/issues/2364)
+and
+[OfficeDev/office-js#5943](https://github.com/OfficeDev/office-js/issues/5943).
+The UI therefore follows the Microsoft Office add-in taskpane model instead of
+trying to fake a host context menu.
+
 ## Fork and credits
 
 MarkOut originated in the upstream project
@@ -38,8 +58,8 @@ for testing, use one of the supported flows documented by Microsoft:
    - `manifest.xml` for the production deployment
 
 The command buttons appear in message compose and appointment compose surfaces. The task pane is used
-for theme editing and manual rendering, while Smart Alerts can auto-render content before send when
-the user enables that option.
+for all manual rendering and insertion work, while Smart Alerts can auto-render content before send
+when the user enables that option.
 
 ## Development
 
@@ -78,6 +98,14 @@ For hosted builds, download one of the published manifests first and then use **
 The Pages root at `https://schoenfeld-solutions.github.io/markout/` now serves a static MarkOut
 landing page instead of a generic GitHub 404.
 
+The taskpane implementation is built with React and Fluent UI and follows the
+Microsoft Office add-in design guidance for task panes and layout:
+
+- [Office Add-in design language](https://learn.microsoft.com/en-us/office/dev/add-ins/design/add-in-design-language)
+- [Task panes in Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/task-pane-add-ins)
+- [Layout guidelines for Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/add-in-layout)
+- [Use Fluent UI React in Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/using-office-ui-fabric-react)
+
 ### Local commands
 
 ```bash
@@ -88,6 +116,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run check:bundle
 npm run validate:manifest
 npm run check
 ```
@@ -96,7 +125,28 @@ npm run check
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
-the production build, and deployable manifest validation.
+the production build, bundle budget checks, and deployable manifest validation.
+
+## Preview deployments
+
+MarkOut can publish **PR-specific preview runtimes** to a separate Cloudflare Pages
+project while GitHub Pages remains the production host for `main`.
+
+- Preview deploys are gated by the repository variable `MARKOUT_PREVIEW_ENABLED=true`.
+- The preview workflow expects:
+  - secret `CLOUDFLARE_API_TOKEN`
+  - secret `CLOUDFLARE_ACCOUNT_ID`
+  - variable `CLOUDFLARE_PAGES_PROJECT_NAME`
+- Each PR preview publishes to the stable alias `pr-<number>.<project>.pages.dev`
+  and generates `manifest.preview.xml` for that PR.
+- The workflow comments the preview site and preview manifest links back onto the PR.
+
+Preview verification in Outlook still uses **Add from File**:
+
+1. Download the generated `manifest.preview.xml` from the PR preview link.
+2. Remove any conflicting MarkOut sideload in OWA if necessary.
+3. Open **Get Add-ins** > **My add-ins** > **Add a custom add-in** > **Add from File**.
+4. Select the downloaded preview manifest and verify the PR build in compose.
 
 ## Dependency maintenance
 
@@ -125,19 +175,33 @@ Required environment variables:
 Common optional overrides:
 
 - `MARKOUT_HOST_SMOKE_COMPOSE_URL`
+- `MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR`
 - `MARKOUT_HOST_SMOKE_BROWSER_EXECUTABLE`
+- `MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX`
+- `MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR`
+- `MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR`
+- `MARKOUT_HOST_SMOKE_INTRO_PANEL_BUTTON_SELECTOR`
 - `MARKOUT_HOST_SMOKE_OPEN_BUTTON_SELECTOR`
 - `MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR`
+- `MARKOUT_HOST_SMOKE_RENDER_BUTTON_SELECTOR`
+- `MARKOUT_HOST_SMOKE_SETTINGS_PANEL_BUTTON_SELECTOR`
 - `MARKOUT_HOST_SMOKE_TASKPANE_FRAME_SELECTOR`
+- `MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR`
 - `MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR`
 
 The smoke verifies that the task pane opens, the preview loads, auto-render remains enabled after reload,
 manual rendering updates the draft body, and the Smart Alerts send flow completes successfully.
 
+For PR preview smoke runs, the workflow can also assert that the opened taskpane
+iframe comes from the expected preview host via `MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX`.
+That still assumes the preview manifest has been installed for the dedicated test
+account before the smoke is executed.
+
 ## Deployment notes
 
 - Support and issue tracking live at `https://github.com/Schoenfeld-Solutions/markout`.
 - The published GitHub Pages site is `https://schoenfeld-solutions.github.io/markout/`.
+- PR previews can be published to a separate Cloudflare Pages project with PR-specific aliases.
 - The Pages root serves a static MarkOut landing page with links to hosted manifests, task pane runtimes, and the repository.
 - Unknown GitHub Pages paths use a custom MarkOut 404 page instead of the default GitHub Pages error screen.
 - Production assets are served from `https://schoenfeld-solutions.github.io/markout/outlook/`.

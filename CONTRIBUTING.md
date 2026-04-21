@@ -17,11 +17,30 @@ constraints documented in [README.md](README.md).
 ## Branches and pull requests
 
 - Do not commit feature work directly on `main`.
-- Use a short-lived feature branch such as `codex/<topic>` or another explicitly
-  requested branch name.
+- Use a short-lived feature branch in the form `dev/<topic>`.
+- Do not use `codex/<topic>` branch names in this repository.
 - Keep pull requests focused and behaviorally coherent.
 - Update README and manifests in the same workstream when setup, hosting,
   support URLs, or Outlook behavior changes.
+
+## Taskpane UX guardrails
+
+- Treat the task pane as the only primary compose workspace for MarkOut.
+- Keep `Open MarkOut` as the single compose command entry point unless a new
+  command is explicitly approved and documented.
+- Do not build native Outlook context-menu flows for Markdown rendering in this
+  repo. Outlook web add-ins do not provide a stable path for that scenario, so
+  MarkOut uses taskpane-first selection and insert flows instead.
+- Follow Microsoft Office add-in design guidance for task panes and layout:
+  - [Office Add-in design language](https://learn.microsoft.com/en-us/office/dev/add-ins/design/add-in-design-language)
+  - [Task panes in Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/task-pane-add-ins)
+  - [Layout guidelines for Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/add-in-layout)
+  - [Use Fluent UI React in Office Add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/design/using-office-ui-fabric-react)
+- For repo history and product constraints, also review:
+  - [OfficeDev issue #2364](https://github.com/OfficeDev/office-js/issues/2364)
+  - [OfficeDev issue #5943](https://github.com/OfficeDev/office-js/issues/5943)
+- Use Fluent UI React for dynamic taskpane UI. Only fall back to lighter-weight
+  static styling when a surface is intentionally static and non-interactive.
 
 ## Commit format
 
@@ -52,7 +71,7 @@ npm run check
 ```
 
 This includes formatting checks, linting, type checking, unit tests, the
-production build, and deployable manifest validation.
+production build, bundle budget checks, and deployable manifest validation.
 
 Additional checks when relevant:
 
@@ -64,6 +83,21 @@ Additional checks when relevant:
 
 If the host smoke cannot be run because credentials or Outlook test
 infrastructure are unavailable, call that out explicitly in the PR.
+
+## Preview deployment workflow
+
+- PR previews publish to a **separate Cloudflare Pages project**; GitHub Pages
+  remains the production host for `main`.
+- Required GitHub configuration for preview deploys:
+  - secret `CLOUDFLARE_API_TOKEN`
+  - secret `CLOUDFLARE_ACCOUNT_ID`
+  - variable `CLOUDFLARE_PAGES_PROJECT_NAME`
+  - variable `MARKOUT_PREVIEW_ENABLED=true`
+- The preview workflow generates `manifest.preview.xml` per PR and comments the
+  preview links onto the PR.
+- If you want automated preview host smoke, also enable
+  `MARKOUT_HOST_SMOKE_PREVIEW_ENABLED=true` and make sure the dedicated Outlook
+  test account has the preview manifest installed for that PR alias.
 
 ## Dependency and automation policy
 
