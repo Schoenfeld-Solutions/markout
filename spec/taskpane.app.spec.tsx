@@ -1,6 +1,12 @@
 /** @jest-environment jsdom */
 
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import type { ComposeNotificationService } from "../src/lib/compose-notifications";
+import type { SettingsStore } from "../src/lib/config";
 import {
+  TaskpaneApp,
+  type TaskpaneServices,
   buildToolbarPanels,
   getPanelAfterVisibilityChange,
   getRenderSelectionTooltip,
@@ -13,6 +19,91 @@ import {
   supportsMarkdownFile,
 } from "../src/taskpane/app";
 import { getStrings } from "../src/taskpane/i18n";
+import { TaskpaneRuntimeErrorBoundary } from "../src/taskpane/runtime";
+
+function createSettingsStore(
+  overrides: Partial<{
+    autoRender: boolean;
+    creditsVisible: boolean;
+    developerToolsEnabled: boolean;
+    helpVisible: boolean;
+    introDismissed: boolean;
+    stylesheet: string;
+    themeMode: "dark" | "light" | "system";
+  }> = {}
+): SettingsStore {
+  return {
+    getAutoRender: () => overrides.autoRender ?? false,
+    getCreditsVisible: () => overrides.creditsVisible ?? true,
+    getDeveloperToolsEnabled: () => overrides.developerToolsEnabled ?? false,
+    getHelpVisible: () => overrides.helpVisible ?? true,
+    getIntroDismissed: () => overrides.introDismissed ?? false,
+    getStylesheet: () => overrides.stylesheet ?? "",
+    getThemeMode: () => overrides.themeMode ?? "system",
+    save: () => Promise.resolve(),
+    setAutoRender: () => undefined,
+    setCreditsVisible: () => undefined,
+    setDeveloperToolsEnabled: () => undefined,
+    setHelpVisible: () => undefined,
+    setIntroDismissed: () => undefined,
+    setStylesheet: () => undefined,
+    setThemeMode: () => undefined,
+  };
+}
+
+function createServices(): TaskpaneServices {
+  return {
+    composeMarkdown: {
+      getSelection: () =>
+        Promise.resolve({
+          hasSelection: false,
+          html: null,
+          source: "body",
+          text: "",
+        }),
+      insertRenderedMarkdown: () => Promise.resolve("inserted"),
+      renderPreview: () => Promise.resolve("<p>preview</p>"),
+      renderSelection: () => Promise.resolve(),
+    },
+    renderEntireDraft: () => Promise.resolve("rendered"),
+  };
+}
+
+function createNotificationService(): ComposeNotificationService {
+  return {
+    clearAutoRenderDismissed: () => Promise.resolve(),
+    clearAutoRenderNotification: () => Promise.resolve(),
+    hasAutoRenderBeenDismissed: () => Promise.resolve(false),
+    markAutoRenderDismissed: () => Promise.resolve(),
+    onAutoRenderDismiss: () => undefined,
+    showAutoRenderNotification: () => Promise.resolve("pane"),
+  };
+}
+
+function ensureMatchMedia(): () => void {
+  const originalMatchMedia = window.matchMedia;
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: jest.fn().mockReturnValue({
+      addEventListener: jest.fn(),
+      addListener: jest.fn(),
+      dispatchEvent: jest.fn().mockReturnValue(false),
+      matches: false,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      removeEventListener: jest.fn(),
+      removeListener: jest.fn(),
+    }),
+  });
+
+  return () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  };
+}
 
 describe("taskpane app helpers", () => {
   afterEach(() => {
@@ -179,5 +270,93 @@ describe("taskpane app helpers", () => {
     await expect(
       readDroppedMarkdownFile(new File(["ignored"], "broken.md"))
     ).rejects.toThrow("MarkOut could not read broken.md.");
+  });
+
+  it("renders the taskpane intro panel without tooltip-specific globals", () => {
+    const restoreMatchMedia = ensureMatchMedia();
+    const originalNodeFilter = globalThis.NodeFilter;
+    let root: Root | null = null;
+
+    Object.defineProperty(globalThis, "NodeFilter", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      act(() => {
+        root?.render(
+          <TaskpaneApp
+            locale="en-US"
+            notificationService={createNotificationService()}
+            services={createServices()}
+            settingsStore={createSettingsStore()}
+            strings={getStrings("en-US")}
+          />
+        );
+      });
+
+      expect(container.textContent).toContain("Intro");
+      expect(container.textContent).toContain("I have read this");
+      expect(container.querySelector("#panel-button-intro")).not.toBeNull();
+    } finally {
+      act(() => {
+        root?.unmount();
+      });
+      Object.defineProperty(globalThis, "NodeFilter", {
+        configurable: true,
+        value: originalNodeFilter,
+      });
+      restoreMatchMedia();
+    }
+  });
+
+  it("shows a runtime fallback instead of leaving the pane empty after a render crash", () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    let root: Root | null = null;
+
+    function BrokenPane(): never {
+      throw new Error("Boom");
+    }
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      act(() => {
+        root?.render(
+          <TaskpaneRuntimeErrorBoundary strings={getStrings("en-US")}>
+            <BrokenPane />
+          </TaskpaneRuntimeErrorBoundary>
+        );
+      });
+
+      expect(container.textContent).toContain(
+        "MarkOut could not render the taskpane"
+      );
+      expect(container.textContent).toContain("Error: Boom");
+      expect(container.querySelector("#taskpane-runtime-error")).not.toBeNull();
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      act(() => {
+        root?.unmount();
+      });
+    }
   });
 });
