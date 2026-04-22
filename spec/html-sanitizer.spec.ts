@@ -32,4 +32,18 @@ describe("html sanitizer", () => {
     expect(output).toContain(`<img src="cid:inline-image" alt="inline">`);
     expect(output).not.toContain("<svg");
   });
+
+  it("keeps MarkOut fragment stylesheets and strips unsafe declarations", () => {
+    const input =
+      `<div class="markout-fragment-host">` +
+      `<style data-markout-styles="fragment">` +
+      `.markout-fragment-host .mo { color: rgb(1, 2, 3); background-image: url(javascript:alert(1)); }` +
+      `</style><div class="mo markout-fragment-rendered">Text</div></div>`;
+    const output = new DefaultHtmlSanitizer().sanitize(input);
+
+    expect(output).toContain(`<style data-markout-styles="fragment">`);
+    expect(output).toContain(`color: rgb(1, 2, 3)`);
+    expect(output).not.toContain("background-image");
+    expect(output).not.toContain("javascript:");
+  });
 });

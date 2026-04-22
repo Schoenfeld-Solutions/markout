@@ -1,4 +1,8 @@
-import { renderMarkdown } from "../src/lib/renderer";
+import {
+  containsMarkOutFragmentMarker,
+  containsMarkOutFullRenderMarker,
+  renderMarkdown,
+} from "../src/lib/renderer";
 import { installDomParser } from "./helpers";
 
 describe("renderer", () => {
@@ -48,5 +52,32 @@ describe("renderer", () => {
       `<p style="color: rgb(1, 2, 3);">Paragraph text</p>`
     );
     expect(output).not.toContain("content:");
+  });
+
+  it("renders fragment markup with a scoped stylesheet host instead of inline styles", async () => {
+    const output = await renderMarkdown({
+      css: ".mo { color: rgb(1, 2, 3); } p { margin-top: 12px; }",
+      markdown: "Paragraph text",
+      mode: "fragment",
+    });
+
+    expect(output).toContain('<div class="markout-fragment-host">');
+    expect(output).toContain('data-markout-styles="fragment"');
+    expect(output).toContain(".markout-fragment-host .mo");
+    expect(output).toContain('<div class="mo markout-fragment-rendered">');
+    expect(output).not.toContain('style="color: rgb(1, 2, 3);"');
+  });
+
+  it("detects full-render and fragment markers independently", () => {
+    expect(
+      containsMarkOutFullRenderMarker(
+        '<div class="mo markout-rendered"><p>Rendered</p></div>'
+      )
+    ).toBe(true);
+    expect(
+      containsMarkOutFragmentMarker(
+        '<div class="markout-fragment-host"><div class="mo markout-fragment-rendered">Fragment</div></div>'
+      )
+    ).toBe(true);
   });
 });

@@ -15,13 +15,13 @@ module.exports = async (_env, options) => {
     entry: {
       commands: "./src/commands/commands.ts",
       launchevent: "./src/launchevent/launchevent.ts",
-      taskpane: "./src/taskpane/taskpane.ts",
+      taskpane: "./src/taskpane/taskpane.tsx",
     },
     mode: isProduction ? "production" : "development",
     module: {
       rules: [
         {
-          test: /\.ts$/,
+          test: /\.tsx?$/,
           exclude: /node_modules/,
           use: {
             loader: "ts-loader",
@@ -47,6 +47,25 @@ module.exports = async (_env, options) => {
     },
     optimization: {
       runtimeChunk: false,
+      splitChunks: {
+        chunks: "async",
+        cacheGroups: {
+          reactVendor: {
+            test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+            name: "react-vendor",
+            priority: 40,
+            enforce: true,
+            reuseExistingChunk: true,
+          },
+          fluentVendor: {
+            test: /[\\/]node_modules[\\/](?:@fluentui|@griffel|@emotion|keyborg)[\\/]/,
+            name: "fluent-vendor",
+            priority: 30,
+            enforce: true,
+            reuseExistingChunk: true,
+          },
+        },
+      },
     },
     output: {
       chunkFilename: "[name].chunk.js",
@@ -71,7 +90,7 @@ module.exports = async (_env, options) => {
       }),
     ],
     resolve: {
-      extensions: [".ts", ".html", ".js"],
+      extensions: [".tsx", ".ts", ".html", ".js"],
     },
     target: "web",
     devServer: {

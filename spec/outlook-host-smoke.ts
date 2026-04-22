@@ -9,22 +9,28 @@ import {
 } from "playwright-core";
 
 interface HostSmokeConfig {
-  autoRenderButtonPrefix: string;
+  autoRenderSwitchSelector: string;
   browserExecutable: string;
   composeUrl: string;
+  expectedTaskpaneUrlPrefix: string | null;
   headless: boolean;
+  insertPanelButtonSelector: string;
+  introConfirmButtonSelector: string;
+  introPanelButtonSelector: string;
   messageBodySelector: string;
   openButtonSelector: string | null;
   openButtonText: string;
   outputDirectory: string;
   previewSelector: string;
   recipient: string;
-  renderButtonText: string;
+  renderButtonSelector: string;
   sendButtonSelector: string | null;
   sendButtonText: string;
+  settingsPanelButtonSelector: string;
   sentConfirmationText: string;
   storageStatePath: string;
   taskpaneFrameSelector: string;
+  taskpaneReadySelector: string;
   timeoutMs: number;
   toFieldSelector: string;
 }
@@ -65,6 +71,7 @@ async function runHostSmoke(): Promise<void> {
 
     await openTaskpane(page, config);
     let taskpane = await waitForTaskpane(page, config);
+    await dismissIntroIfVisible(taskpane, config);
     await ensureAutoRenderEnabled(taskpane, config);
 
     await page.goto(config.composeUrl, {
@@ -74,7 +81,9 @@ async function runHostSmoke(): Promise<void> {
 
     await openTaskpane(page, config);
     taskpane = await waitForTaskpane(page, config);
+    await assertIntroDismissed(taskpane, config);
     await assertAutoRenderEnabled(taskpane, config);
+    await openInsertPanel(taskpane, config);
 
     await page.locator(config.toFieldSelector).first().fill(config.recipient);
     await page
@@ -82,11 +91,7 @@ async function runHostSmoke(): Promise<void> {
       .first()
       .fill("# Smoke Heading\n\nParagraph text");
 
-    await taskpane
-      .getByRole("button", {
-        name: new RegExp(`^${escapeForRegex(config.renderButtonText)}$`, "i"),
-      })
-      .click();
+    await taskpane.locator(config.renderButtonSelector).first().click();
 
     await waitFor(async () => {
       const bodyText =
@@ -134,16 +139,14 @@ async function assertAutoRenderEnabled(
   taskpane: FrameLocator,
   config: HostSmokeConfig
 ): Promise<void> {
-  const autoRenderButton = taskpane
-    .getByRole("button", {
-      name: new RegExp(
-        `^${escapeForRegex(config.autoRenderButtonPrefix)}`,
-        "i"
-      ),
-    })
+  await openSettingsPanel(taskpane, config);
+  const autoRenderSwitch = taskpane
+    .locator(config.autoRenderSwitchSelector)
     .first();
 
-  await waitForLocatorText(autoRenderButton, /On$/i, config.timeoutMs);
+  await waitFor(async () => {
+    return await isSwitchChecked(autoRenderSwitch);
+  }, config.timeoutMs);
 }
 
 function escapeForRegex(value: string): string {
@@ -154,21 +157,18 @@ async function ensureAutoRenderEnabled(
   taskpane: FrameLocator,
   config: HostSmokeConfig
 ): Promise<void> {
-  const autoRenderButton = taskpane
-    .getByRole("button", {
-      name: new RegExp(
-        `^${escapeForRegex(config.autoRenderButtonPrefix)}`,
-        "i"
-      ),
-    })
+  await openSettingsPanel(taskpane, config);
+  const autoRenderSwitch = taskpane
+    .locator(config.autoRenderSwitchSelector)
     .first();
-  const currentLabel = (await autoRenderButton.textContent()) ?? "";
 
-  if (!/On$/i.test(currentLabel)) {
-    await autoRenderButton.click();
+  if (!(await isSwitchChecked(autoRenderSwitch))) {
+    await autoRenderSwitch.click();
   }
 
-  await waitForLocatorText(autoRenderButton, /On$/i, config.timeoutMs);
+  await waitFor(async () => {
+    return await isSwitchChecked(autoRenderSwitch);
+  }, config.timeoutMs);
 }
 
 function findBrowserExecutable(): string {
@@ -230,53 +230,132 @@ async function openTaskpane(
 function readBooleanEnv(name: string, fallbackValue: boolean): boolean {
   const rawValue = process.env[name];
 
-  if (rawValue === undefined) {
+  if (rawValue === undefined || rawValue.trim().length === 0) {
     return fallbackValue;
   }
 
   return !["0", "false", "no"].includes(rawValue.toLowerCase());
 }
 
+function readNumberEnv(name: string, fallbackValue: number): number {
+  const rawValue = process.env[name];
+
+  if (rawValue === undefined || rawValue.trim().length === 0) {
+    return fallbackValue;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isFinite(parsedValue)) {
+    throw new Error(`Expected ${name} to be a finite number.`);
+  }
+
+  return parsedValue;
+}
+
+function readOptionalEnv(name: string): string | null {
+  const rawValue = process.env[name];
+
+  if (rawValue === undefined || rawValue.trim().length === 0) {
+    return null;
+  }
+
+  return rawValue;
+}
+
+function readStringEnv(name: string, fallbackValue: string): string {
+  const rawValue = process.env[name];
+
+  if (rawValue === undefined || rawValue.trim().length === 0) {
+    return fallbackValue;
+  }
+
+  return rawValue;
+}
+
 function readHostSmokeConfig(): HostSmokeConfig {
   return {
-    autoRenderButtonPrefix:
-      process.env.MARKOUT_HOST_SMOKE_AUTORENDER_BUTTON_PREFIX ??
-      "Auto-render on send",
-    browserExecutable: findBrowserExecutable(),
-    composeUrl:
-      process.env.MARKOUT_HOST_SMOKE_COMPOSE_URL ?? DEFAULT_COMPOSE_URL,
-    headless: readBooleanEnv("MARKOUT_HOST_SMOKE_HEADLESS", true),
-    messageBodySelector:
-      process.env.MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR ??
-      '[aria-label="Message body"], div[contenteditable="true"][role="textbox"]',
-    openButtonSelector:
-      process.env.MARKOUT_HOST_SMOKE_OPEN_BUTTON_SELECTOR ?? null,
-    openButtonText:
-      process.env.MARKOUT_HOST_SMOKE_OPEN_BUTTON_TEXT ?? "Open MarkOut",
-    outputDirectory:
-      process.env.MARKOUT_HOST_SMOKE_OUTPUT_DIRECTORY ??
-      DEFAULT_OUTPUT_DIRECTORY,
-    previewSelector:
-      process.env.MARKOUT_HOST_SMOKE_PREVIEW_SELECTOR ?? "#mo-preview",
-    recipient: readRequiredEnv("MARKOUT_HOST_SMOKE_RECIPIENT"),
-    renderButtonText:
-      process.env.MARKOUT_HOST_SMOKE_RENDER_BUTTON_TEXT ??
-      "Render current draft",
-    sendButtonSelector:
-      process.env.MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR ?? null,
-    sendButtonText: process.env.MARKOUT_HOST_SMOKE_SEND_BUTTON_TEXT ?? "Send",
-    sentConfirmationText:
-      process.env.MARKOUT_HOST_SMOKE_SENT_CONFIRMATION_TEXT ?? "Sent",
-    storageStatePath: readRequiredEnv("MARKOUT_HOST_SMOKE_STORAGE_STATE"),
-    taskpaneFrameSelector:
-      process.env.MARKOUT_HOST_SMOKE_TASKPANE_FRAME_SELECTOR ??
-      DEFAULT_TASKPANE_FRAME_SELECTOR,
-    timeoutMs: Number(
-      process.env.MARKOUT_HOST_SMOKE_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS
+    autoRenderSwitchSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR",
+      "#autorender-switch"
     ),
-    toFieldSelector:
-      process.env.MARKOUT_HOST_SMOKE_TO_FIELD_SELECTOR ??
-      'input[aria-label*="To"]',
+    browserExecutable: findBrowserExecutable(),
+    composeUrl: readStringEnv(
+      "MARKOUT_HOST_SMOKE_COMPOSE_URL",
+      DEFAULT_COMPOSE_URL
+    ),
+    expectedTaskpaneUrlPrefix: readOptionalEnv(
+      "MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX"
+    ),
+    headless: readBooleanEnv("MARKOUT_HOST_SMOKE_HEADLESS", true),
+    insertPanelButtonSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR",
+      "#panel-button-insert"
+    ),
+    introConfirmButtonSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR",
+      "#intro-confirm-button"
+    ),
+    introPanelButtonSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_INTRO_PANEL_BUTTON_SELECTOR",
+      "#panel-button-intro"
+    ),
+    messageBodySelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR",
+      '[aria-label="Message body"], div[contenteditable="true"][role="textbox"]'
+    ),
+    openButtonSelector: readOptionalEnv(
+      "MARKOUT_HOST_SMOKE_OPEN_BUTTON_SELECTOR"
+    ),
+    openButtonText: readStringEnv(
+      "MARKOUT_HOST_SMOKE_OPEN_BUTTON_TEXT",
+      "Open MarkOut"
+    ),
+    outputDirectory: readStringEnv(
+      "MARKOUT_HOST_SMOKE_OUTPUT_DIRECTORY",
+      DEFAULT_OUTPUT_DIRECTORY
+    ),
+    previewSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_PREVIEW_SELECTOR",
+      "#mo-preview"
+    ),
+    recipient: readRequiredEnv("MARKOUT_HOST_SMOKE_RECIPIENT"),
+    renderButtonSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_RENDER_BUTTON_SELECTOR",
+      "#render-entire-draft-button"
+    ),
+    sendButtonSelector: readOptionalEnv(
+      "MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR"
+    ),
+    sendButtonText: readStringEnv(
+      "MARKOUT_HOST_SMOKE_SEND_BUTTON_TEXT",
+      "Send"
+    ),
+    settingsPanelButtonSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_SETTINGS_PANEL_BUTTON_SELECTOR",
+      "#panel-button-settings"
+    ),
+    sentConfirmationText: readStringEnv(
+      "MARKOUT_HOST_SMOKE_SENT_CONFIRMATION_TEXT",
+      "Sent"
+    ),
+    storageStatePath: readRequiredEnv("MARKOUT_HOST_SMOKE_STORAGE_STATE"),
+    taskpaneFrameSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_TASKPANE_FRAME_SELECTOR",
+      DEFAULT_TASKPANE_FRAME_SELECTOR
+    ),
+    taskpaneReadySelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR",
+      "#taskpane-shell"
+    ),
+    timeoutMs: readNumberEnv(
+      "MARKOUT_HOST_SMOKE_TIMEOUT_MS",
+      DEFAULT_TIMEOUT_MS
+    ),
+    toFieldSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_TO_FIELD_SELECTOR",
+      'input[aria-label*="To"]'
+    ),
   };
 }
 
@@ -288,6 +367,27 @@ function readRequiredEnv(name: string): string {
   }
 
   return value;
+}
+
+async function isSwitchChecked(locator: Locator): Promise<boolean> {
+  const checkedProperty = await locator
+    .evaluate((element) => {
+      if (
+        element instanceof HTMLInputElement &&
+        typeof element.checked === "boolean"
+      ) {
+        return element.checked;
+      }
+
+      return null;
+    })
+    .catch(() => null);
+
+  if (typeof checkedProperty === "boolean") {
+    return checkedProperty;
+  }
+
+  return (await locator.getAttribute("aria-checked")) === "true";
 }
 
 async function waitFor(
@@ -311,29 +411,85 @@ async function waitFor(
   );
 }
 
-async function waitForLocatorText(
-  locator: Locator,
-  expectedText: RegExp,
-  timeoutMs: number
+async function openInsertPanel(
+  taskpane: FrameLocator,
+  config: HostSmokeConfig
 ): Promise<void> {
-  await waitFor(async () => {
-    const text = (await locator.textContent()) ?? "";
-    return expectedText.test(text);
-  }, timeoutMs);
+  await taskpane.locator(config.insertPanelButtonSelector).first().click();
+  await taskpane
+    .locator(config.previewSelector)
+    .first()
+    .waitFor({ state: "visible", timeout: config.timeoutMs });
+}
+
+async function openSettingsPanel(
+  taskpane: FrameLocator,
+  config: HostSmokeConfig
+): Promise<void> {
+  await taskpane.locator(config.settingsPanelButtonSelector).first().click();
+  await taskpane
+    .locator(config.autoRenderSwitchSelector)
+    .first()
+    .waitFor({ state: "visible", timeout: config.timeoutMs });
 }
 
 async function waitForTaskpane(
   page: Page,
   config: HostSmokeConfig
 ): Promise<FrameLocator> {
-  await page
-    .locator(config.taskpaneFrameSelector)
-    .first()
-    .waitFor({ state: "visible", timeout: config.timeoutMs });
+  const taskpaneFrame = page.locator(config.taskpaneFrameSelector).first();
+  await taskpaneFrame.waitFor({ state: "visible", timeout: config.timeoutMs });
+  await assertTaskpaneFrameSource(taskpaneFrame, config);
 
   const taskpane = page.frameLocator(config.taskpaneFrameSelector).first();
   await taskpane
-    .locator(config.previewSelector)
+    .locator(config.taskpaneReadySelector)
     .waitFor({ state: "visible", timeout: config.timeoutMs });
   return taskpane;
+}
+
+async function assertTaskpaneFrameSource(
+  taskpaneFrame: Locator,
+  config: HostSmokeConfig
+): Promise<void> {
+  const expectedTaskpaneUrlPrefix = config.expectedTaskpaneUrlPrefix;
+
+  if (expectedTaskpaneUrlPrefix === null) {
+    return;
+  }
+
+  await waitFor(async () => {
+    const source = await taskpaneFrame.getAttribute("src");
+    return source?.startsWith(expectedTaskpaneUrlPrefix) ?? false;
+  }, config.timeoutMs);
+}
+
+async function dismissIntroIfVisible(
+  taskpane: FrameLocator,
+  config: HostSmokeConfig
+): Promise<void> {
+  const introConfirmButton = taskpane
+    .locator(config.introConfirmButtonSelector)
+    .first();
+
+  if (!(await introConfirmButton.isVisible().catch(() => false))) {
+    return;
+  }
+
+  await introConfirmButton.click();
+  await introConfirmButton.waitFor({
+    state: "hidden",
+    timeout: config.timeoutMs,
+  });
+}
+
+async function assertIntroDismissed(
+  taskpane: FrameLocator,
+  config: HostSmokeConfig
+): Promise<void> {
+  await waitFor(async () => {
+    return (
+      (await taskpane.locator(config.introPanelButtonSelector).count()) === 0
+    );
+  }, config.timeoutMs);
 }

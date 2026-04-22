@@ -5,10 +5,14 @@ const tsPlugin = require("@typescript-eslint/eslint-plugin");
 
 const browserGlobals = {
   DOMParser: "readonly",
+  FileReader: "readonly",
   Office: "readonly",
   clearTimeout: "readonly",
   console: "readonly",
   document: "readonly",
+  localStorage: "readonly",
+  matchMedia: "readonly",
+  navigator: "readonly",
   self: "readonly",
   setTimeout: "readonly",
   window: "readonly",
@@ -40,7 +44,7 @@ module.exports = [
   },
   js.configs.recommended,
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -73,7 +77,7 @@ module.exports = [
     },
   },
   {
-    files: ["spec/**/*.ts"],
+    files: ["spec/**/*.ts", "spec/**/*.tsx"],
     languageOptions: {
       globals: testGlobals,
     },

@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
-import { JSDOM } from "jsdom";
 import { join } from "path";
+import type { JSDOM as JSDOMType } from "jsdom";
+import { TextDecoder, TextEncoder } from "util";
 
 interface OfficeErrorLike {
   message: string;
@@ -14,9 +15,16 @@ interface ReadyInfo {
 const runtime = globalThis as typeof globalThis & {
   DOMParser?: typeof DOMParser;
   Office?: typeof Office;
+  TextDecoder?: typeof TextDecoder;
+  TextEncoder?: typeof TextEncoder;
 };
 
+runtime.TextDecoder = TextDecoder;
+runtime.TextEncoder = TextEncoder;
+
 export function installDomParser(): void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { JSDOM } = require("jsdom") as { JSDOM: typeof JSDOMType };
   runtime.DOMParser = new JSDOM().window.DOMParser;
 }
 
@@ -161,7 +169,11 @@ export class FakeSessionData {
 
 export class FakeBody {
   public failNextGet = false;
+  public failNextGetType = false;
+  public failNextSetSelected = false;
   public failNextSet = false;
+  public lastSelectedHtml = "";
+  public type: Office.CoercionType = "html" as Office.CoercionType;
 
   public constructor(private html: string) {}
 
@@ -187,6 +199,23 @@ export class FakeBody {
     callback(succeededAsyncResult(this.html));
   }
 
+  public getTypeAsync(
+    callback: (result: Office.AsyncResult<Office.CoercionType>) => void
+  ): void {
+    if (this.failNextGetType) {
+      this.failNextGetType = false;
+      callback(
+        failedAsyncResult<Office.CoercionType>({
+          message: "Body type read failed.",
+          name: "BodyTypeError",
+        })
+      );
+      return;
+    }
+
+    callback(succeededAsyncResult(this.type));
+  }
+
   public setAsync(
     value: string,
     _options: { coercionType: Office.CoercionType },
@@ -206,11 +235,37 @@ export class FakeBody {
     this.html = value;
     callback(succeededAsyncResult<void>(undefined));
   }
+
+  public setSelectedDataAsync(
+    value: string,
+    _options: { coercionType: Office.CoercionType },
+    callback: (result: Office.AsyncResult<void>) => void
+  ): void {
+    if (this.failNextSetSelected) {
+      this.failNextSetSelected = false;
+      callback(
+        failedAsyncResult<void>({
+          message: "Selected body write failed.",
+          name: "BodySetSelectedError",
+        })
+      );
+      return;
+    }
+
+    this.lastSelectedHtml = value;
+    this.html = value;
+    callback(succeededAsyncResult<void>(undefined));
+  }
 }
 
 export class FakeMailboxItem {
   public readonly body: FakeBody;
   public readonly customProperties = new FakeCustomProperties();
+  public nextHtmlSelectionError: OfficeErrorLike | null = null;
+  public nextTextSelectionError: OfficeErrorLike | null = null;
+  public selectionHtml = "";
+  public selectionSource: "body" | "subject" = "body";
+  public selectionText = "";
   public readonly sessionData = new FakeSessionData();
   public failNextLoadCustomProperties = false;
   public throwOnNotificationReplace = false;
@@ -250,11 +305,51 @@ export class FakeMailboxItem {
 
     callback(succeededAsyncResult(this.customProperties));
   }
+
+  public getSelectedDataAsync(
+    coercionType: Office.CoercionType,
+    callback: (
+      result: Office.AsyncResult<{ data: string; sourceProperty: string }>
+    ) => void
+  ): void {
+    if (
+      coercionType === Office.CoercionType.Html &&
+      this.nextHtmlSelectionError !== null
+    ) {
+      const error = this.nextHtmlSelectionError;
+      this.nextHtmlSelectionError = null;
+      callback(failedAsyncResult(error));
+      return;
+    }
+
+    if (
+      coercionType === Office.CoercionType.Text &&
+      this.nextTextSelectionError !== null
+    ) {
+      const error = this.nextTextSelectionError;
+      this.nextTextSelectionError = null;
+      callback(failedAsyncResult(error));
+      return;
+    }
+
+    callback(
+      succeededAsyncResult({
+        data:
+          coercionType === Office.CoercionType.Html
+            ? this.selectionHtml
+            : this.selectionText,
+        sourceProperty: this.selectionSource,
+      })
+    );
+  }
 }
 
 export interface FakeOfficeEnvironment {
   mailboxItem: FakeMailboxItem | undefined;
   roamingSettings: FakeRoamingSettings;
+  triggerOfficeThemeChange(
+    officeTheme: Partial<Office.OfficeTheme>
+  ): Promise<void>;
   triggerReady(host?: Office.HostType): Promise<void>;
 }
 
@@ -263,9 +358,20 @@ export function installOfficeEnvironment(options?: {
   roamingSettings?: FakeRoamingSettings;
 }): FakeOfficeEnvironment {
   const readyCallbacks: ((info: ReadyInfo) => void | Promise<void>)[] = [];
+  const officeThemeChangedHandlers: ((
+    args: Office.OfficeThemeChangedEventArgs
+  ) => void | Promise<void>)[] = [];
   const mailboxItem = options?.mailboxItem;
   const roamingSettings = options?.roamingSettings ?? new FakeRoamingSettings();
   const outlookHost = "Outlook" as unknown as Office.HostType;
+  const officeTheme: Office.OfficeTheme = {
+    bodyBackgroundColor: "#ffffff",
+    bodyForegroundColor: "#1b1a19",
+    controlBackgroundColor: "#ffffff",
+    controlForegroundColor: "#1b1a19",
+    isDarkTheme: false,
+    themeId: 3,
+  };
 
   runtime.Office = {
     actions: {
@@ -278,12 +384,32 @@ export function installOfficeEnvironment(options?: {
     },
     CoercionType: {
       Html: "html",
+      Text: "text",
     },
     context: {
       mailbox: {
+        addHandlerAsync: jest.fn(
+          (
+            eventType: Office.EventType,
+            handler: (
+              args: Office.OfficeThemeChangedEventArgs
+            ) => void | Promise<void>,
+            callback?: (result: Office.AsyncResult<void>) => void
+          ) => {
+            if (eventType === Office.EventType.OfficeThemeChanged) {
+              officeThemeChangedHandlers.push(handler);
+            }
+
+            callback?.(succeededAsyncResult<void>(undefined));
+          }
+        ),
         item: mailboxItem,
+        officeTheme,
       },
       roamingSettings,
+    },
+    EventType: {
+      OfficeThemeChanged: "officeThemeChanged",
     },
     HostType: {
       Outlook: "Outlook",
@@ -304,6 +430,18 @@ export function installOfficeEnvironment(options?: {
   return {
     mailboxItem,
     roamingSettings,
+    async triggerOfficeThemeChange(
+      nextOfficeTheme: Partial<Office.OfficeTheme>
+    ): Promise<void> {
+      Object.assign(officeTheme, nextOfficeTheme);
+
+      for (const handler of officeThemeChangedHandlers) {
+        await handler({
+          officeTheme,
+          type: "officeThemeChanged",
+        });
+      }
+    },
     async triggerReady(host = Office.HostType.Outlook): Promise<void> {
       for (const readyCallback of readyCallbacks) {
         await readyCallback({ host });

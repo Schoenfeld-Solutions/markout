@@ -93,6 +93,28 @@ describe("launch events", () => {
     });
   });
 
+  it("soft-blocks send when the lazy render runtime cannot be loaded", async () => {
+    const environment = installOfficeEnvironment({
+      mailboxItem: new FakeMailboxItem("<div>Original</div>"),
+    });
+    environment.roamingSettings.set("markout.autorender", true);
+    jest.doMock("../src/lib/item", () => {
+      throw new Error("chunk load failed");
+    });
+
+    const { onMessageSendHandler } =
+      await import("../src/launchevent/launchevent");
+    const event = createCommandEvent();
+
+    await onMessageSendHandler(event);
+
+    expect(event.completed).toHaveBeenCalledWith({
+      allowEvent: false,
+      errorMessage:
+        "MarkOut could not render this draft before send. Open the MarkOut task pane, review the content, then try again.",
+    });
+  });
+
   it("soft-blocks send when the compose item context is missing", async () => {
     const environment = installOfficeEnvironment({ mailboxItem: undefined });
     environment.roamingSettings.set("markout.autorender", true);

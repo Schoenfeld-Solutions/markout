@@ -14,6 +14,9 @@ describe("settings store", () => {
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
     expect(settingsStore.getAutoRender()).toBe(false);
+    expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
+    expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getThemeMode()).toBe("system");
   });
 
   it("falls back to defaults when invalid values are stored", () => {
@@ -22,21 +25,33 @@ describe("settings store", () => {
 
     roamingSettings.set("markout.stylesheet", 42);
     roamingSettings.set("markout.autorender", "yes");
+    roamingSettings.set("markout.developerToolsEnabled", "yes");
+    roamingSettings.set("markout.introDismissed", "yes");
+    roamingSettings.set("markout.themeMode", "sepia");
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
     expect(settingsStore.getAutoRender()).toBe(false);
+    expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
+    expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getThemeMode()).toBe("system");
   });
 
-  it("persists stylesheet and auto-render settings", async () => {
+  it("persists stylesheet, auto-render, theme, intro, and developer settings", async () => {
     const roamingSettings = new FakeRoamingSettings();
     const settingsStore = createOfficeSettingsStore(roamingSettings);
 
     settingsStore.setStylesheet(".mo { color: rgb(1, 2, 3); }");
     settingsStore.setAutoRender(true);
+    settingsStore.setDeveloperToolsEnabled(true);
+    settingsStore.setIntroDismissed(true);
+    settingsStore.setThemeMode("dark");
     await settingsStore.save();
 
     expect(settingsStore.getStylesheet()).toBe(".mo { color: rgb(1, 2, 3); }");
     expect(settingsStore.getAutoRender()).toBe(true);
+    expect(settingsStore.getDeveloperToolsEnabled()).toBe(true);
+    expect(settingsStore.getIntroDismissed()).toBe(true);
+    expect(settingsStore.getThemeMode()).toBe("dark");
   });
 
   it("falls back to in-memory settings when roaming settings are unavailable", async () => {
@@ -44,13 +59,30 @@ describe("settings store", () => {
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
     expect(settingsStore.getAutoRender()).toBe(false);
+    expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
+    expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getThemeMode()).toBe("system");
 
     settingsStore.setStylesheet(".mo { color: rgb(4, 5, 6); }");
     settingsStore.setAutoRender(true);
+    settingsStore.setDeveloperToolsEnabled(true);
+    settingsStore.setIntroDismissed(true);
+    settingsStore.setThemeMode("light");
     await expect(settingsStore.save()).resolves.toBeUndefined();
 
     expect(settingsStore.getStylesheet()).toBe(".mo { color: rgb(4, 5, 6); }");
     expect(settingsStore.getAutoRender()).toBe(true);
+    expect(settingsStore.getDeveloperToolsEnabled()).toBe(true);
+    expect(settingsStore.getIntroDismissed()).toBe(true);
+    expect(settingsStore.getThemeMode()).toBe("light");
+  });
+
+  it("normalizes empty stylesheet updates back to the default stylesheet", () => {
+    const settingsStore = createOfficeSettingsStore(new FakeRoamingSettings());
+
+    settingsStore.setStylesheet("   ");
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
   });
 
   it("surfaces save failures from roaming settings", async () => {

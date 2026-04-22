@@ -3,10 +3,12 @@ import { createOfficeBodyAccessor, type BodyAccessor } from "./body-accessor";
 import { createOfficeSettingsStore, type SettingsStore } from "./config";
 import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
 import {
+  containsMarkOutFragmentMarker,
+  containsMarkOutFullRenderMarker,
   MARKOUT_RENDERED_CLASS,
-  createMarkdownRenderer,
-  type MarkdownRenderer,
-} from "./renderer";
+} from "./render-markers";
+import { createLazyMarkdownRenderer } from "./lazy-markdown-renderer";
+import type { MarkdownRenderer } from "./renderer";
 import {
   createOfficeRenderStateStore,
   type RenderState,
@@ -28,8 +30,11 @@ export interface ItemRenderer {
   renderItem(): Promise<RenderItemResult>;
 }
 
-const LARGE_DRAFT_RESTORE_MESSAGE =
+export const FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE =
+  "MarkOut can't render the entire draft while it already contains inserted MarkOut fragments. Keep working with fragments or restore an unrendered draft first.";
+export const LARGE_DRAFT_RESTORE_MESSAGE =
   "This draft was rendered in an earlier compose session, but Outlook didn't preserve the original HTML for restore. Reopen the unrendered draft or continue editing the rendered version.";
+export { MARKOUT_RENDERED_CLASS };
 
 export function createItemRenderer(
   dependencies: RenderDependencies
@@ -56,6 +61,7 @@ async function applyRenderedContent(
   const renderedHtml = await dependencies.markdownRenderer.render({
     css: dependencies.settingsStore.getStylesheet(),
     markdown: markdownSource,
+    mode: "full",
   });
   const sanitizedHtml = dependencies.htmlSanitizer.sanitize(renderedHtml);
 
@@ -85,7 +91,7 @@ function createDefaultDependencies(): RenderDependencies {
   return {
     bodyAccessor: createOfficeBodyAccessor(),
     htmlSanitizer: new DefaultHtmlSanitizer(),
-    markdownRenderer: createMarkdownRenderer(),
+    markdownRenderer: createLazyMarkdownRenderer(),
     renderStateStore: createOfficeRenderStateStore(),
     settingsStore: createOfficeSettingsStore(),
   };
@@ -110,8 +116,11 @@ async function ensureRenderedInternal(
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
+  if (containsMarkOutFragmentMarker(currentHtml)) {
+    throw new Error(FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE);
+  }
 
-  if (containsRenderedMarker(currentHtml)) {
+  if (containsMarkOutFullRenderMarker(currentHtml)) {
     return false;
   }
 
@@ -154,19 +163,17 @@ async function renderItemInternal(
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
-
-  if (containsRenderedMarker(currentHtml)) {
-    throw new Error(LARGE_DRAFT_RESTORE_MESSAGE);
-  }
-
+  assertFullDraftRenderAllowed(currentHtml);
   await applyRenderedContent(dependencies, currentHtml);
   return "rendered";
 }
 
-function containsRenderedMarker(html: string): boolean {
-  const documentFragment = new DOMParser().parseFromString(html, "text/html");
-  return (
-    documentFragment.body.querySelector(`.mo.${MARKOUT_RENDERED_CLASS}`) !==
-    null
-  );
+function assertFullDraftRenderAllowed(html: string): void {
+  if (containsMarkOutFragmentMarker(html)) {
+    throw new Error(FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE);
+  }
+
+  if (containsMarkOutFullRenderMarker(html)) {
+    throw new Error(LARGE_DRAFT_RESTORE_MESSAGE);
+  }
 }

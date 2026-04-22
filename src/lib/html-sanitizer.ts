@@ -38,6 +38,7 @@ const ALLOWED_TAGS = new Set([
   "strong",
   "sub",
   "sup",
+  "style",
   "table",
   "tbody",
   "td",
@@ -106,6 +107,7 @@ const TAG_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
   a: new Set(["href"]),
   img: new Set(["alt", "height", "src", "width"]),
   ol: new Set(["start"]),
+  style: new Set(["data-markout-styles"]),
   td: new Set(["align", "colspan", "rowspan", "valign"]),
   th: new Set(["align", "colspan", "rowspan", "valign"]),
 };
@@ -183,6 +185,10 @@ export class DefaultHtmlSanitizer implements HtmlSanitizer {
   private sanitizeElement(outputDocument: Document, element: Element): Node[] {
     const tagName = element.tagName.toLowerCase();
 
+    if (tagName === "style") {
+      return this.sanitizeStyleElement(outputDocument, element);
+    }
+
     if (DROP_CONTENT_TAGS.has(tagName)) {
       return [];
     }
@@ -225,6 +231,26 @@ export class DefaultHtmlSanitizer implements HtmlSanitizer {
       }
     }
 
+    return [sanitizedElement];
+  }
+
+  private sanitizeStyleElement(
+    outputDocument: Document,
+    element: Element
+  ): Node[] {
+    if (element.getAttribute("data-markout-styles") !== "fragment") {
+      return [];
+    }
+
+    const sanitizedStylesheet = sanitizeStylesheetText(element.textContent);
+
+    if (sanitizedStylesheet === null) {
+      return [];
+    }
+
+    const sanitizedElement = outputDocument.createElement("style");
+    sanitizedElement.setAttribute("data-markout-styles", "fragment");
+    sanitizedElement.textContent = sanitizedStylesheet;
     return [sanitizedElement];
   }
 
@@ -280,6 +306,42 @@ function sanitizeStyle(style: string): string | null {
     });
 
   return safeDeclarations.length > 0 ? safeDeclarations.join("; ") : null;
+}
+
+function sanitizeStylesheetText(stylesheet: string): string | null {
+  const safeRules = stylesheet
+    .split("}")
+    .map((rule) => rule.trim())
+    .filter((rule) => rule.length > 0)
+    .flatMap((rule) => {
+      const separatorIndex = rule.indexOf("{");
+
+      if (separatorIndex === -1) {
+        return [];
+      }
+
+      const selectorText = rule.slice(0, separatorIndex).trim();
+      const declarationText = rule.slice(separatorIndex + 1).trim();
+
+      if (
+        selectorText.length === 0 ||
+        declarationText.length === 0 ||
+        selectorText.includes(":") ||
+        /[<>]/.test(selectorText)
+      ) {
+        return [];
+      }
+
+      const safeDeclarationText = sanitizeStyle(declarationText);
+
+      if (safeDeclarationText === null) {
+        return [];
+      }
+
+      return [`${selectorText} { ${safeDeclarationText} }`];
+    });
+
+  return safeRules.length > 0 ? safeRules.join("\n") : null;
 }
 
 function sanitizeUrl(value: string, allowDataImage: boolean): string | null {

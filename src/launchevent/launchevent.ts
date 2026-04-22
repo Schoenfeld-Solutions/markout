@@ -1,6 +1,3 @@
-import { createOfficeSettingsStore } from "../lib/config";
-import { ensureRendered } from "../lib/item";
-
 export const SMART_ALERT_ERROR_MESSAGE =
   "MarkOut could not render this draft before send. Open the MarkOut task pane, review the content, then try again.";
 
@@ -8,6 +5,9 @@ async function handleSendEvent(
   event: Office.AddinCommands.Event
 ): Promise<void> {
   try {
+    const { createOfficeSettingsStore } = await import(
+      /* webpackChunkName: "launchevent-settings" */ "../lib/config"
+    );
     const settingsStore = createOfficeSettingsStore();
 
     if (!settingsStore.getAutoRender()) {
@@ -15,6 +15,9 @@ async function handleSendEvent(
       return;
     }
 
+    const { ensureRendered } = await import(
+      /* webpackChunkName: "launchevent-render" */ "../lib/item"
+    );
     await ensureRendered();
     event.completed({ allowEvent: true });
   } catch (error) {
