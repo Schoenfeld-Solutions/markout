@@ -1,17 +1,14 @@
 export const defaultStylesheet = `
 .mo {
-  color: inherit;
-  font: inherit;
   line-height: 1.5;
 }
 
 code {
-  color: inherit;
-  font-family: Consolas, "Courier New", monospace;
   font-size: 0.95em;
-  line-height: inherit;
   margin: 0;
-  padding: 0;
+  padding: 0.08em 0.3em;
+  background-color: rgba(127, 127, 127, 0.08);
+  border-radius: 4px;
   white-space: normal;
 }
 
@@ -20,24 +17,21 @@ pre {
   background-color: rgba(127, 127, 127, 0.08);
   border: 1px solid rgba(127, 127, 127, 0.22);
   border-radius: 6px;
-  color: inherit;
   display: block;
-  font-family: Consolas, "Courier New", monospace;
   margin: 1em 0 !important;
   overflow-x: auto;
   padding: 0.75em !important;
-}
-
-.hljs {
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 pre code {
-  color: inherit;
+  background-color: transparent;
+  border-radius: 0;
   display: block !important;
-  overflow: auto;
-  white-space: pre;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 p {
@@ -90,7 +84,6 @@ dl dd {
 
 blockquote, q {
   border-left: 4px solid rgba(127, 127, 127, 0.35);
-  color: inherit;
   padding: 0 1em;
   quotes: none;
 }
@@ -103,17 +96,18 @@ h1, h2, h3, h4, h5, h6 {
   margin: 1.3em 0 1em;
   padding: 0;
   font-weight: bold;
-  color: inherit;
 }
 
 h1 {
   font-size: 1.6em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  padding-bottom: 0.12em;
 }
 
 h2 {
   font-size: 1.4em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.24);
+  padding-bottom: 0.1em;
 }
 
 h3 {
@@ -130,16 +124,15 @@ h5 {
 
 h6 {
   font-size: 1em;
-  color: inherit;
 }
 
 table {
   border-spacing: 0;
   border-collapse: collapse;
-  font: inherit;
   margin: 0;
   padding: 0;
   border: 0;
+  width: 100%;
 }
 
 table tr {
@@ -166,24 +159,7 @@ table tr th {
 }
 
 a {
-  color: inherit;
   text-decoration: underline;
-}
-
-.hljs {
-  color: inherit;
-}
-
-.hljs-variable,.hljs-template-variable,.hljs-symbol,.hljs-bullet,.hljs-section,.hljs-addition,.hljs-attribute,.hljs-link {
-  color: inherit;
-}
-
-.hljs-string {
-  color: inherit;
-}
-
-.hljs-comment,.hljs-quote,.hljs-meta,.hljs-deletion {
-  color: inherit;
 }
 
 .hljs-keyword,.hljs-selector-tag,.hljs-section,.hljs-name,.hljs-type,.hljs-strong,.hljs-attr {
@@ -204,6 +180,7 @@ const SETTING_CREDITS_VISIBLE = "markout.creditsVisible";
 const SETTING_DEVELOPER_TOOLS = "markout.developerToolsEnabled";
 const SETTING_HELP_VISIBLE = "markout.helpVisible";
 const SETTING_INTRO_DISMISSED = "markout.introDismissed";
+const SETTING_LANGUAGE_PREFERENCE = "markout.languagePreference";
 const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_THEME_MODE = "markout.themeMode";
 
@@ -214,6 +191,7 @@ interface RoamingSettingsLike {
 }
 
 export type ThemeMode = "dark" | "light" | "system";
+export type LanguagePreference = "de-DE" | "en-US" | "system";
 
 export interface SettingsStore {
   getAutoRender(): boolean;
@@ -221,6 +199,7 @@ export interface SettingsStore {
   getDeveloperToolsEnabled(): boolean;
   getHelpVisible(): boolean;
   getIntroDismissed(): boolean;
+  getLanguagePreference(): LanguagePreference;
   getStylesheet(): string;
   getThemeMode(): ThemeMode;
   save(): Promise<void>;
@@ -229,12 +208,17 @@ export interface SettingsStore {
   setDeveloperToolsEnabled(enabled: boolean): void;
   setHelpVisible(visible: boolean): void;
   setIntroDismissed(dismissed: boolean): void;
+  setLanguagePreference(preference: LanguagePreference): void;
   setStylesheet(stylesheet: string): void;
   setThemeMode(mode: ThemeMode): void;
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {
   return value === "dark" || value === "light" || value === "system";
+}
+
+function isLanguagePreference(value: unknown): value is LanguagePreference {
+  return value === "de-DE" || value === "en-US" || value === "system";
 }
 
 function normalizeStylesheet(stylesheet: string): string {
@@ -247,6 +231,7 @@ class InMemorySettingsStore implements SettingsStore {
   private developerToolsEnabled = false;
   private helpVisible = true;
   private introDismissed = false;
+  private languagePreference: LanguagePreference = "system";
   private stylesheet = defaultStylesheet;
   private themeMode: ThemeMode = "system";
 
@@ -268,6 +253,10 @@ class InMemorySettingsStore implements SettingsStore {
 
   public getIntroDismissed(): boolean {
     return this.introDismissed;
+  }
+
+  public getLanguagePreference(): LanguagePreference {
+    return this.languagePreference;
   }
 
   public getStylesheet(): string {
@@ -302,6 +291,10 @@ class InMemorySettingsStore implements SettingsStore {
     this.introDismissed = dismissed;
   }
 
+  public setLanguagePreference(preference: LanguagePreference): void {
+    this.languagePreference = preference;
+  }
+
   public setStylesheet(stylesheet: string): void {
     this.stylesheet = normalizeStylesheet(stylesheet);
   }
@@ -334,6 +327,14 @@ class OfficeSettingsStore implements SettingsStore {
 
   public getIntroDismissed(): boolean {
     return this.roamingSettings.get(SETTING_INTRO_DISMISSED) === true;
+  }
+
+  public getLanguagePreference(): LanguagePreference {
+    const storedPreference = this.roamingSettings.get(
+      SETTING_LANGUAGE_PREFERENCE
+    );
+
+    return isLanguagePreference(storedPreference) ? storedPreference : "system";
   }
 
   public getStylesheet(): string {
@@ -388,6 +389,10 @@ class OfficeSettingsStore implements SettingsStore {
 
   public setIntroDismissed(dismissed: boolean): void {
     this.roamingSettings.set(SETTING_INTRO_DISMISSED, dismissed);
+  }
+
+  public setLanguagePreference(preference: LanguagePreference): void {
+    this.roamingSettings.set(SETTING_LANGUAGE_PREFERENCE, preference);
   }
 
   public setStylesheet(stylesheet: string): void {

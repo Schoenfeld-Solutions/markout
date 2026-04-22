@@ -18,6 +18,7 @@ describe("settings store", () => {
     expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
     expect(settingsStore.getHelpVisible()).toBe(true);
     expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
   });
 
@@ -31,6 +32,7 @@ describe("settings store", () => {
     roamingSettings.set("markout.developerToolsEnabled", "yes");
     roamingSettings.set("markout.helpVisible", "yes");
     roamingSettings.set("markout.introDismissed", "yes");
+    roamingSettings.set("markout.languagePreference", "fr-FR");
     roamingSettings.set("markout.themeMode", "sepia");
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
@@ -39,6 +41,7 @@ describe("settings store", () => {
     expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
     expect(settingsStore.getHelpVisible()).toBe(true);
     expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
   });
 
@@ -52,6 +55,7 @@ describe("settings store", () => {
     settingsStore.setDeveloperToolsEnabled(true);
     settingsStore.setHelpVisible(false);
     settingsStore.setIntroDismissed(true);
+    settingsStore.setLanguagePreference("de-DE");
     settingsStore.setThemeMode("dark");
     await settingsStore.save();
 
@@ -61,6 +65,7 @@ describe("settings store", () => {
     expect(settingsStore.getDeveloperToolsEnabled()).toBe(true);
     expect(settingsStore.getHelpVisible()).toBe(false);
     expect(settingsStore.getIntroDismissed()).toBe(true);
+    expect(settingsStore.getLanguagePreference()).toBe("de-DE");
     expect(settingsStore.getThemeMode()).toBe("dark");
   });
 
@@ -73,6 +78,7 @@ describe("settings store", () => {
     expect(settingsStore.getDeveloperToolsEnabled()).toBe(false);
     expect(settingsStore.getHelpVisible()).toBe(true);
     expect(settingsStore.getIntroDismissed()).toBe(false);
+    expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
 
     settingsStore.setStylesheet(".mo { color: rgb(4, 5, 6); }");
@@ -81,6 +87,7 @@ describe("settings store", () => {
     settingsStore.setDeveloperToolsEnabled(true);
     settingsStore.setHelpVisible(false);
     settingsStore.setIntroDismissed(true);
+    settingsStore.setLanguagePreference("en-US");
     settingsStore.setThemeMode("light");
     await expect(settingsStore.save()).resolves.toBeUndefined();
 
@@ -90,6 +97,7 @@ describe("settings store", () => {
     expect(settingsStore.getDeveloperToolsEnabled()).toBe(true);
     expect(settingsStore.getHelpVisible()).toBe(false);
     expect(settingsStore.getIntroDismissed()).toBe(true);
+    expect(settingsStore.getLanguagePreference()).toBe("en-US");
     expect(settingsStore.getThemeMode()).toBe("light");
   });
 
@@ -99,8 +107,9 @@ describe("settings store", () => {
     settingsStore.setStylesheet("   ");
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
-    expect(defaultStylesheet).toContain("color: inherit;");
-    expect(defaultStylesheet).toContain("font: inherit;");
+    expect(defaultStylesheet).toContain("line-height: 1.5;");
+    expect(defaultStylesheet).not.toContain("font: inherit;");
+    expect(defaultStylesheet).not.toContain("color: inherit;");
   });
 
   it("surfaces save failures from roaming settings", async () => {

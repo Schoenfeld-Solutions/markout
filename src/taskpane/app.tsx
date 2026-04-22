@@ -6,6 +6,7 @@ import {
   MessageBarTitle,
   Radio,
   RadioGroup,
+  Select,
   Switch,
   makeStyles,
   mergeClasses,
@@ -14,8 +15,18 @@ import {
   webDarkTheme,
   webLightTheme,
 } from "@fluentui/react-components";
-import hljs from "highlight.js/lib/core";
-import cssLanguage from "highlight.js/lib/languages/css";
+import type { Diagnostic } from "@codemirror/lint";
+import type { HighlightStyle, LanguageSupport } from "@codemirror/language";
+import type {
+  EditorState as CodeMirrorEditorState,
+  Extension,
+  TransactionSpec,
+} from "@codemirror/state";
+import type {
+  EditorView as CodeMirrorEditorView,
+  ViewUpdate as CodeMirrorViewUpdate,
+} from "@codemirror/view";
+import type { StyleSpec } from "style-mod";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -39,6 +50,7 @@ import {
 import type { ComposeNotificationService } from "../lib/compose-notifications";
 import {
   defaultStylesheet,
+  type LanguagePreference,
   type SettingsStore,
   type ThemeMode,
 } from "../lib/config";
@@ -49,13 +61,11 @@ import {
 } from "../lib/stylesheet-lint";
 import {
   getStrings,
+  type LocalizedStrings,
   resolveLocale,
   resolveOfficeDisplayLanguage,
-  type LocalizedStrings,
   type SupportedLocale,
 } from "./i18n";
-
-hljs.registerLanguage("css", cssLanguage);
 
 const DOCS_URL = "https://schoenfeld-solutions.github.io/markout/";
 const REPOSITORY_URL = "https://github.com/Schoenfeld-Solutions/markout";
@@ -64,6 +74,44 @@ const WEBSITE_URL = "https://schoenfeld.solutions";
 
 const TOOLBAR_LABEL_MIN_WIDTH = 72;
 const SELECTION_REFRESH_INTERVAL_MS = 1600;
+
+interface CodeMirrorEditorStateConstructor {
+  create(config: {
+    doc: string;
+    extensions: readonly Extension[];
+  }): CodeMirrorEditorState;
+}
+
+interface CodeMirrorEditorViewConstructor {
+  new (config: {
+    parent: Element | DocumentFragment;
+    state: CodeMirrorEditorState;
+  }): CodeMirrorEditorView;
+  lineWrapping: Extension;
+  theme(
+    spec: Record<string, StyleSpec>,
+    options?: { dark?: boolean }
+  ): Extension;
+  updateListener: {
+    of(listener: (update: CodeMirrorViewUpdate) => void): Extension;
+  };
+}
+
+interface CodeMirrorModules {
+  css: () => LanguageSupport;
+  defaultHighlightStyle: HighlightStyle;
+  EditorState: CodeMirrorEditorStateConstructor;
+  EditorView: CodeMirrorEditorViewConstructor;
+  lineNumbers: () => Extension;
+  setDiagnostics: (
+    state: CodeMirrorEditorState,
+    diagnostics: readonly Diagnostic[]
+  ) => TransactionSpec;
+  syntaxHighlighting: (
+    highlighter: HighlightStyle,
+    options?: { fallback: boolean }
+  ) => Extension;
+}
 
 const useStyles = makeStyles({
   appShell: {
@@ -178,15 +226,6 @@ const useStyles = makeStyles({
     minWidth: 0,
     overflow: "hidden",
   },
-  editorSurface: {
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
-    backgroundColor: tokens.colorNeutralBackground1,
-    minHeight: "14rem",
-    minWidth: 0,
-    overflow: "hidden",
-    position: "relative",
-  },
   plainTextarea: {
     appearance: "none",
     backgroundColor: "transparent",
@@ -211,65 +250,24 @@ const useStyles = makeStyles({
       display: "none",
     },
   },
-  codeMirror: {
-    color: tokens.colorTransparentStroke,
-    caretColor: tokens.colorNeutralForeground1,
-    fontFamily: tokens.fontFamilyMonospace,
-    fontSize: tokens.fontSizeBase300,
-    left: 0,
-    lineHeight: tokens.lineHeightBase300,
-    minHeight: "14rem",
-    minWidth: 0,
-    outlineStyle: "none",
-    overflowX: "hidden",
-    overflowY: "auto",
-    paddingBlockEnd: tokens.spacingVerticalM,
-    paddingBlockStart: tokens.spacingVerticalM,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
-    position: "absolute",
-    resize: "none",
-    scrollbarWidth: "none",
-    top: 0,
-    width: "100%",
-    zIndex: 1,
-    "&::-webkit-scrollbar": {
-      display: "none",
-    },
-  },
-  codeHighlight: {
-    color: tokens.colorNeutralForeground1,
-    fontFamily: tokens.fontFamilyMonospace,
-    fontSize: tokens.fontSizeBase300,
-    left: 0,
-    lineHeight: tokens.lineHeightBase300,
-    margin: 0,
+  editorSurface: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground1,
     minHeight: "14rem",
     minWidth: 0,
     overflow: "hidden",
-    paddingBlockEnd: tokens.spacingVerticalM,
-    paddingBlockStart: tokens.spacingVerticalM,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
-    pointerEvents: "none",
-    position: "absolute",
-    right: 0,
-    top: 0,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    zIndex: 0,
-    "& .hljs-comment": {
-      color: tokens.colorNeutralForeground3,
-    },
-    "& .hljs-attribute, & .hljs-selector-class, & .hljs-selector-tag": {
-      color: tokens.colorPaletteBlueForeground2,
-    },
-    "& .hljs-number, & .hljs-string": {
-      color: tokens.colorPaletteGreenForeground1,
-    },
-    "& .hljs-keyword, & .hljs-literal, & .hljs-selector-pseudo": {
-      color: tokens.colorPaletteBerryForeground2,
-    },
+  },
+  codeMirrorHost: {
+    minHeight: "14rem",
+    minWidth: 0,
+  },
+  codeMirrorLoading: {
+    alignItems: "center",
+    color: tokens.colorNeutralForeground3,
+    display: "flex",
+    justifyContent: "center",
+    minHeight: "14rem",
   },
   previewFrame: {
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
@@ -292,26 +290,50 @@ const useStyles = makeStyles({
     textAlign: "center",
   },
   previewContent: {
+    color: tokens.colorNeutralForeground1,
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    lineHeight: tokens.lineHeightBase300,
     minWidth: 0,
     overflowWrap: "anywhere",
     wordBreak: "break-word",
+    "& .mo": {
+      color: "inherit",
+      fontFamily: "inherit",
+      fontSize: "inherit",
+    },
+    "& a": {
+      color: tokens.colorBrandForegroundLink,
+    },
     "& img": {
       maxWidth: "100%",
     },
-    "& pre": {
+    "& pre, & .hljs": {
+      ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+      ...shorthands.borderRadius(tokens.borderRadiusMedium),
+      backgroundColor: tokens.colorNeutralBackground3,
+      color: "inherit",
       maxWidth: "100%",
       overflowX: "auto",
       whiteSpace: "pre-wrap",
       wordBreak: "break-word",
     },
+    "& code": {
+      ...shorthands.borderRadius(tokens.borderRadiusSmall),
+      backgroundColor: tokens.colorNeutralBackground3,
+      color: "inherit",
+      overflowWrap: "anywhere",
+      padding: "0.08em 0.3em",
+      wordBreak: "break-word",
+    },
+    "& pre code, & .hljs code": {
+      backgroundColor: "transparent",
+      padding: 0,
+    },
     "& table": {
       display: "block",
       maxWidth: "100%",
       overflowX: "auto",
-    },
-    "& code": {
-      overflowWrap: "anywhere",
-      wordBreak: "break-word",
     },
   },
   actionRow: {
@@ -377,6 +399,16 @@ const useStyles = makeStyles({
     paddingInlineStart: tokens.spacingHorizontalM,
     textDecorationLine: "none",
   },
+  linkCardHeader: {
+    alignItems: "center",
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    minWidth: 0,
+  },
+  linkCardIcon: {
+    color: tokens.colorBrandForeground1,
+    flexShrink: 0,
+  },
   introGrid: {
     display: "grid",
     gap: tokens.spacingHorizontalM,
@@ -431,10 +463,35 @@ const useStyles = makeStyles({
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   },
+  developerNoteList: {
+    display: "grid",
+    gap: tokens.spacingVerticalS,
+    margin: 0,
+    minWidth: 0,
+    paddingInlineStart: tokens.spacingHorizontalL,
+  },
+  developerNoteItem: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: tokens.fontSizeBase300,
+    lineHeight: tokens.lineHeightBase300,
+    minWidth: 0,
+  },
   inlineButtonRow: {
     display: "flex",
     flexWrap: "wrap",
     gap: tokens.spacingHorizontalS,
+  },
+  selectControl: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    backgroundColor: tokens.colorNeutralBackground1,
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase300,
+    lineHeight: tokens.lineHeightBase300,
+    minHeight: "2.25rem",
+    minWidth: "12rem",
+    paddingInlineEnd: tokens.spacingHorizontalM,
+    paddingInlineStart: tokens.spacingHorizontalM,
   },
   toolbar: {
     ...shorthands.borderTop("1px", "solid", tokens.colorNeutralStroke2),
@@ -483,6 +540,7 @@ interface PreferenceState {
   developerToolsEnabled: boolean;
   helpVisible: boolean;
   introDismissed: boolean;
+  languagePreference: LanguagePreference;
   stylesheet: string;
   themeMode: ThemeMode;
 }
@@ -491,7 +549,6 @@ interface PanelMessageState {
   body: string;
   dismissible?: boolean;
   intent: "error" | "info" | "success" | "warning";
-  title?: string;
 }
 
 interface SelectionDebugState {
@@ -528,7 +585,106 @@ export interface TaskpaneAppProps {
   notificationService?: ComposeNotificationService;
   services: TaskpaneServices;
   settingsStore: SettingsStore;
-  strings?: LocalizedStrings;
+}
+
+async function loadCodeMirrorModules(): Promise<CodeMirrorModules> {
+  const [cssModule, languageModule, lintModule, stateModule, viewModule] =
+    await Promise.all([
+      import("@codemirror/lang-css"),
+      import("@codemirror/language"),
+      import("@codemirror/lint"),
+      import("@codemirror/state"),
+      import("@codemirror/view"),
+    ]);
+
+  return {
+    css: cssModule.css,
+    defaultHighlightStyle: languageModule.defaultHighlightStyle,
+    EditorState: stateModule.EditorState,
+    EditorView: viewModule.EditorView,
+    lineNumbers: viewModule.lineNumbers,
+    setDiagnostics: lintModule.setDiagnostics,
+    syntaxHighlighting: languageModule.syntaxHighlighting,
+  };
+}
+
+function findLintIssueRange(
+  stylesheet: string,
+  issue: StylesheetLintResult["issues"][number]
+): { from: number; to: number } {
+  const normalizedStylesheet = stylesheet.length > 0 ? stylesheet : " ";
+  const selectorMatch = /"([^"]+)"/.exec(issue.message);
+
+  if (selectorMatch !== null) {
+    const selectorText = selectorMatch[1];
+
+    if (selectorText === undefined) {
+      return {
+        from: 0,
+        to: normalizedStylesheet.length,
+      };
+    }
+
+    const index = normalizedStylesheet.indexOf(selectorText);
+
+    if (index !== -1) {
+      return {
+        from: index,
+        to: index + selectorText.length,
+      };
+    }
+  }
+
+  const propertyMatch = /The property "([^"]+)"/.exec(issue.message);
+
+  if (propertyMatch !== null) {
+    const propertyName = propertyMatch[1];
+
+    if (propertyName === undefined) {
+      return {
+        from: 0,
+        to: normalizedStylesheet.length,
+      };
+    }
+
+    const index = normalizedStylesheet.indexOf(propertyName);
+
+    if (index !== -1) {
+      return {
+        from: index,
+        to: index + propertyName.length,
+      };
+    }
+  }
+
+  if (issue.code === "empty-stylesheet") {
+    return { from: 0, to: 0 };
+  }
+
+  return {
+    from: 0,
+    to: normalizedStylesheet.length,
+  };
+}
+
+function toCodeMirrorDiagnostics(
+  stylesheet: string,
+  lintResult: StylesheetLintResult | null
+): Diagnostic[] {
+  if (lintResult === null) {
+    return [];
+  }
+
+  return lintResult.issues.map((issue) => {
+    const { from, to } = findLintIssueRange(stylesheet, issue);
+
+    return {
+      from,
+      message: issue.message,
+      severity: issue.severity === "error" ? "error" : "warning",
+      to,
+    };
+  });
 }
 
 export function readDroppedMarkdownFile(file: File): Promise<string> {
@@ -561,15 +717,16 @@ export function TaskpaneApp({
   notificationService,
   services,
   settingsStore,
-  strings,
 }: TaskpaneAppProps): ReactElement {
   const styles = useStyles();
-  const resolvedLocale =
-    locale ?? resolveLocale(resolveOfficeDisplayLanguage());
-  const localizedStrings = strings ?? getStrings(resolvedLocale);
   const [preferences, setPreferences] = useState<PreferenceState>(() =>
     readPreferences(settingsStore)
   );
+  const resolvedLocale = resolveLocale(
+    locale ?? resolveOfficeDisplayLanguage(),
+    preferences.languagePreference
+  );
+  const localizedStrings = getStrings(resolvedLocale);
   const [activePanel, setActivePanel] = useState<PanelKey>(() =>
     preferences.introDismissed ? "insert" : "intro"
   );
@@ -592,12 +749,14 @@ export function TaskpaneApp({
     useState(false);
   const [cssLintResult, setCssLintResult] =
     useState<StylesheetLintResult | null>(null);
+  const [isCodeMirrorLoading, setIsCodeMirrorLoading] = useState(false);
   const deferredMarkdownInput = useDeferredValue(markdownInput);
   const deferredStylesheet = useDeferredValue(preferences.stylesheet);
   const lastPersistedStylesheetRef = useRef(preferences.stylesheet);
   const previousAutoRenderRef = useRef(preferences.autoRender);
-  const editorHighlightRef = useRef<HTMLPreElement | null>(null);
-  const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const codeMirrorHostRef = useRef<HTMLDivElement | null>(null);
+  const codeMirrorModulesRef = useRef<CodeMirrorModules | null>(null);
+  const codeMirrorViewRef = useRef<CodeMirrorEditorView | null>(null);
   const { mode: toolbarLayoutMode, ref: toolbarRef } = useToolbarLayoutMode(
     visibleToolbarPanelCount(preferences),
     forcedToolbarLayoutMode
@@ -632,6 +791,24 @@ export function TaskpaneApp({
       return false;
     }
   });
+
+  const showComposeNotification = useEffectEvent(
+    async (intent: PanelMessageState["intent"], message: string) => {
+      if (notificationService === undefined) {
+        setPanelMessage({ body: message, intent });
+        return;
+      }
+
+      const surface = await notificationService.showTransientNotification({
+        intent,
+        message,
+      });
+
+      if (surface === "pane") {
+        setPanelMessage({ body: message, intent });
+      }
+    }
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -689,10 +866,6 @@ export function TaskpaneApp({
         .save()
         .then(() => {
           lastPersistedStylesheetRef.current = settingsStore.getStylesheet();
-          setPanelMessage({
-            body: localizedStrings.status.stylesheetSaved,
-            intent: "success",
-          });
         })
         .catch((error: unknown) => {
           console.error("MarkOut failed to persist stylesheet changes.", error);
@@ -708,7 +881,6 @@ export function TaskpaneApp({
     };
   }, [
     localizedStrings.status.stylesheetSaveFailed,
-    localizedStrings.status.stylesheetSaved,
     preferences.stylesheet,
     settingsStore,
   ]);
@@ -716,6 +888,178 @@ export function TaskpaneApp({
   useEffect(() => {
     setCssLintResult(null);
   }, [preferences.stylesheet]);
+
+  useEffect(() => {
+    if (activePanel !== "settings" || codeMirrorHostRef.current === null) {
+      return;
+    }
+
+    let cancelled = false;
+    let editorView: CodeMirrorEditorView | null = null;
+
+    setIsCodeMirrorLoading(true);
+
+    void loadCodeMirrorModules()
+      .then((modules) => {
+        if (cancelled || codeMirrorHostRef.current === null) {
+          return;
+        }
+
+        codeMirrorModulesRef.current = modules;
+        const editorTheme = modules.EditorView.theme(
+          {
+            "&": {
+              backgroundColor:
+                resolvedColorMode === "dark" ? "transparent" : "transparent",
+              color:
+                resolvedColorMode === "dark"
+                  ? tokens.colorNeutralForeground1
+                  : tokens.colorNeutralForeground1,
+              fontFamily: tokens.fontFamilyMonospace,
+              fontSize: tokens.fontSizeBase300,
+              minHeight: "14rem",
+            },
+            ".cm-scroller": {
+              fontFamily: tokens.fontFamilyMonospace,
+              lineHeight: tokens.lineHeightBase300,
+              minHeight: "14rem",
+            },
+            ".cm-content": {
+              caretColor: tokens.colorNeutralForeground1,
+              minHeight: "14rem",
+              padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+            },
+            ".cm-gutters": {
+              backgroundColor:
+                resolvedColorMode === "dark"
+                  ? tokens.colorNeutralBackground1
+                  : tokens.colorNeutralBackground1,
+              borderRightColor: tokens.colorNeutralStroke2,
+              color: tokens.colorNeutralForeground3,
+            },
+            ".cm-activeLine": {
+              backgroundColor:
+                resolvedColorMode === "dark"
+                  ? "rgba(255, 255, 255, 0.04)"
+                  : "rgba(15, 108, 189, 0.06)",
+            },
+            ".cm-activeLineGutter": {
+              backgroundColor:
+                resolvedColorMode === "dark"
+                  ? "rgba(255, 255, 255, 0.04)"
+                  : "rgba(15, 108, 189, 0.06)",
+            },
+            ".cm-selectionBackground": {
+              backgroundColor:
+                resolvedColorMode === "dark"
+                  ? "rgba(96, 165, 250, 0.28) !important"
+                  : "rgba(15, 108, 189, 0.24) !important",
+            },
+            ".cm-diagnostic": {
+              fontFamily: tokens.fontFamilyBase,
+            },
+          },
+          { dark: resolvedColorMode === "dark" }
+        );
+        const updateListener = modules.EditorView.updateListener.of(
+          (update: CodeMirrorViewUpdate) => {
+            if (!update.docChanged) {
+              return;
+            }
+
+            const nextStylesheet = update.state.doc.toString();
+            setPreferences((currentPreferences) =>
+              currentPreferences.stylesheet === nextStylesheet
+                ? currentPreferences
+                : {
+                    ...currentPreferences,
+                    stylesheet: nextStylesheet,
+                  }
+            );
+          }
+        );
+
+        editorView = new modules.EditorView({
+          parent: codeMirrorHostRef.current,
+          state: modules.EditorState.create({
+            doc: preferences.stylesheet,
+            extensions: [
+              modules.lineNumbers(),
+              modules.css(),
+              modules.EditorView.lineWrapping,
+              modules.syntaxHighlighting(modules.defaultHighlightStyle, {
+                fallback: true,
+              }),
+              editorTheme,
+              updateListener,
+            ],
+          }),
+        });
+
+        codeMirrorViewRef.current = editorView;
+        setIsCodeMirrorLoading(false);
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "MarkOut failed to initialize the stylesheet editor.",
+          error
+        );
+        codeMirrorModulesRef.current = null;
+        codeMirrorViewRef.current = null;
+        setIsCodeMirrorLoading(false);
+        if (!cancelled) {
+          setPanelMessage({
+            body: localizedStrings.editor.loadFailed,
+            intent: "error",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      setIsCodeMirrorLoading(false);
+      editorView?.destroy();
+      codeMirrorViewRef.current = null;
+    };
+  }, [activePanel, localizedStrings.editor.loadFailed, resolvedColorMode]);
+
+  useEffect(() => {
+    const editorView = codeMirrorViewRef.current;
+
+    if (editorView === null) {
+      return;
+    }
+
+    const currentDocument = editorView.state.doc.toString();
+
+    if (currentDocument === preferences.stylesheet) {
+      return;
+    }
+
+    editorView.dispatch({
+      changes: {
+        from: 0,
+        insert: preferences.stylesheet,
+        to: currentDocument.length,
+      },
+    });
+  }, [preferences.stylesheet]);
+
+  useEffect(() => {
+    const editorView = codeMirrorViewRef.current;
+    const modules = codeMirrorModulesRef.current;
+
+    if (editorView === null || modules === null) {
+      return;
+    }
+
+    editorView.dispatch(
+      modules.setDiagnostics(
+        editorView.state,
+        toCodeMirrorDiagnostics(preferences.stylesheet, cssLintResult)
+      )
+    );
+  }, [cssLintResult, preferences.stylesheet]);
 
   useEffect(() => {
     if (activePanel !== "insert") {
@@ -817,8 +1161,7 @@ export function TaskpaneApp({
   }
 
   async function persistPreferences(
-    nextPreferences: PreferenceState,
-    successMessage: string
+    nextPreferences: PreferenceState
   ): Promise<boolean> {
     const previousPreferences = preferences;
     setPreferences(nextPreferences);
@@ -826,7 +1169,6 @@ export function TaskpaneApp({
 
     try {
       await settingsStore.save();
-      setPanelMessage({ body: successMessage, intent: "success" });
       return true;
     } catch (error) {
       console.error("MarkOut failed to persist settings.", error);
@@ -841,23 +1183,16 @@ export function TaskpaneApp({
   }
 
   async function handleToggleAutoRender(enabled: boolean): Promise<void> {
-    await persistPreferences(
-      { ...preferences, autoRender: enabled },
-      enabled
-        ? localizedStrings.status.autoRenderEnabled
-        : localizedStrings.status.autoRenderDisabled
-    );
+    await persistPreferences({ ...preferences, autoRender: enabled });
   }
 
   async function handleToggleCreditsVisibility(
     visible: boolean
   ): Promise<void> {
-    const didPersist = await persistPreferences(
-      { ...preferences, creditsVisible: visible },
-      visible
-        ? localizedStrings.status.creditsShown
-        : localizedStrings.status.creditsHidden
-    );
+    const didPersist = await persistPreferences({
+      ...preferences,
+      creditsVisible: visible,
+    });
 
     if (didPersist && !visible && activePanel === "credits") {
       setActivePanel(
@@ -867,12 +1202,10 @@ export function TaskpaneApp({
   }
 
   async function handleToggleDeveloperTools(enabled: boolean): Promise<void> {
-    const didPersist = await persistPreferences(
-      { ...preferences, developerToolsEnabled: enabled },
-      enabled
-        ? localizedStrings.status.developerEnabled
-        : localizedStrings.status.developerDisabled
-    );
+    const didPersist = await persistPreferences({
+      ...preferences,
+      developerToolsEnabled: enabled,
+    });
 
     if (didPersist && !enabled && activePanel === "developer") {
       setActivePanel(
@@ -882,12 +1215,10 @@ export function TaskpaneApp({
   }
 
   async function handleToggleHelpVisibility(visible: boolean): Promise<void> {
-    const didPersist = await persistPreferences(
-      { ...preferences, helpVisible: visible },
-      visible
-        ? localizedStrings.status.helpShown
-        : localizedStrings.status.helpHidden
-    );
+    const didPersist = await persistPreferences({
+      ...preferences,
+      helpVisible: visible,
+    });
 
     if (didPersist && !visible && activePanel === "help") {
       setActivePanel(
@@ -899,15 +1230,10 @@ export function TaskpaneApp({
   async function handleToggleIntroVisibility(
     showIntro: boolean
   ): Promise<void> {
-    const didPersist = await persistPreferences(
-      {
-        ...preferences,
-        introDismissed: !showIntro,
-      },
-      showIntro
-        ? localizedStrings.status.introRestored
-        : localizedStrings.status.introHidden
-    );
+    const didPersist = await persistPreferences({
+      ...preferences,
+      introDismissed: !showIntro,
+    });
 
     if (!didPersist) {
       return;
@@ -917,19 +1243,19 @@ export function TaskpaneApp({
   }
 
   async function handleThemeModeChange(mode: ThemeMode): Promise<void> {
-    await persistPreferences(
-      {
-        ...preferences,
-        themeMode: mode,
-      },
-      localizedStrings.status.themeUpdated(
-        mode === "dark"
-          ? localizedStrings.settings.themeModeDark
-          : mode === "light"
-            ? localizedStrings.settings.themeModeLight
-            : localizedStrings.settings.themeModeSystem
-      )
-    );
+    await persistPreferences({
+      ...preferences,
+      themeMode: mode,
+    });
+  }
+
+  async function handleLanguagePreferenceChange(
+    preference: LanguagePreference
+  ): Promise<void> {
+    await persistPreferences({
+      ...preferences,
+      languagePreference: preference,
+    });
   }
 
   async function handleConfirmIntro(): Promise<void> {
@@ -938,13 +1264,10 @@ export function TaskpaneApp({
       return;
     }
 
-    const didPersist = await persistPreferences(
-      {
-        ...preferences,
-        introDismissed: true,
-      },
-      localizedStrings.status.introHidden
-    );
+    const didPersist = await persistPreferences({
+      ...preferences,
+      introDismissed: true,
+    });
 
     if (didPersist) {
       setActivePanel("insert");
@@ -978,20 +1301,19 @@ export function TaskpaneApp({
       try {
         const result =
           await services.composeMarkdown.insertRenderedMarkdown(markdownInput);
-        setPanelMessage({
-          body:
-            result === "replaced"
-              ? localizedStrings.status.fragmentReplaced
-              : localizedStrings.status.fragmentInserted,
-          intent: "success",
-        });
+        await showComposeNotification(
+          "success",
+          result === "replaced"
+            ? localizedStrings.status.fragmentReplaced
+            : localizedStrings.status.fragmentInserted
+        );
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to insert rendered Markdown.", error);
-        setPanelMessage({
-          body: localizeActionError(localizedStrings, error),
-          intent: "error",
-        });
+        await showComposeNotification(
+          "error",
+          localizeActionError(localizedStrings, error)
+        );
       }
     });
   }
@@ -1000,17 +1322,17 @@ export function TaskpaneApp({
     await withBusyState("render-selection", async () => {
       try {
         await services.composeMarkdown.renderSelection();
-        setPanelMessage({
-          body: localizedStrings.status.selectionRendered,
-          intent: "success",
-        });
+        await showComposeNotification(
+          "success",
+          localizedStrings.status.selectionRendered
+        );
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current selection.", error);
-        setPanelMessage({
-          body: localizeActionError(localizedStrings, error),
-          intent: "error",
-        });
+        await showComposeNotification(
+          "error",
+          localizeActionError(localizedStrings, error)
+        );
         await updateSelectionState();
       }
     });
@@ -1020,20 +1342,19 @@ export function TaskpaneApp({
     await withBusyState("render-entire-draft", async () => {
       try {
         const result = await services.renderEntireDraft();
-        setPanelMessage({
-          body:
-            result === "rendered"
-              ? localizedStrings.status.draftRendered
-              : localizedStrings.status.draftRestored,
-          intent: "success",
-        });
+        await showComposeNotification(
+          "success",
+          result === "rendered"
+            ? localizedStrings.status.draftRendered
+            : localizedStrings.status.draftRestored
+        );
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current draft.", error);
-        setPanelMessage({
-          body: localizeActionError(localizedStrings, error),
-          intent: "error",
-        });
+        await showComposeNotification(
+          "error",
+          localizeActionError(localizedStrings, error)
+        );
       }
     });
   }
@@ -1042,10 +1363,6 @@ export function TaskpaneApp({
     await withBusyState("lint-stylesheet", () => {
       try {
         setCssLintResult(lintStylesheet(preferences.stylesheet));
-        setPanelMessage({
-          body: localizedStrings.status.cssLintComplete,
-          intent: "success",
-        });
       } catch (error) {
         console.error("MarkOut failed to lint the stylesheet.", error);
         setPanelMessage({
@@ -1062,34 +1379,34 @@ export function TaskpaneApp({
     const file = event.dataTransfer.files.item(0);
 
     if (file === null) {
-      setPanelMessage({
-        body: localizedStrings.status.dropFileInstruction,
-        intent: "warning",
-      });
+      await showComposeNotification(
+        "warning",
+        localizedStrings.status.dropFileInstruction
+      );
       return;
     }
 
     if (!supportsMarkdownFile(file)) {
-      setPanelMessage({
-        body: localizedStrings.status.unsupportedFileType,
-        intent: "error",
-      });
+      await showComposeNotification(
+        "error",
+        localizedStrings.status.unsupportedFileType
+      );
       return;
     }
 
     try {
       const content = await readDroppedMarkdownFile(file);
       setMarkdownInput(content);
-      setPanelMessage({
-        body: localizedStrings.status.stylesheetLoaded(file.name),
-        intent: "success",
-      });
+      await showComposeNotification(
+        "success",
+        localizedStrings.status.stylesheetLoaded(file.name)
+      );
     } catch (error) {
       console.error("MarkOut failed to load a dropped file.", error);
-      setPanelMessage({
-        body: localizeActionError(localizedStrings, error),
-        intent: "error",
-      });
+      await showComposeNotification(
+        "error",
+        localizeActionError(localizedStrings, error)
+      );
     }
   }
 
@@ -1097,28 +1414,6 @@ export function TaskpaneApp({
     event: ChangeEvent<HTMLTextAreaElement>
   ): void {
     setMarkdownInput(event.target.value);
-  }
-
-  function handleStylesheetInputChange(
-    event: ChangeEvent<HTMLTextAreaElement>
-  ): void {
-    setPreferences((currentPreferences) => ({
-      ...currentPreferences,
-      stylesheet: event.target.value,
-    }));
-  }
-
-  function handleStylesheetScroll(): void {
-    if (
-      editorHighlightRef.current === null ||
-      editorTextareaRef.current === null
-    ) {
-      return;
-    }
-
-    editorHighlightRef.current.scrollTop = editorTextareaRef.current.scrollTop;
-    editorHighlightRef.current.scrollLeft =
-      editorTextareaRef.current.scrollLeft;
   }
 
   async function handleDismissAutoRenderFallbackNotice(): Promise<void> {
@@ -1143,12 +1438,7 @@ export function TaskpaneApp({
 
     return (
       <MessageBar intent={panelMessage.intent}>
-        <MessageBarBody>
-          {panelMessage.title !== undefined ? (
-            <MessageBarTitle>{panelMessage.title}</MessageBarTitle>
-          ) : null}
-          {panelMessage.body}
-        </MessageBarBody>
+        <MessageBarBody>{panelMessage.body}</MessageBarBody>
       </MessageBar>
     );
   }
@@ -1363,6 +1653,34 @@ export function TaskpaneApp({
           </RadioGroup>
         </div>
         <div className={styles.card}>
+          <h3 className={styles.sectionTitle}>
+            {localizedStrings.settings.languageTitle}
+          </h3>
+          <p className={styles.sectionBody}>
+            {localizedStrings.settings.languageDescription}
+          </p>
+          <Select
+            className={styles.selectControl}
+            id="language-preference-select"
+            onChange={(event) => {
+              void handleLanguagePreferenceChange(
+                event.currentTarget.value as LanguagePreference
+              );
+            }}
+            value={preferences.languagePreference}
+          >
+            <option value="system">
+              {localizedStrings.settings.languageSystem}
+            </option>
+            <option value="en-US">
+              {localizedStrings.settings.languageEnglish}
+            </option>
+            <option value="de-DE">
+              {localizedStrings.settings.languageGerman}
+            </option>
+          </Select>
+        </div>
+        <div className={styles.card}>
           <div className={styles.settingsRow}>
             <div className={styles.sectionHeading}>
               <h3 className={styles.sectionTitle}>
@@ -1479,30 +1797,17 @@ export function TaskpaneApp({
             <h3 className={styles.sectionTitle}>
               {localizedStrings.editor.title}
             </h3>
-            <p className={styles.sectionBody}>
-              {localizedStrings.localization.supportedLanguagesNote}
-            </p>
           </div>
           <div className={styles.editorSurface}>
-            <pre
-              aria-hidden="true"
-              className={styles.codeHighlight}
-              ref={editorHighlightRef}
-            >
-              <code
-                dangerouslySetInnerHTML={{
-                  __html: highlightCss(preferences.stylesheet),
-                }}
-              />
-            </pre>
-            <textarea
-              className={styles.codeMirror}
+            {isCodeMirrorLoading ? (
+              <div className={styles.codeMirrorLoading}>
+                {localizedStrings.editor.loading}
+              </div>
+            ) : null}
+            <div
+              className={styles.codeMirrorHost}
               id="theme-editor"
-              onChange={handleStylesheetInputChange}
-              onScroll={handleStylesheetScroll}
-              ref={editorTextareaRef}
-              spellCheck={false}
-              value={preferences.stylesheet}
+              ref={codeMirrorHostRef}
             />
           </div>
           <div className={styles.inlineButtonRow}>
@@ -1552,7 +1857,12 @@ export function TaskpaneApp({
             rel="noreferrer"
             target="_blank"
           >
-            <strong>{localizedStrings.help.repoTitle}</strong>
+            <div className={styles.linkCardHeader}>
+              <span className={styles.linkCardIcon}>
+                <RepositoryIcon />
+              </span>
+              <strong>{localizedStrings.help.repoTitle}</strong>
+            </div>
             <p className={styles.sectionBody}>
               {localizedStrings.help.repoDescription}
             </p>
@@ -1563,7 +1873,12 @@ export function TaskpaneApp({
             rel="noreferrer"
             target="_blank"
           >
-            <strong>{localizedStrings.help.docsTitle}</strong>
+            <div className={styles.linkCardHeader}>
+              <span className={styles.linkCardIcon}>
+                <DocsIcon />
+              </span>
+              <strong>{localizedStrings.help.docsTitle}</strong>
+            </div>
             <p className={styles.sectionBody}>
               {localizedStrings.help.docsDescription}
             </p>
@@ -1574,17 +1889,16 @@ export function TaskpaneApp({
             rel="noreferrer"
             target="_blank"
           >
-            <strong>{localizedStrings.help.websiteTitle}</strong>
+            <div className={styles.linkCardHeader}>
+              <span className={styles.linkCardIcon}>
+                <CompanyIcon />
+              </span>
+              <strong>{localizedStrings.help.websiteTitle}</strong>
+            </div>
             <p className={styles.sectionBody}>
               {localizedStrings.help.websiteDescription}
             </p>
           </a>
-          <div className={styles.linkCard}>
-            <strong>{localizedStrings.buyMeACoffeePlaceholder}</strong>
-            <p className={styles.sectionBody}>
-              {localizedStrings.localization.buyMeACoffeePlaceholderDescription}
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -1652,17 +1966,27 @@ export function TaskpaneApp({
           </p>
         </div>
         <div className={styles.creditsBox}>
-          <h3 className={styles.sectionTitle}>
-            {localizedStrings.credits.upstreamTitle}
-          </h3>
+          <div className={styles.linkCardHeader}>
+            <span className={styles.linkCardIcon}>
+              <UpstreamIcon />
+            </span>
+            <h3 className={styles.sectionTitle}>
+              {localizedStrings.credits.upstreamTitle}
+            </h3>
+          </div>
           <p className={styles.sectionBody}>
             {localizedStrings.credits.upstreamBody}
           </p>
         </div>
         <div className={styles.creditsBox}>
-          <h3 className={styles.sectionTitle}>
-            {localizedStrings.credits.currentMaintenanceTitle}
-          </h3>
+          <div className={styles.linkCardHeader}>
+            <span className={styles.linkCardIcon}>
+              <ForkIcon />
+            </span>
+            <h3 className={styles.sectionTitle}>
+              {localizedStrings.credits.currentMaintenanceTitle}
+            </h3>
+          </div>
           <p className={styles.sectionBody}>
             {localizedStrings.credits.currentMaintenanceBody}
           </p>
@@ -1717,14 +2041,14 @@ export function TaskpaneApp({
               ? localizedStrings.developer.noSelectionSnapshot
               : JSON.stringify(selectionState.debug, null, 2)}
           </pre>
-          <ul className={styles.linkList}>
-            <li className={styles.sectionBody}>
+          <ul className={styles.developerNoteList}>
+            <li className={styles.developerNoteItem}>
               {localizedStrings.developer.subjectHint}
             </li>
-            <li className={styles.sectionBody}>
+            <li className={styles.developerNoteItem}>
               {localizedStrings.developer.ribbonHint}
             </li>
-            <li className={styles.sectionBody}>
+            <li className={styles.developerNoteItem}>
               {localizedStrings.developer.taskpaneHint}
             </li>
           </ul>
@@ -1900,6 +2224,7 @@ function readPreferences(settingsStore: SettingsStore): PreferenceState {
     developerToolsEnabled: settingsStore.getDeveloperToolsEnabled(),
     helpVisible: settingsStore.getHelpVisible(),
     introDismissed: settingsStore.getIntroDismissed(),
+    languagePreference: settingsStore.getLanguagePreference(),
     stylesheet: settingsStore.getStylesheet(),
     themeMode: settingsStore.getThemeMode(),
   };
@@ -1914,6 +2239,7 @@ function writePreferences(
   settingsStore.setDeveloperToolsEnabled(preferences.developerToolsEnabled);
   settingsStore.setHelpVisible(preferences.helpVisible);
   settingsStore.setIntroDismissed(preferences.introDismissed);
+  settingsStore.setLanguagePreference(preferences.languagePreference);
   settingsStore.setStylesheet(preferences.stylesheet);
   settingsStore.setThemeMode(preferences.themeMode);
 }
@@ -2026,25 +2352,6 @@ export function resolveToolbarLayoutMode(
 
 function resolvedFragmentBlockMessage(strings: LocalizedStrings): string {
   return strings.tooltips.renderedFragmentBlocked;
-}
-
-function highlightCss(stylesheet: string): string {
-  const source = stylesheet.length > 0 ? stylesheet : " ";
-
-  try {
-    return hljs.highlight(source, { language: "css" }).value;
-  } catch {
-    return escapeHtml(source);
-  }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 function useToolbarLayoutMode(
@@ -2271,6 +2578,65 @@ function DeveloperIcon(): ReactElement {
       <path d="m7.5 6-3 4 3 4" />
       <path d="m12.5 6 3 4-3 4" />
       <path d="m11 5-2 10" />
+    </ToolbarIcon>
+  );
+}
+
+function RepositoryIcon(): ReactElement {
+  return (
+    <ToolbarIcon>
+      <path d="M4.5 6.5A1.5 1.5 0 0 1 6 5h8a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 14 15H6a1.5 1.5 0 0 1-1.5-1.5Z" />
+      <path d="M7 8.2h6" />
+      <path d="M7 10.5h4" />
+      <path d="M7 12.8h5" />
+    </ToolbarIcon>
+  );
+}
+
+function DocsIcon(): ReactElement {
+  return (
+    <ToolbarIcon>
+      <path d="M6.5 4.8h5.8l2.2 2.2v8.2H6.5Z" />
+      <path d="M12.3 4.8v2.4h2.2" />
+      <path d="M8.4 10h4.8" />
+      <path d="M8.4 12.4h3.6" />
+    </ToolbarIcon>
+  );
+}
+
+function CompanyIcon(): ReactElement {
+  return (
+    <ToolbarIcon>
+      <path d="M6 15.2V6.2h8v9" />
+      <path d="M4.5 15.2h11" />
+      <path d="M8.2 8.4h1.2" />
+      <path d="M10.6 8.4h1.2" />
+      <path d="M8.2 10.8h1.2" />
+      <path d="M10.6 10.8h1.2" />
+      <path d="M9.3 15.2v-2.5h1.4v2.5" />
+    </ToolbarIcon>
+  );
+}
+
+function UpstreamIcon(): ReactElement {
+  return (
+    <ToolbarIcon>
+      <path d="m6.5 9.5 3-3 3 3" />
+      <path d="M9.5 6.8v6.7" />
+      <path d="M5.5 13.8h8" />
+    </ToolbarIcon>
+  );
+}
+
+function ForkIcon(): ReactElement {
+  return (
+    <ToolbarIcon>
+      <circle cx="6.5" cy="5.8" r="1.2" />
+      <circle cx="13.5" cy="5.8" r="1.2" />
+      <circle cx="10" cy="14.1" r="1.2" />
+      <path d="M6.5 7v2.1c0 1.2 1 2.2 2.2 2.2H10" />
+      <path d="M13.5 7v2.1c0 1.2-1 2.2-2.2 2.2H10" />
+      <path d="M10 11.3v1.6" />
     </ToolbarIcon>
   );
 }

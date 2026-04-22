@@ -4,6 +4,11 @@ import { FakeMailboxItem, installOfficeEnvironment } from "./helpers";
 describe("compose notification service", () => {
   beforeEach(() => {
     installOfficeEnvironment();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("shows a persistent informational notification in Outlook when supported", async () => {
@@ -34,6 +39,65 @@ describe("compose notification service", () => {
         message: "MarkOut auto-render is enabled",
       })
     ).resolves.toBe("pane");
+  });
+
+  it("shows transient compose notifications and clears them after a short delay", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await expect(
+      notificationService.showTransientNotification({
+        intent: "success",
+        message: "Rendered Markdown was inserted at the current body cursor.",
+      })
+    ).resolves.toBe("outlook");
+
+    expect(mailboxItem.lastNotificationDetails).toMatchObject({
+      message: "Rendered Markdown was inserted at the current body cursor.",
+      persistent: false,
+      type: Office.MailboxEnums.ItemNotificationMessageType
+        .InformationalMessage,
+    });
+
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+
+    expect(mailboxItem.notificationMessages.removeAsync).toHaveBeenCalled();
+    expect(mailboxItem.lastNotificationDetails).toBeNull();
+  });
+
+  it("uses the error infobar type for transient errors", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.showTransientNotification({
+      intent: "error",
+      message: "Selection state could not be read from Outlook.",
+    });
+
+    expect(mailboxItem.lastNotificationDetails).toMatchObject({
+      persistent: false,
+      type: Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage,
+    });
+  });
+
+  it("does not treat a transient infobar dismiss as an auto-render dismissal", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+    const dismissHandler = jest.fn();
+
+    notificationService.onAutoRenderDismiss(dismissHandler);
+    await notificationService.showTransientNotification({
+      intent: "info",
+      message: "The current draft was rendered successfully.",
+    });
+    await mailboxItem.triggerInfobarDismiss();
+    await Promise.resolve();
+
+    expect(dismissHandler).not.toHaveBeenCalled();
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(false);
   });
 
   it("persists infobar dismiss state per item and clears it again", async () => {
@@ -83,5 +147,18 @@ describe("compose notification service", () => {
     await notificationService.clearAutoRenderNotification();
 
     expect(mailboxItem.lastNotificationDetails).toBeNull();
+  });
+
+  it("falls back to a pane-local transient notification when Outlook replaceAsync fails", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    mailboxItem.failNextNotificationReplace = true;
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await expect(
+      notificationService.showTransientNotification({
+        intent: "warning",
+        message: "Drop a Markdown or text file to load content into MarkOut.",
+      })
+    ).resolves.toBe("pane");
   });
 });

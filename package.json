@@ -43,6 +43,11 @@
     "watch": "webpack --mode development --watch"
   },
   "dependencies": {
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.5",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.1",
     "@fluentui/react-components": "^9.73.7",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.1",

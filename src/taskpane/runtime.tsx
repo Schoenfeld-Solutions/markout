@@ -131,7 +131,11 @@ export class TaskpaneRuntimeErrorBoundary extends Component<
 
 export function mountTaskpane(rootElement: HTMLElement): void {
   const root = createRoot(rootElement);
-  const locale = resolveLocale(resolveOfficeDisplayLanguage());
+  const settingsStore = createOfficeSettingsStore();
+  const locale = resolveLocale(
+    resolveOfficeDisplayLanguage(),
+    settingsStore.getLanguagePreference()
+  );
   const strings = getStrings(locale);
 
   console.info("[MarkOut] taskpane runtime mounted", { locale });
@@ -145,8 +149,7 @@ export function mountTaskpane(rootElement: HTMLElement): void {
           composeMarkdown: createComposeMarkdownService(),
           renderEntireDraft: renderItem,
         }}
-        settingsStore={createOfficeSettingsStore()}
-        strings={strings}
+        settingsStore={settingsStore}
       />
     </TaskpaneRuntimeErrorBoundary>
   );
