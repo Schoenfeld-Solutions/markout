@@ -60,6 +60,10 @@ This fork is now independently maintained by `Schoenfeld Solutions`, with ongoin
 `Gabriel-Johannes Schönfeld`. The repository also retains Microsoft Office Add-in scaffold code
 that remains covered by the MIT license in [LICENSE](LICENSE).
 
+The hosted app icon assets now derive from the Microsoft Fluent UI System Icons
+Markdown glyph and follow the upstream MIT license terms as documented in the
+Fluent icon project.
+
 ## Why this repo still uses the XML add-in manifest
 
 MarkOut stays on the Outlook add-in-only XML manifest because Outlook on Mac still doesn't support
