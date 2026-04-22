@@ -205,22 +205,18 @@ const EN_US: LocalizedStrings = {
     shown: "Shown",
   },
   help: {
-    docsDescription:
-      "Open the GitHub Pages landing page with manifests, hosted docs, and deployment notes.",
+    docsDescription: "",
     docsTitle: "Hosted project docs",
     panelDescription: "",
     panelTitle: "Help",
-    repoDescription:
-      "Track issues, releases, and the maintained Schoenfeld Solutions fork.",
+    repoDescription: "",
     repoTitle: "GitHub repository",
-    websiteDescription:
-      "Open the Schoenfeld Solutions website. A support link can be added here later.",
+    websiteDescription: "",
     websiteTitle: "Schoenfeld Solutions",
   },
   intro: {
     confirm: "I have read this",
-    panelDescription:
-      "MarkOut keeps compose work Markdown-first while staying inside Outlook's taskpane and Smart Alerts model.",
+    panelDescription: "",
     panelTitle: "Intro",
     stepOneBody:
       "Render the whole draft or only a selected body range without leaving compose mode.",
@@ -279,8 +275,7 @@ const EN_US: LocalizedStrings = {
     introTitle: "Intro visibility",
     panelDescription: "",
     panelTitle: "Settings",
-    themeDescription:
-      "System follows Outlook theme when the host provides it and falls back to the browser preference otherwise.",
+    themeDescription: "",
     themeModeDark: "Dark",
     themeModeLight: "Light",
     themeModeSystem: "System",
@@ -396,22 +391,18 @@ const DE_DE: LocalizedStrings = {
     shown: "Sichtbar",
   },
   help: {
-    docsDescription:
-      "Öffnet die GitHub-Pages-Landingpage mit Manifests, gehosteter Doku und Deployment-Hinweisen.",
+    docsDescription: "",
     docsTitle: "Gehostete Projektdoku",
     panelDescription: "",
     panelTitle: "Hilfe",
-    repoDescription:
-      "Issues, Releases und den gepflegten Schoenfeld-Solutions-Fork ansehen.",
+    repoDescription: "",
     repoTitle: "GitHub-Repository",
-    websiteDescription:
-      "Öffnet die Website von Schoenfeld Solutions. Ein Support-Link kann hier später ergänzt werden.",
+    websiteDescription: "",
     websiteTitle: "Schoenfeld Solutions",
   },
   intro: {
     confirm: "Ich habe es gelesen",
-    panelDescription:
-      "MarkOut hält den Compose-Flow Markdown-first und bleibt dabei vollständig in Outlook-Taskpane und Smart Alerts.",
+    panelDescription: "",
     panelTitle: "Einführung",
     stepOneBody:
       "Den ganzen Entwurf oder nur eine selektierte Stelle rendern, ohne Compose zu verlassen.",
@@ -473,8 +464,7 @@ const DE_DE: LocalizedStrings = {
     introTitle: "Intro-Sichtbarkeit",
     panelDescription: "",
     panelTitle: "Einstellungen",
-    themeDescription:
-      "System folgt dem Outlook-Theme, wenn der Host es liefert, und fällt sonst auf die Browser-Präferenz zurück.",
+    themeDescription: "",
     themeModeDark: "Dunkel",
     themeModeLight: "Hell",
     themeModeSystem: "System",

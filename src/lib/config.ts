@@ -2,14 +2,10 @@ import { parseStyleRules } from "./stylesheet-rules";
 
 export const defaultStylesheet = `
 .mo {
-  color: inherit;
-  font-family: inherit;
-  font-size: 1em;
   line-height: 1.5;
 }
 
 a {
-  color: inherit;
   text-decoration: underline;
 }
 
@@ -20,7 +16,6 @@ p {
 table,
 dl,
 blockquote,
-q,
 ul,
 ol,
 pre {
@@ -81,8 +76,6 @@ h3,
 h4,
 h5,
 h6 {
-  color: inherit;
-  font-family: inherit;
   line-height: 1.25;
   margin: 1.3em 0 1em;
   padding: 0;
@@ -90,23 +83,23 @@ h6 {
 }
 
 h1 {
-  font-size: 1.8em;
+  font-size: 1.75em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
   padding-bottom: 0.12em;
 }
 
 h2 {
-  font-size: 1.5em;
+  font-size: 1.45em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.24);
   padding-bottom: 0.1em;
 }
 
 h3 {
-  font-size: 1.3em;
+  font-size: 1.25em;
 }
 
 h4 {
-  font-size: 1.2em;
+  font-size: 1.1em;
 }
 
 h5 {
@@ -118,27 +111,20 @@ h6 {
 }
 
 table {
-  border-spacing: 0;
   border-collapse: collapse;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-table tr {
-  border: 0;
-  border-top: 1px solid rgba(127, 127, 127, 0.28);
+  border-spacing: 0;
   margin: 0;
   padding: 0;
 }
 
-table tr th, table tr td {
+table th,
+table td {
   border: 1px solid rgba(127, 127, 127, 0.28);
-  margin: 0;
-  padding: 0.5em 1em;
+  padding: 0.5em 0.85em;
 }
 
-table tr th {
+table th {
+  background-color: rgba(127, 127, 127, 0.08);
   font-weight: bold;
 }
 
@@ -149,7 +135,6 @@ pre,
 }
 
 code {
-  font-size: 0.95em;
   margin: 0;
   padding: 0.08em 0.3em;
   background-color: rgba(127, 127, 127, 0.08);
@@ -198,13 +183,16 @@ const SETTING_LANGUAGE_PREFERENCE = "markout.languagePreference";
 const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_STYLESHEET_PRESET = "markout.stylesheetPreset";
 const SETTING_THEME_MODE = "markout.themeMode";
-const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v1";
+const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v2";
+const LEGACY_STYLESHEET_PRESETS = new Set(["default-host-inherit-v1"]);
 const CUSTOM_STYLESHEET_PRESET = "custom";
 
 const LEGACY_DEFAULT_SIGNATURE_PATTERNS = [
   /font-family:\s*-apple-system/i,
   /font-size:\s*14px/i,
   /color:\s*rgb\(\s*36\s*,\s*41\s*,\s*46\s*\)/i,
+  /\.mo\s*\{[^}]*color:\s*inherit;[^}]*font-family:\s*inherit;[^}]*font-size:\s*1em;[^}]*line-height:\s*1\.5;[^}]*\}/i,
+  /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*color:\s*inherit;[^}]*font-family:\s*inherit;/i,
   /blockquote::before/i,
   /table\s+tr:nth-child\(2n\)/i,
   /\.hljs-string/i,
@@ -242,7 +230,9 @@ const KNOWN_DEFAULT_SELECTORS = new Set([
   "h5",
   "h6",
   "table tr",
+  "table th",
   "table tr th",
+  "table td",
   "table tr td",
   "code",
   ".hljs",
@@ -336,8 +326,12 @@ function isDefaultDerivedSelectorSet(stylesheet: string): boolean {
   );
 }
 
-function isDefaultPreset(value: unknown): boolean {
+function isCurrentDefaultPreset(value: unknown): boolean {
   return value === CURRENT_STYLESHEET_PRESET;
+}
+
+function isLegacyDefaultPreset(value: unknown): boolean {
+  return typeof value === "string" && LEGACY_STYLESHEET_PRESETS.has(value);
 }
 
 function isCustomPreset(value: unknown): boolean {
@@ -379,10 +373,17 @@ function resolveStoredStylesheetState(
     };
   }
 
-  if (isDefaultPreset(storedPreset) || isCustomPreset(storedPreset)) {
+  if (isCurrentDefaultPreset(storedPreset) || isCustomPreset(storedPreset)) {
     return {
       migrationPending: false,
       stylesheet: normalizeStylesheet(storedStylesheet),
+    };
+  }
+
+  if (isLegacyDefaultPreset(storedPreset)) {
+    return {
+      migrationPending: true,
+      stylesheet: defaultStylesheet,
     };
   }
 
