@@ -24,16 +24,16 @@ pre {
 
 ul,
 ol {
-  margin: 1em 0;
+  margin: 0.9em 0;
   padding-left: 1.5em;
 }
 
 li {
-  margin: 0.35em 0;
+  margin: 0;
 }
 
 li p {
-  margin: 0.35em 0 !important;
+  margin: 0 !important;
 }
 
 ul ul, ul ol, ol ul, ol ol {
@@ -84,14 +84,10 @@ h6 {
 
 h1 {
   font-size: 1.75em;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
-  padding-bottom: 0.12em;
 }
 
 h2 {
   font-size: 1.45em;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.24);
-  padding-bottom: 0.1em;
 }
 
 h3 {

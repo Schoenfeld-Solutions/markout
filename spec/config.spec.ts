@@ -120,7 +120,10 @@ describe("settings store", () => {
     expect(defaultStylesheet).not.toMatch(
       /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*\b(?:color|font-family)\b/i
     );
+    expect(defaultStylesheet).not.toContain("border-bottom");
     expect(defaultStylesheet).not.toMatch(/a\s*\{[^}]*\bcolor\b/i);
+    expect(defaultStylesheet).toContain("li {\n  margin: 0;\n}");
+    expect(defaultStylesheet).toContain("li p {\n  margin: 0 !important;\n}");
     expect(defaultStylesheet).toMatch(
       /code,\s*pre,\s*\.hljs\s*\{[^}]*font-family:/i
     );

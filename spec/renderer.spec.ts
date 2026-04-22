@@ -101,7 +101,36 @@ describe("renderer", () => {
     expect(output).not.toContain("rgb(36, 41, 46)");
     expect(output).not.toContain("font-size: 14px");
     expect(output).not.toContain("-apple-system");
+    expect(output).not.toContain("border-bottom");
     expect(output).not.toContain("nth-child");
+  });
+
+  it("keeps lists compact without adding artificial spacing between items", async () => {
+    const output = await renderMarkdown({
+      css: `
+        ul,
+        ol {
+          margin: 0.9em 0;
+          padding-left: 1.5em;
+        }
+
+        li {
+          margin: 0;
+        }
+
+        li p {
+          margin: 0;
+        }
+      `,
+      markdown: "- one\n- two\n- three",
+    });
+
+    expect(output).toContain(
+      '<ul style="margin: 0.9em 0px; padding-left: 1.5em;">'
+    );
+    expect(output).toContain('<li style="margin: 0px;">one</li>');
+    expect(output).toContain('<li style="margin: 0px;">two</li>');
+    expect(output).toContain('<li style="margin: 0px;">three</li>');
   });
 
   it("detects full-render and fragment markers independently", () => {

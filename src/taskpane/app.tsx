@@ -519,16 +519,8 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
   },
   selectControl: {
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
-    ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    backgroundColor: tokens.colorNeutralBackground1,
-    color: tokens.colorNeutralForeground1,
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    minHeight: "2.25rem",
-    minWidth: "12rem",
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
+    minWidth: 0,
+    width: "100%",
   },
   toolbar: {
     ...shorthands.borderTop("1px", "solid", tokens.colorNeutralStroke2),
