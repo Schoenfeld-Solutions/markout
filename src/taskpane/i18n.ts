@@ -2,7 +2,6 @@ export type SupportedLocale = "de-DE" | "en-US";
 
 export interface LocalizedStrings {
   appTitle: string;
-  buyMeACoffeePlaceholder: string;
   credits: {
     currentMaintenanceBody: string;
     currentMaintenanceTitle: string;
@@ -27,6 +26,8 @@ export interface LocalizedStrings {
   editor: {
     lintErrorLabel: string;
     lintButton: string;
+    loadFailed: string;
+    loading: string;
     lintNoIssues: string;
     lintWarningLabel: string;
     resetButton: string;
@@ -72,10 +73,6 @@ export interface LocalizedStrings {
     renderEntireDraftButton: string;
     renderSelectionButton: string;
   };
-  localization: {
-    buyMeACoffeePlaceholderDescription: string;
-    supportedLanguagesNote: string;
-  };
   notifications: {
     autoRenderFallbackBody: string;
     autoRenderFallbackDismiss: string;
@@ -95,6 +92,11 @@ export interface LocalizedStrings {
     developerTitle: string;
     helpDescription: string;
     helpTitle: string;
+    languageDescription: string;
+    languageEnglish: string;
+    languageGerman: string;
+    languageSystem: string;
+    languageTitle: string;
     introDescription: string;
     introTitle: string;
     panelDescription: string;
@@ -160,7 +162,6 @@ export interface LocalizedStrings {
 
 const EN_US: LocalizedStrings = {
   appTitle: "MarkOut",
-  buyMeACoffeePlaceholder: "Buy me a coffee",
   credits: {
     currentMaintenanceBody:
       "This fork is maintained by Schoenfeld Solutions, with ongoing work by Gabriel-Johannes Schönfeld.",
@@ -192,6 +193,8 @@ const EN_US: LocalizedStrings = {
   editor: {
     lintErrorLabel: "Error",
     lintButton: "Lint CSS",
+    loadFailed: "The stylesheet editor could not be loaded.",
+    loading: "Loading stylesheet editor...",
     lintNoIssues: "No lint findings.",
     lintWarningLabel: "Warning",
     resetButton: "Reset default stylesheet",
@@ -249,10 +252,6 @@ const EN_US: LocalizedStrings = {
     renderEntireDraftButton: "Render entire draft",
     renderSelectionButton: "Render selection",
   },
-  localization: {
-    buyMeACoffeePlaceholderDescription: "Reserved for a future support link.",
-    supportedLanguagesNote: "Supported UI languages: English and German.",
-  },
   notifications: {
     autoRenderFallbackBody:
       "Auto-render on send is enabled for this draft. MarkOut will try to render the entire draft when Smart Alerts run.",
@@ -276,6 +275,12 @@ const EN_US: LocalizedStrings = {
     developerTitle: "Developer tools",
     helpDescription: "Show or hide the help icon in the bottom toolbar.",
     helpTitle: "Help visibility",
+    languageDescription:
+      "Browser default follows the Office display language first, then the browser language.",
+    languageEnglish: "English",
+    languageGerman: "Deutsch",
+    languageSystem: "Browser default",
+    languageTitle: "Language",
     introDescription: "Restore or hide the intro icon in the bottom toolbar.",
     introTitle: "Intro visibility",
     panelDescription:
@@ -355,7 +360,6 @@ const EN_US: LocalizedStrings = {
 
 const DE_DE: LocalizedStrings = {
   appTitle: "MarkOut",
-  buyMeACoffeePlaceholder: "Buy me a coffee",
   credits: {
     currentMaintenanceBody:
       "Dieser Fork wird von Schoenfeld Solutions gepflegt, mit laufender Weiterentwicklung durch Gabriel-Johannes Schönfeld.",
@@ -387,6 +391,8 @@ const DE_DE: LocalizedStrings = {
   editor: {
     lintErrorLabel: "Fehler",
     lintButton: "CSS prüfen",
+    loadFailed: "Der Stylesheet-Editor konnte nicht geladen werden.",
+    loading: "Stylesheet-Editor wird geladen...",
     lintNoIssues: "Keine Lint-Hinweise.",
     lintWarningLabel: "Warnung",
     resetButton: "Default-Stylesheet zurücksetzen",
@@ -444,11 +450,6 @@ const DE_DE: LocalizedStrings = {
     renderEntireDraftButton: "Gesamten Entwurf rendern",
     renderSelectionButton: "Selektion rendern",
   },
-  localization: {
-    buyMeACoffeePlaceholderDescription:
-      "Reservierter Platz für einen späteren Support-Link.",
-    supportedLanguagesNote: "Unterstützte UI-Sprachen: Englisch und Deutsch.",
-  },
   notifications: {
     autoRenderFallbackBody:
       "Auto-Render beim Senden ist für diesen Entwurf aktiv. MarkOut versucht, den gesamten Entwurf zu rendern, sobald Smart Alerts laufen.",
@@ -474,6 +475,12 @@ const DE_DE: LocalizedStrings = {
     helpDescription:
       "Hilfe-Symbol in der unteren Toolbar ein- oder ausblenden.",
     helpTitle: "Hilfe-Sichtbarkeit",
+    languageDescription:
+      "Browser-Default folgt zuerst der Office-Anzeigesprache und danach der Browsersprache.",
+    languageEnglish: "English",
+    languageGerman: "Deutsch",
+    languageSystem: "Browser-Default",
+    languageTitle: "Sprache",
     introDescription:
       "Intro-Symbol in der unteren Toolbar wiederherstellen oder ausblenden.",
     introTitle: "Intro-Sichtbarkeit",
@@ -569,10 +576,15 @@ const LOCALE_MAP: Record<SupportedLocale, LocalizedStrings> = {
 
 export function resolveLocale(
   displayLanguage: string | undefined,
+  preferredLocale: "system" | SupportedLocale | undefined = "system",
   navigatorLanguage: string | undefined = typeof navigator === "undefined"
     ? undefined
     : navigator.language
 ): SupportedLocale {
+  if (preferredLocale === "de-DE" || preferredLocale === "en-US") {
+    return preferredLocale;
+  }
+
   const candidates = [displayLanguage, navigatorLanguage]
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.toLowerCase());

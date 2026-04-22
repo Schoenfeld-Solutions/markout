@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ComposeNotificationService } from "../src/lib/compose-notifications";
-import type { SettingsStore } from "../src/lib/config";
+import type { LanguagePreference, SettingsStore } from "../src/lib/config";
 import {
   TaskpaneApp,
   type TaskpaneServices,
@@ -21,6 +21,10 @@ import {
 import { getStrings } from "../src/taskpane/i18n";
 import { TaskpaneRuntimeErrorBoundary } from "../src/taskpane/runtime";
 
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
 function createSettingsStore(
   overrides: Partial<{
     autoRender: boolean;
@@ -28,6 +32,7 @@ function createSettingsStore(
     developerToolsEnabled: boolean;
     helpVisible: boolean;
     introDismissed: boolean;
+    languagePreference: LanguagePreference;
     stylesheet: string;
     themeMode: "dark" | "light" | "system";
   }> = {}
@@ -38,6 +43,7 @@ function createSettingsStore(
     getDeveloperToolsEnabled: () => overrides.developerToolsEnabled ?? false,
     getHelpVisible: () => overrides.helpVisible ?? true,
     getIntroDismissed: () => overrides.introDismissed ?? false,
+    getLanguagePreference: () => overrides.languagePreference ?? "system",
     getStylesheet: () => overrides.stylesheet ?? "",
     getThemeMode: () => overrides.themeMode ?? "system",
     save: () => Promise.resolve(),
@@ -46,6 +52,7 @@ function createSettingsStore(
     setDeveloperToolsEnabled: () => undefined,
     setHelpVisible: () => undefined,
     setIntroDismissed: () => undefined,
+    setLanguagePreference: () => undefined,
     setStylesheet: () => undefined,
     setThemeMode: () => undefined,
   };
@@ -69,14 +76,19 @@ function createServices(): TaskpaneServices {
   };
 }
 
-function createNotificationService(): ComposeNotificationService {
+function createNotificationService(
+  overrides: Partial<ComposeNotificationService> = {}
+): ComposeNotificationService {
   return {
     clearAutoRenderDismissed: () => Promise.resolve(),
     clearAutoRenderNotification: () => Promise.resolve(),
+    clearTransientNotification: () => Promise.resolve(),
     hasAutoRenderBeenDismissed: () => Promise.resolve(false),
     markAutoRenderDismissed: () => Promise.resolve(),
     onAutoRenderDismiss: () => undefined,
     showAutoRenderNotification: () => Promise.resolve("pane"),
+    showTransientNotification: () => Promise.resolve("outlook"),
+    ...overrides,
   };
 }
 
@@ -121,6 +133,7 @@ describe("taskpane app helpers", () => {
           developerToolsEnabled: false,
           helpVisible: true,
           introDismissed: false,
+          languagePreference: "system",
           stylesheet: "",
           themeMode: "system",
         },
@@ -136,6 +149,7 @@ describe("taskpane app helpers", () => {
           developerToolsEnabled: true,
           helpVisible: true,
           introDismissed: true,
+          languagePreference: "system",
           stylesheet: "",
           themeMode: "system",
         },
@@ -272,7 +286,7 @@ describe("taskpane app helpers", () => {
     ).rejects.toThrow("MarkOut could not read broken.md.");
   });
 
-  it("renders the taskpane intro panel without tooltip-specific globals", () => {
+  it("renders the taskpane intro panel without tooltip-specific globals", async () => {
     const restoreMatchMedia = ensureMatchMedia();
     const originalNodeFilter = globalThis.NodeFilter;
     let root: Root | null = null;
@@ -292,16 +306,16 @@ describe("taskpane app helpers", () => {
 
       root = createRoot(container);
 
-      act(() => {
+      await act(async () => {
         root?.render(
           <TaskpaneApp
             locale="en-US"
             notificationService={createNotificationService()}
             services={createServices()}
             settingsStore={createSettingsStore()}
-            strings={getStrings("en-US")}
           />
         );
+        await Promise.resolve();
       });
 
       expect(container.textContent).toContain("Intro");

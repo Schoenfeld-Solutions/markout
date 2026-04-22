@@ -31,13 +31,19 @@ trying to fake a host context menu.
 
 MarkOut currently supports `en-US` and `de-DE` in the taskpane runtime.
 
-- Runtime strings are resolved from `Office.context.displayLanguage`, with
+- The taskpane has a runtime language switcher with `Browser default`,
+  `English`, and `Deutsch`.
+- `Browser default` resolves from `Office.context.displayLanguage`, with
   `navigator.language` as a fallback and English as the final default.
 - Add-in-only manifest strings are localized with `Override Locale="de-de"`
   entries for the visible Outlook labels and tooltips.
 - When Smart Alerts auto-render is enabled, MarkOut uses Outlook informational
-  notifications with `persistent: true` when the host supports them and falls
-  back to a pane-local message bar if that API path is unavailable.
+  notifications with `persistent: true`.
+- Normal render, insert, and selection feedback is delivered through Outlook
+  infobar notifications in the compose surface and is actively removed after a
+  short lifetime.
+- Pane-local message bars are reserved for taskpane-internal states such as
+  stylesheet linting, editor failures, and notification API fallback.
 
 References:
 

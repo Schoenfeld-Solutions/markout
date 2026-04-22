@@ -68,6 +68,22 @@ describe("renderer", () => {
     expect(output).not.toContain('style="color: rgb(1, 2, 3);"');
   });
 
+  it("keeps default output host-inherit friendly for base text styles", async () => {
+    const output = await renderMarkdown({
+      css: `
+        .mo { line-height: 1.5; }
+        p { margin-bottom: 1em; }
+      `,
+      markdown: "Body text",
+    });
+
+    expect(output).toContain('<div class="mo markout-rendered"');
+    expect(output).toContain('<p style="margin-bottom: 1em;">Body text</p>');
+    expect(output).not.toContain("color:");
+    expect(output).not.toContain("font:");
+    expect(output).not.toContain("font-family:");
+  });
+
   it("detects full-render and fragment markers independently", () => {
     expect(
       containsMarkOutFullRenderMarker(

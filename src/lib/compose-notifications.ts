@@ -1,20 +1,33 @@
 const AUTO_RENDER_DISMISSED_KEY = "markout.autorender.notificationDismissed";
 const AUTO_RENDER_NOTIFICATION_KEY = "markout.autorender.notification";
+const TRANSIENT_NOTIFICATION_KEY = "markout.compose.notification";
+const TRANSIENT_NOTIFICATION_TIMEOUT_MS = 4200;
+const NOTIFICATION_MESSAGE_MAX_LENGTH = 145;
 
 export type NotificationSurface = "outlook" | "pane";
+export type NotificationIntent = "error" | "info" | "success" | "warning";
 
 export interface AutoRenderNotificationCopy {
+  message: string;
+}
+
+export interface ComposeTransientNotificationCopy {
+  intent: NotificationIntent;
   message: string;
 }
 
 export interface ComposeNotificationService {
   clearAutoRenderDismissed(): Promise<void>;
   clearAutoRenderNotification(): Promise<void>;
+  clearTransientNotification(): Promise<void>;
   hasAutoRenderBeenDismissed(): Promise<boolean>;
   markAutoRenderDismissed(): Promise<void>;
   onAutoRenderDismiss(handler: () => void): void;
   showAutoRenderNotification(
     copy: AutoRenderNotificationCopy
+  ): Promise<NotificationSurface>;
+  showTransientNotification(
+    copy: ComposeTransientNotificationCopy
   ): Promise<NotificationSurface>;
 }
 
@@ -59,6 +72,9 @@ interface NotificationAwareItemLike {
 const inMemoryDismissals = new WeakMap<NotificationAwareItemLike, boolean>();
 
 class OutlookComposeNotificationService implements ComposeNotificationService {
+  private transientGeneration = 0;
+  private transientTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   public constructor(private readonly item: NotificationAwareItemLike | null) {}
 
   public async clearAutoRenderDismissed(): Promise<void> {
@@ -94,31 +110,18 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
   }
 
   public async clearAutoRenderNotification(): Promise<void> {
-    const notificationMessages = this.item?.notificationMessages;
-    const removeNotification =
-      notificationMessages?.removeAsync?.bind(notificationMessages);
+    await this.removeNotification(AUTO_RENDER_NOTIFICATION_KEY).catch(
+      () => undefined
+    );
+  }
 
-    if (
-      notificationMessages === undefined ||
-      typeof removeNotification !== "function"
-    ) {
-      return;
-    }
+  public async clearTransientNotification(): Promise<void> {
+    this.transientGeneration += 1;
+    this.clearTransientTimeout();
 
-    await new Promise<void>((resolve, reject) => {
-      removeNotification.call(
-        notificationMessages,
-        AUTO_RENDER_NOTIFICATION_KEY,
-        (result) => {
-          if (result.status === Office.AsyncResultStatus.Failed) {
-            reject(toOfficeError(result.error));
-            return;
-          }
-
-          resolve();
-        }
-      );
-    }).catch(() => undefined);
+    await this.removeNotification(TRANSIENT_NOTIFICATION_KEY).catch(
+      () => undefined
+    );
   }
 
   public async hasAutoRenderBeenDismissed(): Promise<boolean> {
@@ -205,6 +208,10 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
         return;
       }
 
+      if (this.transientTimeoutId !== null) {
+        return;
+      }
+
       void this.markAutoRenderDismissed().finally(() => {
         handler();
       });
@@ -214,38 +221,106 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
   public async showAutoRenderNotification(
     copy: AutoRenderNotificationCopy
   ): Promise<NotificationSurface> {
-    const notificationMessages = this.item?.notificationMessages;
-
-    if (notificationMessages === undefined) {
-      return "pane";
-    }
-
     try {
-      await new Promise<void>((resolve, reject) => {
-        notificationMessages.replaceAsync(
-          AUTO_RENDER_NOTIFICATION_KEY,
-          {
-            icon: "Icon.16x16",
-            message: copy.message,
-            persistent: true,
-            type: Office.MailboxEnums.ItemNotificationMessageType
-              .InformationalMessage,
-          },
-          (result) => {
-            if (result.status === Office.AsyncResultStatus.Failed) {
-              reject(toOfficeError(result.error));
-              return;
-            }
-
-            resolve();
-          }
-        );
+      await this.replaceNotification(AUTO_RENDER_NOTIFICATION_KEY, {
+        icon: "Icon.16x16",
+        message: normalizeNotificationMessage(copy.message),
+        persistent: true,
+        type: Office.MailboxEnums.ItemNotificationMessageType
+          .InformationalMessage,
       });
 
       return "outlook";
     } catch {
       return "pane";
     }
+  }
+
+  public async showTransientNotification(
+    copy: ComposeTransientNotificationCopy
+  ): Promise<NotificationSurface> {
+    const generation = this.transientGeneration + 1;
+    this.transientGeneration = generation;
+    this.clearTransientTimeout();
+
+    try {
+      await this.replaceNotification(TRANSIENT_NOTIFICATION_KEY, {
+        icon: "Icon.16x16",
+        message: normalizeNotificationMessage(copy.message),
+        persistent: false,
+        type: mapNotificationIntent(copy.intent),
+      });
+      this.scheduleTransientRemoval(generation);
+      return "outlook";
+    } catch {
+      return "pane";
+    }
+  }
+
+  private clearTransientTimeout(): void {
+    if (this.transientTimeoutId !== null) {
+      globalThis.clearTimeout(this.transientTimeoutId);
+      this.transientTimeoutId = null;
+    }
+  }
+
+  private async removeNotification(key: string): Promise<void> {
+    const notificationMessages = this.item?.notificationMessages;
+    const removeNotification =
+      notificationMessages?.removeAsync?.bind(notificationMessages);
+
+    if (
+      notificationMessages === undefined ||
+      typeof removeNotification !== "function"
+    ) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      removeNotification.call(notificationMessages, key, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(toOfficeError(result.error));
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  private async replaceNotification(
+    key: string,
+    details: Office.NotificationMessageDetails
+  ): Promise<void> {
+    const notificationMessages = this.item?.notificationMessages;
+
+    if (notificationMessages === undefined) {
+      throw new Error("Outlook notification messages are not available.");
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      notificationMessages.replaceAsync(key, details, (result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          reject(toOfficeError(result.error));
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  private scheduleTransientRemoval(generation: number): void {
+    this.transientTimeoutId = globalThis.setTimeout(() => {
+      if (this.transientGeneration !== generation) {
+        return;
+      }
+
+      this.transientTimeoutId = null;
+      void this.removeNotification(TRANSIENT_NOTIFICATION_KEY).catch(
+        () => undefined
+      );
+    }, TRANSIENT_NOTIFICATION_TIMEOUT_MS);
   }
 }
 
@@ -270,6 +345,24 @@ function toOfficeError(
   );
   normalizedError.name = error?.name ?? "OfficeAsyncError";
   return normalizedError;
+}
+
+function mapNotificationIntent(
+  intent: NotificationIntent
+): Office.MailboxEnums.ItemNotificationMessageType {
+  return intent === "error"
+    ? Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage
+    : Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage;
+}
+
+function normalizeNotificationMessage(message: string): string {
+  const normalizedMessage = message.replaceAll(/\s+/g, " ").trim();
+
+  if (normalizedMessage.length <= NOTIFICATION_MESSAGE_MAX_LENGTH) {
+    return normalizedMessage;
+  }
+
+  return `${normalizedMessage.slice(0, NOTIFICATION_MESSAGE_MAX_LENGTH - 3).trimEnd()}...`;
 }
 
 export function createComposeNotificationService(
