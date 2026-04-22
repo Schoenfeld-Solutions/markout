@@ -7,8 +7,12 @@
   <Version>1.0.1.0</Version>
   <ProviderName>Schoenfeld Solutions</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="MarkOut (Local)" />
-  <Description DefaultValue="Write Outlook drafts in Markdown and safely render them into email HTML." />
+  <DisplayName DefaultValue="MarkOut (Local)">
+    <Override Locale="de-de" Value="MarkOut (Lokal)" />
+  </DisplayName>
+  <Description DefaultValue="Write Outlook drafts in Markdown and safely render them into email HTML.">
+    <Override Locale="de-de" Value="Outlook-Entwürfe in Markdown schreiben und sicher in E-Mail-HTML rendern." />
+  </Description>
   <IconUrl DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-128.png" />
   <SupportUrl DefaultValue="https://github.com/Schoenfeld-Solutions/markout" />
@@ -120,11 +124,17 @@
           <bt:Url id="JSRuntime.Url" DefaultValue="https://localhost:3000/launchevent.js" />
         </bt:Urls>
         <bt:ShortStrings>
-          <bt:String id="GroupLabel" DefaultValue="MarkOut" />
-          <bt:String id="TaskpaneButton.Label" DefaultValue="Open MarkOut" />
+          <bt:String id="GroupLabel" DefaultValue="MarkOut">
+            <bt:Override Locale="de-de" Value="MarkOut" />
+          </bt:String>
+          <bt:String id="TaskpaneButton.Label" DefaultValue="Open MarkOut">
+            <bt:Override Locale="de-de" Value="MarkOut öffnen" />
+          </bt:String>
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the MarkOut task pane to render selections, insert Markdown fragments, and control auto-render." />
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the MarkOut task pane to render selections, insert Markdown fragments, and control auto-render.">
+            <bt:Override Locale="de-de" Value="Die MarkOut-Taskpane öffnen, um Selektionen zu rendern, Markdown-Fragmente einzufügen und Auto-Render zu steuern." />
+          </bt:String>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>

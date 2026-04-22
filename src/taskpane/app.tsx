@@ -1,107 +1,107 @@
 import {
   Button,
   FluentProvider,
+  MessageBar,
+  MessageBarBody,
+  MessageBarTitle,
   Radio,
   RadioGroup,
   Switch,
-  Textarea,
+  Tooltip,
   makeStyles,
+  mergeClasses,
   shorthands,
   tokens,
   webDarkTheme,
   webLightTheme,
 } from "@fluentui/react-components";
+import hljs from "highlight.js/lib/core";
+import cssLanguage from "highlight.js/lib/languages/css";
 import {
   type ChangeEvent,
   type DragEvent,
+  type RefObject,
   type ReactElement,
   type ReactNode,
   useDeferredValue,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
 import { type SelectionSource } from "../lib/body-accessor";
 import {
-  type ComposeMarkdownService,
+  EMPTY_SELECTION_MESSAGE,
+  FULL_DRAFT_ALREADY_RENDERED_MESSAGE,
+  RENDERED_SELECTION_BLOCKED_MESSAGE,
   SUBJECT_SELECTION_UNSUPPORTED_MESSAGE,
+  type ComposeMarkdownService,
 } from "../lib/compose-markdown";
+import type { ComposeNotificationService } from "../lib/compose-notifications";
 import {
   defaultStylesheet,
   type SettingsStore,
   type ThemeMode,
 } from "../lib/config";
 import type { RenderItemResult } from "../lib/item";
+import {
+  lintStylesheet,
+  type StylesheetLintResult,
+} from "../lib/stylesheet-lint";
+import {
+  getStrings,
+  resolveLocale,
+  resolveOfficeDisplayLanguage,
+  type LocalizedStrings,
+  type SupportedLocale,
+} from "./i18n";
+
+hljs.registerLanguage("css", cssLanguage);
 
 const DOCS_URL = "https://schoenfeld-solutions.github.io/markout/";
 const REPOSITORY_URL = "https://github.com/Schoenfeld-Solutions/markout";
 const STAR_URL = "https://github.com/Schoenfeld-Solutions/markout/stargazers";
+const WEBSITE_URL = "https://schoenfeld.solutions";
+
+const TOOLBAR_LABEL_MIN_WIDTH = 72;
+const SELECTION_REFRESH_INTERVAL_MS = 1600;
 
 const useStyles = makeStyles({
   appShell: {
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalM,
-    minHeight: "100%",
+    display: "grid",
+    gridTemplateRows: "minmax(0, 1fr) auto",
+    height: "100%",
+    minHeight: 0,
     minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalM,
-    paddingBlockStart: tokens.spacingVerticalM,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
+    width: "100%",
   },
-  header: {
-    ...shorthands.borderRadius(tokens.borderRadiusXLarge),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    backgroundColor: tokens.colorNeutralBackground1,
+  contentViewport: {
     display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalXS,
-    minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalL,
-    paddingBlockStart: tokens.spacingVerticalL,
-    paddingInlineEnd: tokens.spacingHorizontalL,
-    paddingInlineStart: tokens.spacingHorizontalL,
-  },
-  eyebrow: {
-    color: tokens.colorBrandForeground1,
-    fontSize: tokens.fontSizeBase200,
-    fontWeight: tokens.fontWeightSemibold,
-    letterSpacing: "0.08em",
-    margin: 0,
-    textTransform: "uppercase",
-  },
-  title: {
-    fontSize: tokens.fontSizeHero700,
-    fontWeight: tokens.fontWeightSemibold,
-    lineHeight: tokens.lineHeightHero700,
-    margin: 0,
-  },
-  subtitle: {
-    color: tokens.colorNeutralForeground2,
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    margin: 0,
-  },
-  contentCard: {
-    ...shorthands.borderRadius(tokens.borderRadiusXLarge),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    backgroundColor: tokens.colorNeutralBackground1,
-    display: "flex",
-    flex: 1,
     flexDirection: "column",
     gap: tokens.spacingVerticalM,
     minHeight: 0,
     minWidth: 0,
+    overflowX: "hidden",
+    overflowY: "auto",
     paddingBlockEnd: tokens.spacingVerticalL,
     paddingBlockStart: tokens.spacingVerticalL,
     paddingInlineEnd: tokens.spacingHorizontalL,
     paddingInlineStart: tokens.spacingHorizontalL,
   },
+  messageStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalS,
+    minWidth: 0,
+  },
+  panelRoot: {
+    display: "grid",
+    gap: tokens.spacingVerticalL,
+    minWidth: 0,
+  },
   sectionHeading: {
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
     gap: tokens.spacingVerticalXXS,
     minWidth: 0,
   },
@@ -117,29 +117,31 @@ const useStyles = makeStyles({
     lineHeight: tokens.lineHeightBase300,
     margin: 0,
   },
-  sectionStack: {
-    display: "flex",
-    flexDirection: "column",
+  card: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground2,
+    display: "grid",
     gap: tokens.spacingVerticalM,
     minWidth: 0,
+    paddingBlockEnd: tokens.spacingVerticalL,
+    paddingBlockStart: tokens.spacingVerticalL,
+    paddingInlineEnd: tokens.spacingHorizontalL,
+    paddingInlineStart: tokens.spacingHorizontalL,
   },
-  inputArea: {
-    display: "flex",
-    flexDirection: "column",
+  compactCard: {
     gap: tokens.spacingVerticalS,
-    minWidth: 0,
   },
   dropzone: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     ...shorthands.border("1px", "dashed", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     alignItems: "center",
-    backgroundColor: tokens.colorNeutralBackground2,
+    backgroundColor: tokens.colorNeutralBackground3,
     color: tokens.colorNeutralForeground2,
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
     gap: tokens.spacingVerticalS,
-    justifyContent: "center",
-    minHeight: "8rem",
+    justifyItems: "center",
+    minHeight: "7.5rem",
     minWidth: 0,
     paddingBlockEnd: tokens.spacingVerticalL,
     paddingBlockStart: tokens.spacingVerticalL,
@@ -168,13 +170,111 @@ const useStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     margin: 0,
   },
-  textarea: {
-    minHeight: "10rem",
+  textareaSurface: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground1,
+    display: "grid",
+    minHeight: "12rem",
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  editorSurface: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground1,
+    minHeight: "14rem",
+    minWidth: 0,
+    overflow: "hidden",
+    position: "relative",
+  },
+  plainTextarea: {
+    appearance: "none",
+    backgroundColor: "transparent",
+    border: "none",
+    color: tokens.colorNeutralForeground1,
+    fontFamily: tokens.fontFamilyMonospace,
+    fontSize: tokens.fontSizeBase300,
+    lineHeight: tokens.lineHeightBase300,
+    minHeight: "12rem",
+    minWidth: 0,
+    outlineStyle: "none",
+    overflowX: "hidden",
+    overflowY: "auto",
+    paddingBlockEnd: tokens.spacingVerticalM,
+    paddingBlockStart: tokens.spacingVerticalM,
+    paddingInlineEnd: tokens.spacingHorizontalM,
+    paddingInlineStart: tokens.spacingHorizontalM,
+    resize: "none",
+    scrollbarWidth: "none",
     width: "100%",
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+  },
+  codeMirror: {
+    color: tokens.colorTransparentStroke,
+    caretColor: tokens.colorNeutralForeground1,
+    fontFamily: tokens.fontFamilyMonospace,
+    fontSize: tokens.fontSizeBase300,
+    left: 0,
+    lineHeight: tokens.lineHeightBase300,
+    minHeight: "14rem",
+    minWidth: 0,
+    outlineStyle: "none",
+    overflowX: "hidden",
+    overflowY: "auto",
+    paddingBlockEnd: tokens.spacingVerticalM,
+    paddingBlockStart: tokens.spacingVerticalM,
+    paddingInlineEnd: tokens.spacingHorizontalM,
+    paddingInlineStart: tokens.spacingHorizontalM,
+    position: "absolute",
+    resize: "none",
+    scrollbarWidth: "none",
+    top: 0,
+    width: "100%",
+    zIndex: 1,
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+  },
+  codeHighlight: {
+    color: tokens.colorNeutralForeground1,
+    fontFamily: tokens.fontFamilyMonospace,
+    fontSize: tokens.fontSizeBase300,
+    left: 0,
+    lineHeight: tokens.lineHeightBase300,
+    margin: 0,
+    minHeight: "14rem",
+    minWidth: 0,
+    overflow: "hidden",
+    paddingBlockEnd: tokens.spacingVerticalM,
+    paddingBlockStart: tokens.spacingVerticalM,
+    paddingInlineEnd: tokens.spacingHorizontalM,
+    paddingInlineStart: tokens.spacingHorizontalM,
+    pointerEvents: "none",
+    position: "absolute",
+    right: 0,
+    top: 0,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    zIndex: 0,
+    "& .hljs-comment": {
+      color: tokens.colorNeutralForeground3,
+    },
+    "& .hljs-attribute, & .hljs-selector-class, & .hljs-selector-tag": {
+      color: tokens.colorPaletteBlueForeground2,
+    },
+    "& .hljs-number, & .hljs-string": {
+      color: tokens.colorPaletteGreenForeground1,
+    },
+    "& .hljs-keyword, & .hljs-literal, & .hljs-selector-pseudo": {
+      color: tokens.colorPaletteBerryForeground2,
+    },
   },
   previewFrame: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     backgroundColor: tokens.colorNeutralBackground1,
     minHeight: "12rem",
     minWidth: 0,
@@ -220,95 +320,43 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     minWidth: 0,
-    "@media (max-width: 540px)": {
+    "@media (max-width: 560px)": {
       gridTemplateColumns: "1fr",
     },
   },
-  status: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
-    fontSize: tokens.fontSizeBase200,
-    fontWeight: tokens.fontWeightSemibold,
-    lineHeight: tokens.lineHeightBase200,
-    minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalXS,
-    paddingBlockStart: tokens.spacingVerticalXS,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
-  },
-  statusInfo: {
-    backgroundColor: tokens.colorBrandBackground2,
-    color: tokens.colorBrandForeground1,
-  },
-  statusSuccess: {
-    backgroundColor: tokens.colorPaletteGreenBackground1,
-    color: tokens.colorPaletteGreenForeground1,
-  },
-  statusError: {
-    backgroundColor: tokens.colorPaletteRedBackground1,
-    color: tokens.colorPaletteRedForeground1,
-  },
-  settingsGrid: {
-    display: "grid",
-    gap: tokens.spacingVerticalM,
-    minWidth: 0,
-  },
-  settingsCard: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    backgroundColor: tokens.colorNeutralBackground2,
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalS,
-    minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalM,
-    paddingBlockStart: tokens.spacingVerticalM,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
-  },
-  radioGroup: {
+  lintList: {
     display: "grid",
     gap: tokens.spacingVerticalXS,
+    listStyleType: "none",
+    margin: 0,
+    padding: 0,
+  },
+  lintItem: {
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground2,
+    fontSize: tokens.fontSizeBase200,
+    lineHeight: tokens.lineHeightBase200,
+    margin: 0,
+    paddingBlockEnd: tokens.spacingVerticalXS,
+    paddingBlockStart: tokens.spacingVerticalXS,
+    paddingInlineEnd: tokens.spacingHorizontalS,
+    paddingInlineStart: tokens.spacingHorizontalS,
+  },
+  lintItemError: {
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    color: tokens.colorPaletteRedForeground1,
   },
   settingsRow: {
     alignItems: "center",
     display: "flex",
-    flexWrap: "wrap",
     gap: tokens.spacingHorizontalM,
     justifyContent: "space-between",
     minWidth: 0,
   },
-  toolbar: {
-    ...shorthands.borderRadius(tokens.borderRadiusXLarge),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    backgroundColor: tokens.colorNeutralBackground1,
-    bottom: tokens.spacingVerticalM,
-    display: "grid",
-    gap: tokens.spacingHorizontalXS,
-    gridAutoFlow: "column",
-    gridAutoColumns: "minmax(0, 1fr)",
-    minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalS,
-    paddingBlockStart: tokens.spacingVerticalS,
-    paddingInlineEnd: tokens.spacingHorizontalS,
-    paddingInlineStart: tokens.spacingHorizontalS,
-    position: "sticky",
-    zIndex: 1,
-  },
-  toolbarButton: {
-    justifyContent: "center",
-    minWidth: 0,
-  },
-  toolbarLabel: {
-    display: "block",
-    fontSize: tokens.fontSizeBase100,
-    lineHeight: tokens.lineHeightBase100,
-  },
-  list: {
-    color: tokens.colorNeutralForeground2,
+  radioGroup: {
     display: "grid",
     gap: tokens.spacingVerticalXS,
-    margin: 0,
-    paddingInlineStart: "1.25rem",
   },
   linkList: {
     display: "grid",
@@ -317,10 +365,13 @@ const useStyles = makeStyles({
     padding: 0,
   },
   linkCard: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground2,
     color: "inherit",
-    display: "block",
+    display: "grid",
+    gap: tokens.spacingVerticalXXS,
+    minWidth: 0,
     paddingBlockEnd: tokens.spacingVerticalM,
     paddingBlockStart: tokens.spacingVerticalM,
     paddingInlineEnd: tokens.spacingHorizontalM,
@@ -337,11 +388,10 @@ const useStyles = makeStyles({
     },
   },
   introCard: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     backgroundColor: tokens.colorNeutralBackground2,
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
     gap: tokens.spacingVerticalS,
     minWidth: 0,
     paddingBlockEnd: tokens.spacingVerticalM,
@@ -355,21 +405,8 @@ const useStyles = makeStyles({
     width: "100%",
   },
   creditsBox: {
-    ...shorthands.borderRadius(tokens.borderRadiusLarge),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
-    backgroundColor: tokens.colorNeutralBackground2,
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalS,
-    minWidth: 0,
-    paddingBlockEnd: tokens.spacingVerticalM,
-    paddingBlockStart: tokens.spacingVerticalM,
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
-  },
-  developerBlock: {
     ...shorthands.borderRadius(tokens.borderRadiusLarge),
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
     backgroundColor: tokens.colorNeutralBackground2,
     display: "grid",
     gap: tokens.spacingVerticalS,
@@ -382,9 +419,11 @@ const useStyles = makeStyles({
   developerCode: {
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
     backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground2,
     fontFamily: tokens.fontFamilyMonospace,
     fontSize: tokens.fontSizeBase200,
     margin: 0,
+    minWidth: 0,
     overflowX: "auto",
     paddingBlockEnd: tokens.spacingVerticalS,
     paddingBlockStart: tokens.spacingVerticalS,
@@ -398,28 +437,62 @@ const useStyles = makeStyles({
     flexWrap: "wrap",
     gap: tokens.spacingHorizontalS,
   },
+  toolbar: {
+    ...shorthands.borderTop("1px", "solid", tokens.colorNeutralStroke2),
+    alignItems: "stretch",
+    backgroundColor: tokens.colorNeutralBackground1,
+    display: "grid",
+    gap: tokens.spacingHorizontalXXS,
+    gridAutoColumns: "minmax(0, 1fr)",
+    gridAutoFlow: "column",
+    minWidth: 0,
+    paddingBlockEnd: tokens.spacingVerticalXS,
+    paddingBlockStart: tokens.spacingVerticalXS,
+    paddingInlineEnd: tokens.spacingHorizontalS,
+    paddingInlineStart: tokens.spacingHorizontalS,
+  },
+  toolbarButton: {
+    justifyContent: "center",
+    minWidth: 0,
+  },
+  toolbarButtonCompact: {
+    paddingInlineEnd: tokens.spacingHorizontalXS,
+    paddingInlineStart: tokens.spacingHorizontalXS,
+  },
+  toolbarLabel: {
+    display: "block",
+    fontSize: tokens.fontSizeBase100,
+    lineHeight: tokens.lineHeightBase100,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
 });
 
-type PanelKey =
+export type PanelKey =
   | "credits"
   | "developer"
   | "help"
   | "insert"
   | "intro"
   | "settings";
-type StatusTone = "error" | "info" | "success";
+export type ToolbarLayoutMode = "compact" | "regular";
 
 interface PreferenceState {
   autoRender: boolean;
+  creditsVisible: boolean;
   developerToolsEnabled: boolean;
+  helpVisible: boolean;
   introDismissed: boolean;
   stylesheet: string;
   themeMode: ThemeMode;
 }
 
-interface StatusState {
-  message: string;
-  tone: StatusTone;
+interface PanelMessageState {
+  body: string;
+  dismissible?: boolean;
+  intent: "error" | "info" | "success" | "warning";
+  title?: string;
 }
 
 interface SelectionDebugState {
@@ -428,14 +501,35 @@ interface SelectionDebugState {
   textPreview: string;
 }
 
+type SelectionAvailability =
+  | "body-none"
+  | "body-selection"
+  | "subject"
+  | "unknown";
+
+interface SelectionState {
+  availability: SelectionAvailability;
+  debug: SelectionDebugState | null;
+}
+
+export interface ToolbarPanelDescriptor {
+  icon: ReactElement;
+  key: PanelKey;
+  label: string;
+}
+
 export interface TaskpaneServices {
   composeMarkdown: ComposeMarkdownService;
   renderEntireDraft(): Promise<RenderItemResult>;
 }
 
 export interface TaskpaneAppProps {
+  forcedToolbarLayoutMode?: ToolbarLayoutMode;
+  locale?: SupportedLocale;
+  notificationService?: ComposeNotificationService;
   services: TaskpaneServices;
   settingsStore: SettingsStore;
+  strings?: LocalizedStrings;
 }
 
 export function readDroppedMarkdownFile(file: File): Promise<string> {
@@ -463,10 +557,17 @@ export function supportsMarkdownFile(file: File): boolean {
 }
 
 export function TaskpaneApp({
+  forcedToolbarLayoutMode,
+  locale,
+  notificationService,
   services,
   settingsStore,
+  strings,
 }: TaskpaneAppProps): ReactElement {
   const styles = useStyles();
+  const resolvedLocale =
+    locale ?? resolveLocale(resolveOfficeDisplayLanguage());
+  const localizedStrings = strings ?? getStrings(resolvedLocale);
   const [preferences, setPreferences] = useState<PreferenceState>(() =>
     readPreferences(settingsStore)
   );
@@ -477,22 +578,61 @@ export function TaskpaneApp({
   const [isInspectingSelection, setIsInspectingSelection] = useState(false);
   const [isWorking, setIsWorking] = useState<string | null>(null);
   const [markdownInput, setMarkdownInput] = useState("");
+  const [panelMessage, setPanelMessage] = useState<PanelMessageState | null>(
+    null
+  );
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewState, setPreviewState] = useState<
     "empty" | "loading" | "ready"
   >("empty");
-  const [selectionDebug, setSelectionDebug] =
-    useState<SelectionDebugState | null>(null);
-  const [status, setStatus] = useState<StatusState>({
-    message: preferences.introDismissed
-      ? "Ready. Use the insert pane to render Markdown into the current draft."
-      : "Welcome to MarkOut. Review the intro once, then switch to insert mode.",
-    tone: "info",
+  const [selectionState, setSelectionState] = useState<SelectionState>({
+    availability: "unknown",
+    debug: null,
   });
+  const [showAutoRenderFallbackNotice, setShowAutoRenderFallbackNotice] =
+    useState(false);
+  const [cssLintResult, setCssLintResult] =
+    useState<StylesheetLintResult | null>(null);
   const deferredMarkdownInput = useDeferredValue(markdownInput);
   const deferredStylesheet = useDeferredValue(preferences.stylesheet);
   const lastPersistedStylesheetRef = useRef(preferences.stylesheet);
+  const previousAutoRenderRef = useRef(preferences.autoRender);
+  const editorHighlightRef = useRef<HTMLPreElement | null>(null);
+  const editorTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const { mode: toolbarLayoutMode, ref: toolbarRef } = useToolbarLayoutMode(
+    visibleToolbarPanelCount(preferences),
+    forcedToolbarLayoutMode
+  );
   const resolvedColorMode = useResolvedColorMode(preferences.themeMode);
+  const currentTheme =
+    resolvedColorMode === "dark" ? webDarkTheme : webLightTheme;
+
+  const updateSelectionState = useEffectEvent(async (): Promise<boolean> => {
+    try {
+      const selection = await services.composeMarkdown.getSelection();
+
+      setSelectionState({
+        availability:
+          selection.source === "subject"
+            ? "subject"
+            : selection.hasSelection
+              ? "body-selection"
+              : "body-none",
+        debug: {
+          hasSelection: selection.hasSelection,
+          source: selection.source,
+          textPreview: selection.text.slice(0, 200),
+        },
+      });
+      return true;
+    } catch {
+      setSelectionState((currentState) => ({
+        availability: "unknown",
+        debug: currentState.debug,
+      }));
+      return false;
+    }
+  });
 
   useEffect(() => {
     let ignore = false;
@@ -522,17 +662,21 @@ export function TaskpaneApp({
         console.error("MarkOut failed to refresh the taskpane preview.", error);
         setPreviewHtml("");
         setPreviewState("empty");
-        setStatus({
-          message:
-            "Preview could not be rendered with the current Markdown or stylesheet.",
-          tone: "error",
+        setPanelMessage({
+          body: localizedStrings.status.previewFailed,
+          intent: "error",
         });
       });
 
     return () => {
       ignore = true;
     };
-  }, [deferredMarkdownInput, deferredStylesheet, services.composeMarkdown]);
+  }, [
+    deferredMarkdownInput,
+    deferredStylesheet,
+    localizedStrings.status.previewFailed,
+    services.composeMarkdown,
+  ]);
 
   useEffect(() => {
     if (preferences.stylesheet === lastPersistedStylesheetRef.current) {
@@ -546,16 +690,16 @@ export function TaskpaneApp({
         .save()
         .then(() => {
           lastPersistedStylesheetRef.current = settingsStore.getStylesheet();
-          setStatus({
-            message: "Stylesheet changes saved.",
-            tone: "success",
+          setPanelMessage({
+            body: localizedStrings.status.stylesheetSaved,
+            intent: "success",
           });
         })
         .catch((error: unknown) => {
           console.error("MarkOut failed to persist stylesheet changes.", error);
-          setStatus({
-            message: "Stylesheet changes could not be persisted.",
-            tone: "error",
+          setPanelMessage({
+            body: localizedStrings.status.stylesheetSaveFailed,
+            intent: "error",
           });
         });
     }, 700);
@@ -563,38 +707,106 @@ export function TaskpaneApp({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [preferences.stylesheet, settingsStore]);
+  }, [
+    localizedStrings.status.stylesheetSaveFailed,
+    localizedStrings.status.stylesheetSaved,
+    preferences.stylesheet,
+    settingsStore,
+  ]);
 
-  const toolbarPanels: {
-    icon: ReactElement;
-    key: PanelKey;
-    label: string;
-  }[] = [{ icon: <InsertIcon />, key: "insert", label: "Insert" }];
+  useEffect(() => {
+    setCssLintResult(null);
+  }, [preferences.stylesheet]);
 
-  if (!preferences.introDismissed) {
-    toolbarPanels.push({ icon: <InfoIcon />, key: "intro", label: "Intro" });
-  }
+  useEffect(() => {
+    if (activePanel !== "insert") {
+      return;
+    }
 
-  toolbarPanels.push(
-    { icon: <HelpIcon />, key: "help", label: "Help" },
-    { icon: <CreditsIcon />, key: "credits", label: "Credits" },
-    { icon: <SettingsIcon />, key: "settings", label: "Settings" }
-  );
+    const refreshSelection = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
 
-  if (preferences.developerToolsEnabled) {
-    toolbarPanels.push({
-      icon: <DeveloperIcon />,
-      key: "developer",
-      label: "Developer",
+      void updateSelectionState();
+    };
+
+    refreshSelection();
+    window.addEventListener("focus", refreshSelection);
+    document.addEventListener("visibilitychange", refreshSelection);
+    const intervalId = window.setInterval(
+      refreshSelection,
+      SELECTION_REFRESH_INTERVAL_MS
+    );
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshSelection);
+      document.removeEventListener("visibilitychange", refreshSelection);
+    };
+  }, [activePanel, updateSelectionState]);
+
+  useEffect(() => {
+    if (notificationService === undefined) {
+      return;
+    }
+
+    notificationService.onAutoRenderDismiss(() => {
+      setShowAutoRenderFallbackNotice(false);
     });
-  }
+  }, [notificationService]);
 
-  const currentTheme =
-    resolvedColorMode === "dark" ? webDarkTheme : webLightTheme;
+  useEffect(() => {
+    if (notificationService === undefined) {
+      return;
+    }
+
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    const wasEnabled = previousAutoRenderRef.current;
+    previousAutoRenderRef.current = preferences.autoRender;
+
+    void (async () => {
+      if (!preferences.autoRender) {
+        await notificationService.clearAutoRenderNotification();
+        await notificationService.clearAutoRenderDismissed();
+        if (!isCancelled()) {
+          setShowAutoRenderFallbackNotice(false);
+        }
+        return;
+      }
+
+      if (!wasEnabled) {
+        await notificationService.clearAutoRenderDismissed();
+      }
+
+      const dismissed = await notificationService.hasAutoRenderBeenDismissed();
+      if (isCancelled() || dismissed) {
+        setShowAutoRenderFallbackNotice(false);
+        return;
+      }
+
+      const surface = await notificationService.showAutoRenderNotification({
+        message: localizedStrings.notifications.autoRenderStickyBody,
+      });
+
+      if (!isCancelled()) {
+        setShowAutoRenderFallbackNotice(surface === "pane");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    localizedStrings.notifications.autoRenderStickyBody,
+    notificationService,
+    preferences.autoRender,
+  ]);
 
   async function withBusyState(
     busyKey: string,
-    operation: () => Promise<void>
+    operation: () => void | Promise<void>
   ): Promise<void> {
     setIsWorking(busyKey);
 
@@ -608,68 +820,101 @@ export function TaskpaneApp({
   async function persistPreferences(
     nextPreferences: PreferenceState,
     successMessage: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const previousPreferences = preferences;
     setPreferences(nextPreferences);
     writePreferences(settingsStore, nextPreferences);
 
     try {
       await settingsStore.save();
-      setStatus({ message: successMessage, tone: "success" });
+      setPanelMessage({ body: successMessage, intent: "success" });
+      return true;
     } catch (error) {
       console.error("MarkOut failed to persist settings.", error);
       setPreferences(previousPreferences);
       writePreferences(settingsStore, previousPreferences);
-      setStatus({
-        message: "Settings could not be updated.",
-        tone: "error",
+      setPanelMessage({
+        body: localizedStrings.status.settingsUpdateFailed,
+        intent: "error",
       });
+      return false;
     }
   }
 
   async function handleToggleAutoRender(enabled: boolean): Promise<void> {
     await persistPreferences(
       { ...preferences, autoRender: enabled },
-      `Auto-render on send ${enabled ? "enabled" : "disabled"}.`
+      enabled
+        ? localizedStrings.status.autoRenderEnabled
+        : localizedStrings.status.autoRenderDisabled
     );
   }
 
-  async function handleToggleDeveloperTools(enabled: boolean): Promise<void> {
-    const nextPreferences = {
-      ...preferences,
-      developerToolsEnabled: enabled,
-    };
-
-    if (!enabled && activePanel === "developer") {
-      setActivePanel("insert");
-    }
-
-    await persistPreferences(
-      nextPreferences,
-      `Developer tools ${enabled ? "enabled" : "disabled"}.`
+  async function handleToggleCreditsVisibility(
+    visible: boolean
+  ): Promise<void> {
+    const didPersist = await persistPreferences(
+      { ...preferences, creditsVisible: visible },
+      visible
+        ? localizedStrings.status.creditsShown
+        : localizedStrings.status.creditsHidden
     );
+
+    if (didPersist && !visible && activePanel === "credits") {
+      setActivePanel(
+        getPanelAfterVisibilityChange(activePanel, "credits", visible)
+      );
+    }
+  }
+
+  async function handleToggleDeveloperTools(enabled: boolean): Promise<void> {
+    const didPersist = await persistPreferences(
+      { ...preferences, developerToolsEnabled: enabled },
+      enabled
+        ? localizedStrings.status.developerEnabled
+        : localizedStrings.status.developerDisabled
+    );
+
+    if (didPersist && !enabled && activePanel === "developer") {
+      setActivePanel(
+        getPanelAfterVisibilityChange(activePanel, "developer", enabled)
+      );
+    }
+  }
+
+  async function handleToggleHelpVisibility(visible: boolean): Promise<void> {
+    const didPersist = await persistPreferences(
+      { ...preferences, helpVisible: visible },
+      visible
+        ? localizedStrings.status.helpShown
+        : localizedStrings.status.helpHidden
+    );
+
+    if (didPersist && !visible && activePanel === "help") {
+      setActivePanel(
+        getPanelAfterVisibilityChange(activePanel, "help", visible)
+      );
+    }
   }
 
   async function handleToggleIntroVisibility(
     showIntro: boolean
   ): Promise<void> {
-    const nextPreferences = {
-      ...preferences,
-      introDismissed: !showIntro,
-    };
+    const didPersist = await persistPreferences(
+      {
+        ...preferences,
+        introDismissed: !showIntro,
+      },
+      showIntro
+        ? localizedStrings.status.introRestored
+        : localizedStrings.status.introHidden
+    );
 
-    if (showIntro) {
-      setActivePanel("intro");
-    } else if (activePanel === "intro") {
-      setActivePanel("insert");
+    if (!didPersist) {
+      return;
     }
 
-    await persistPreferences(
-      nextPreferences,
-      showIntro
-        ? "Intro restored to the toolbar."
-        : "Intro hidden from the toolbar."
-    );
+    setActivePanel(showIntro ? "intro" : "insert");
   }
 
   async function handleThemeModeChange(mode: ThemeMode): Promise<void> {
@@ -678,7 +923,13 @@ export function TaskpaneApp({
         ...preferences,
         themeMode: mode,
       },
-      `Theme mode updated to ${mode}.`
+      localizedStrings.status.themeUpdated(
+        mode === "dark"
+          ? localizedStrings.settings.themeModeDark
+          : mode === "light"
+            ? localizedStrings.settings.themeModeLight
+            : localizedStrings.settings.themeModeSystem
+      )
     );
   }
 
@@ -688,36 +939,35 @@ export function TaskpaneApp({
       return;
     }
 
-    await persistPreferences(
+    const didPersist = await persistPreferences(
       {
         ...preferences,
         introDismissed: true,
       },
-      "Intro dismissed. You can restore it from settings later."
+      localizedStrings.status.introHidden
     );
-    setActivePanel("insert");
+
+    if (didPersist) {
+      setActivePanel("insert");
+    }
   }
 
   async function handleInspectSelection(): Promise<void> {
     setIsInspectingSelection(true);
 
     try {
-      const selection = await services.composeMarkdown.getSelection();
-      setSelectionDebug({
-        hasSelection: selection.hasSelection,
-        source: selection.source,
-        textPreview: selection.text.slice(0, 200),
-      });
-      setStatus({
-        message: "Selection state refreshed from Outlook.",
-        tone: "success",
+      const loaded = await updateSelectionState();
+      setPanelMessage({
+        body: loaded
+          ? localizedStrings.status.selectionInspectionSuccess
+          : localizedStrings.status.selectionInspectionFailed,
+        intent: loaded ? "success" : "error",
       });
     } catch (error) {
       console.error("MarkOut failed to inspect the current selection.", error);
-      setSelectionDebug(null);
-      setStatus({
-        message: "Selection state could not be read from Outlook.",
-        tone: "error",
+      setPanelMessage({
+        body: localizedStrings.status.selectionInspectionFailed,
+        intent: "error",
       });
     } finally {
       setIsInspectingSelection(false);
@@ -729,18 +979,19 @@ export function TaskpaneApp({
       try {
         const result =
           await services.composeMarkdown.insertRenderedMarkdown(markdownInput);
-        setStatus({
-          message:
+        setPanelMessage({
+          body:
             result === "replaced"
-              ? "Rendered Markdown replaced the current selection."
-              : "Rendered Markdown was inserted at the current body cursor.",
-          tone: "success",
+              ? localizedStrings.status.fragmentReplaced
+              : localizedStrings.status.fragmentInserted,
+          intent: "success",
         });
+        await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to insert rendered Markdown.", error);
-        setStatus({
-          message: formatActionError(error),
-          tone: "error",
+        setPanelMessage({
+          body: localizeActionError(localizedStrings, error),
+          intent: "error",
         });
       }
     });
@@ -750,16 +1001,18 @@ export function TaskpaneApp({
     await withBusyState("render-selection", async () => {
       try {
         await services.composeMarkdown.renderSelection();
-        setStatus({
-          message: "The current body selection was rendered successfully.",
-          tone: "success",
+        setPanelMessage({
+          body: localizedStrings.status.selectionRendered,
+          intent: "success",
         });
+        await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current selection.", error);
-        setStatus({
-          message: formatActionError(error),
-          tone: "error",
+        setPanelMessage({
+          body: localizeActionError(localizedStrings, error),
+          intent: "error",
         });
+        await updateSelectionState();
       }
     });
   }
@@ -768,18 +1021,37 @@ export function TaskpaneApp({
     await withBusyState("render-entire-draft", async () => {
       try {
         const result = await services.renderEntireDraft();
-        setStatus({
-          message:
+        setPanelMessage({
+          body:
             result === "rendered"
-              ? "The current draft was rendered successfully."
-              : "The original draft HTML was restored successfully.",
-          tone: "success",
+              ? localizedStrings.status.draftRendered
+              : localizedStrings.status.draftRestored,
+          intent: "success",
         });
+        await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current draft.", error);
-        setStatus({
-          message: formatActionError(error),
-          tone: "error",
+        setPanelMessage({
+          body: localizeActionError(localizedStrings, error),
+          intent: "error",
+        });
+      }
+    });
+  }
+
+  async function handleLintStylesheet(): Promise<void> {
+    await withBusyState("lint-stylesheet", () => {
+      try {
+        setCssLintResult(lintStylesheet(preferences.stylesheet));
+        setPanelMessage({
+          body: localizedStrings.status.cssLintComplete,
+          intent: "success",
+        });
+      } catch (error) {
+        console.error("MarkOut failed to lint the stylesheet.", error);
+        setPanelMessage({
+          body: localizedStrings.status.cssLintFailed,
+          intent: "error",
         });
       }
     });
@@ -791,18 +1063,17 @@ export function TaskpaneApp({
     const file = event.dataTransfer.files.item(0);
 
     if (file === null) {
-      setStatus({
-        message: "Drop a Markdown or text file to load content into MarkOut.",
-        tone: "error",
+      setPanelMessage({
+        body: localizedStrings.status.dropFileInstruction,
+        intent: "warning",
       });
       return;
     }
 
     if (!supportsMarkdownFile(file)) {
-      setStatus({
-        message:
-          "Only .md, .markdown, and .txt files are supported in the insert pane.",
-        tone: "error",
+      setPanelMessage({
+        body: localizedStrings.status.unsupportedFileType,
+        intent: "error",
       });
       return;
     }
@@ -810,60 +1081,129 @@ export function TaskpaneApp({
     try {
       const content = await readDroppedMarkdownFile(file);
       setMarkdownInput(content);
-      setStatus({
-        message: `${file.name} loaded into the insert pane.`,
-        tone: "success",
+      setPanelMessage({
+        body: localizedStrings.status.stylesheetLoaded(file.name),
+        intent: "success",
       });
     } catch (error) {
       console.error("MarkOut failed to load a dropped file.", error);
-      setStatus({
-        message: formatActionError(error),
-        tone: "error",
+      setPanelMessage({
+        body: localizeActionError(localizedStrings, error),
+        intent: "error",
       });
     }
   }
 
   function handleMarkdownInputChange(
-    event: ChangeEvent<HTMLTextAreaElement>,
-    data?: { value?: string }
+    event: ChangeEvent<HTMLTextAreaElement>
   ): void {
-    const nextValue = data?.value ?? event.target.value;
-    setMarkdownInput(nextValue);
+    setMarkdownInput(event.target.value);
   }
 
-  function renderStatus(): ReactElement {
+  function handleStylesheetInputChange(
+    event: ChangeEvent<HTMLTextAreaElement>
+  ): void {
+    setPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      stylesheet: event.target.value,
+    }));
+  }
+
+  function handleStylesheetScroll(): void {
+    if (
+      editorHighlightRef.current === null ||
+      editorTextareaRef.current === null
+    ) {
+      return;
+    }
+
+    editorHighlightRef.current.scrollTop = editorTextareaRef.current.scrollTop;
+    editorHighlightRef.current.scrollLeft =
+      editorTextareaRef.current.scrollLeft;
+  }
+
+  async function handleDismissAutoRenderFallbackNotice(): Promise<void> {
+    setShowAutoRenderFallbackNotice(false);
+    await notificationService?.markAutoRenderDismissed();
+  }
+
+  const toolbarPanels = buildToolbarPanels(preferences, localizedStrings);
+  const renderSelectionDisabled = isRenderSelectionDisabled(
+    isWorking !== null,
+    selectionState.availability
+  );
+  const renderSelectionTooltip = getRenderSelectionTooltip(
+    localizedStrings,
+    selectionState.availability
+  );
+
+  function renderActionMessage(): ReactElement | null {
+    if (panelMessage === null) {
+      return null;
+    }
+
     return (
-      <div
-        id="status-message"
-        className={[
-          styles.status,
-          status.tone === "error"
-            ? styles.statusError
-            : status.tone === "success"
-              ? styles.statusSuccess
-              : styles.statusInfo,
-        ].join(" ")}
-        role="status"
-      >
-        {status.message}
-      </div>
+      <MessageBar intent={panelMessage.intent}>
+        <MessageBarBody>
+          {panelMessage.title !== undefined ? (
+            <MessageBarTitle>{panelMessage.title}</MessageBarTitle>
+          ) : null}
+          {panelMessage.body}
+        </MessageBarBody>
+      </MessageBar>
+    );
+  }
+
+  function renderAutoRenderFallbackMessage(): ReactElement | null {
+    if (!showAutoRenderFallbackNotice || !preferences.autoRender) {
+      return null;
+    }
+
+    return (
+      <MessageBar intent="info">
+        <MessageBarBody>
+          <MessageBarTitle>
+            {localizedStrings.notifications.autoRenderFallbackTitle}
+          </MessageBarTitle>
+          {localizedStrings.notifications.autoRenderFallbackBody}
+        </MessageBarBody>
+        <div className={styles.inlineButtonRow}>
+          <Button
+            appearance="subtle"
+            onClick={() => {
+              void handleDismissAutoRenderFallbackNotice();
+            }}
+          >
+            {localizedStrings.notifications.autoRenderFallbackDismiss}
+          </Button>
+        </div>
+      </MessageBar>
     );
   }
 
   function renderPreview(): ReactElement {
     if (previewState === "loading") {
       return (
-        <div className={`${styles.previewFrame} ${styles.previewFrameEmpty}`}>
-          Rendering preview...
+        <div
+          className={mergeClasses(
+            styles.previewFrame,
+            styles.previewFrameEmpty
+          )}
+        >
+          {localizedStrings.insert.previewLoading}
         </div>
       );
     }
 
     if (previewHtml.trim().length === 0) {
       return (
-        <div className={`${styles.previewFrame} ${styles.previewFrameEmpty}`}>
-          Paste or drop Markdown to preview the fragment that will be inserted
-          into the draft.
+        <div
+          className={mergeClasses(
+            styles.previewFrame,
+            styles.previewFrameEmpty
+          )}
+        >
+          {localizedStrings.insert.emptyPreview}
         </div>
       );
     }
@@ -880,16 +1220,20 @@ export function TaskpaneApp({
 
   function renderInsertPanel(): ReactElement {
     return (
-      <div className={styles.sectionStack}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>Insert rendered Markdown</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.insert.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            Build a fragment in the pane, replace a selected body range, or
-            insert rendered content at the current body cursor.
+            {localizedStrings.insert.panelDescription}
           </p>
         </div>
         <div
-          className={`${styles.dropzone} ${isDropActive ? styles.dropzoneActive : ""}`}
+          className={mergeClasses(
+            styles.dropzone,
+            isDropActive ? styles.dropzoneActive : undefined
+          )}
           data-testid="taskpane-dropzone"
           onDragEnter={() => setIsDropActive(true)}
           onDragLeave={() => setIsDropActive(false)}
@@ -897,104 +1241,121 @@ export function TaskpaneApp({
             event.preventDefault();
             setIsDropActive(true);
           }}
-          onDrop={(event: DragEvent<HTMLDivElement>) => {
+          onDrop={(event) => {
             void handleDrop(event);
           }}
         >
           <InsertIcon />
-          <p className={styles.dropzoneTitle}>Drop a Markdown file here</p>
+          <p className={styles.dropzoneTitle}>
+            {localizedStrings.insert.dropzoneTitle}
+          </p>
           <p className={styles.dropzoneCopy}>
-            MarkOut accepts <code>.md</code>, <code>.markdown</code>, and{" "}
-            <code>.txt</code> files. You can also paste Markdown directly into
-            the editor below.
+            {localizedStrings.insert.dropzoneCopy}
           </p>
         </div>
-        <div className={styles.inputArea}>
-          <label className={styles.textLabel} htmlFor="markdown-input">
-            Markdown input
-          </label>
-          <Textarea
-            id="markdown-input"
-            className={styles.textarea}
-            onChange={handleMarkdownInputChange}
-            placeholder="Paste Markdown here, or drop a Markdown file into the pane."
-            resize="vertical"
-            value={markdownInput}
-          />
+        <div className={styles.card}>
+          <div className={styles.sectionHeading}>
+            <label className={styles.textLabel} htmlFor="markdown-input">
+              {localizedStrings.insert.inputLabel}
+            </label>
+          </div>
+          <div className={styles.textareaSurface}>
+            <textarea
+              className={styles.plainTextarea}
+              id="markdown-input"
+              onChange={handleMarkdownInputChange}
+              placeholder={localizedStrings.insert.inputPlaceholder}
+              spellCheck={false}
+              value={markdownInput}
+            />
+          </div>
         </div>
-        <div className={styles.sectionHeading}>
-          <h3 className={styles.sectionTitle}>Preview</h3>
-          <p className={styles.sectionBody}>
-            Preview uses the same sanitized fragment pipeline that MarkOut
-            inserts into the draft body.
-          </p>
+        <div className={styles.card}>
+          <div className={styles.sectionHeading}>
+            <h3 className={styles.sectionTitle}>
+              {localizedStrings.insert.previewTitle}
+            </h3>
+            <p className={styles.sectionBody}>
+              {localizedStrings.insert.previewDescription}
+            </p>
+          </div>
+          {renderPreview()}
+          <div className={styles.actionRow}>
+            <Tooltip
+              content={renderSelectionTooltip}
+              relationship="description"
+            >
+              <Button
+                appearance="primary"
+                aria-label={localizedStrings.insert.renderSelectionButton}
+                disabled={renderSelectionDisabled}
+                id="render-selection-button"
+                onClick={() => {
+                  void handleRenderSelection();
+                }}
+                title={renderSelectionTooltip}
+              >
+                {localizedStrings.insert.renderSelectionButton}
+              </Button>
+            </Tooltip>
+            <Tooltip
+              content={localizedStrings.tooltips.renderEntireDraft}
+              relationship="description"
+            >
+              <Button
+                appearance="secondary"
+                disabled={isWorking !== null}
+                id="render-entire-draft-button"
+                onClick={() => {
+                  void handleRenderEntireDraft();
+                }}
+                title={localizedStrings.tooltips.renderEntireDraft}
+              >
+                {localizedStrings.insert.renderEntireDraftButton}
+              </Button>
+            </Tooltip>
+            <Tooltip
+              content={localizedStrings.tooltips.insertRenderedMarkdown}
+              relationship="description"
+            >
+              <Button
+                appearance="secondary"
+                disabled={isInsertRenderedMarkdownDisabled(
+                  isWorking !== null,
+                  markdownInput
+                )}
+                id="insert-rendered-markdown-button"
+                onClick={() => {
+                  void handleInsertRenderedMarkdown();
+                }}
+                title={localizedStrings.tooltips.insertRenderedMarkdown}
+              >
+                {localizedStrings.insert.insertButton}
+              </Button>
+            </Tooltip>
+          </div>
         </div>
-        {renderPreview()}
-        <div className={styles.actionRow}>
-          <Button
-            appearance="primary"
-            disabled={isWorking !== null}
-            id="render-selection-button"
-            onClick={() => {
-              void handleRenderSelection();
-            }}
-          >
-            Render selection
-          </Button>
-          <Button
-            appearance="secondary"
-            disabled={isWorking !== null}
-            id="render-entire-draft-button"
-            onClick={() => {
-              void handleRenderEntireDraft();
-            }}
-          >
-            Render entire draft
-          </Button>
-          <Button
-            appearance="secondary"
-            disabled={isWorking !== null || markdownInput.trim().length === 0}
-            id="insert-rendered-markdown-button"
-            onClick={() => {
-              void handleInsertRenderedMarkdown();
-            }}
-          >
-            Insert rendered markdown
-          </Button>
-        </div>
-        <ul className={styles.list}>
-          <li>
-            Render selection only works on text selected inside the message
-            body.
-          </li>
-          <li>
-            Insert rendered markdown uses the current body selection if one
-            exists, otherwise Outlook inserts at the last body cursor position
-            it preserves.
-          </li>
-          <li>
-            MarkOut blocks fragment insertion into content it already rendered.
-          </li>
-        </ul>
       </div>
     );
   }
 
   function renderSettingsPanel(): ReactElement {
     return (
-      <div className={styles.settingsGrid}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>Settings</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.settings.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            Control theme behavior, Smart Alerts rendering, first-run content,
-            and developer visibility.
+            {localizedStrings.settings.panelDescription}
           </p>
         </div>
-        <div className={styles.settingsCard}>
-          <h3 className={styles.sectionTitle}>Theme mode</h3>
+        <div className={styles.card}>
+          <h3 className={styles.sectionTitle}>
+            {localizedStrings.settings.themeTitle}
+          </h3>
           <p className={styles.sectionBody}>
-            System follows Outlook theme when the host provides it and falls
-            back to the browser preference otherwise.
+            {localizedStrings.settings.themeDescription}
           </p>
           <RadioGroup
             className={styles.radioGroup}
@@ -1003,83 +1364,174 @@ export function TaskpaneApp({
             }}
             value={preferences.themeMode}
           >
-            <Radio label="Light" value="light" />
-            <Radio label="Dark" value="dark" />
-            <Radio label="System" value="system" />
+            <Radio
+              label={localizedStrings.settings.themeModeLight}
+              value="light"
+            />
+            <Radio
+              label={localizedStrings.settings.themeModeDark}
+              value="dark"
+            />
+            <Radio
+              label={localizedStrings.settings.themeModeSystem}
+              value="system"
+            />
           </RadioGroup>
         </div>
-        <div className={styles.settingsCard}>
+        <div className={styles.card}>
           <div className={styles.settingsRow}>
-            <div>
-              <h3 className={styles.sectionTitle}>Smart Alerts auto-render</h3>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.settings.autoRenderTitle}
+              </h3>
               <p className={styles.sectionBody}>
-                Render the entire draft before send when Smart Alerts run.
+                {localizedStrings.settings.autoRenderDescription}
               </p>
             </div>
             <Switch
               checked={preferences.autoRender}
               id="autorender-switch"
-              label={preferences.autoRender ? "On" : "Off"}
+              label={
+                preferences.autoRender
+                  ? localizedStrings.general.on
+                  : localizedStrings.general.off
+              }
               onChange={(_, data) => {
                 void handleToggleAutoRender(data.checked);
               }}
             />
           </div>
-        </div>
-        <div className={styles.settingsCard}>
           <div className={styles.settingsRow}>
-            <div>
-              <h3 className={styles.sectionTitle}>Intro visibility</h3>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.settings.introTitle}
+              </h3>
               <p className={styles.sectionBody}>
-                Restore or hide the intro icon in the bottom toolbar.
+                {localizedStrings.settings.introDescription}
               </p>
             </div>
             <Switch
               checked={!preferences.introDismissed}
               id="show-intro-switch"
-              label={!preferences.introDismissed ? "Shown" : "Hidden"}
+              label={
+                !preferences.introDismissed
+                  ? localizedStrings.general.shown
+                  : localizedStrings.general.hidden
+              }
               onChange={(_, data) => {
                 void handleToggleIntroVisibility(data.checked);
               }}
             />
           </div>
           <div className={styles.settingsRow}>
-            <div>
-              <h3 className={styles.sectionTitle}>Developer tools</h3>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.settings.helpTitle}
+              </h3>
               <p className={styles.sectionBody}>
-                Reveal the developer panel and additional host diagnostics.
+                {localizedStrings.settings.helpDescription}
+              </p>
+            </div>
+            <Switch
+              checked={preferences.helpVisible}
+              id="show-help-switch"
+              label={
+                preferences.helpVisible
+                  ? localizedStrings.general.shown
+                  : localizedStrings.general.hidden
+              }
+              onChange={(_, data) => {
+                void handleToggleHelpVisibility(data.checked);
+              }}
+            />
+          </div>
+          <div className={styles.settingsRow}>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.settings.creditsTitle}
+              </h3>
+              <p className={styles.sectionBody}>
+                {localizedStrings.settings.creditsDescription}
+              </p>
+            </div>
+            <Switch
+              checked={preferences.creditsVisible}
+              id="show-credits-switch"
+              label={
+                preferences.creditsVisible
+                  ? localizedStrings.general.shown
+                  : localizedStrings.general.hidden
+              }
+              onChange={(_, data) => {
+                void handleToggleCreditsVisibility(data.checked);
+              }}
+            />
+          </div>
+          <div className={styles.settingsRow}>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.settings.developerTitle}
+              </h3>
+              <p className={styles.sectionBody}>
+                {localizedStrings.settings.developerDescription}
               </p>
             </div>
             <Switch
               checked={preferences.developerToolsEnabled}
               id="developer-tools-switch"
-              label={preferences.developerToolsEnabled ? "Shown" : "Hidden"}
+              label={
+                preferences.developerToolsEnabled
+                  ? localizedStrings.general.shown
+                  : localizedStrings.general.hidden
+              }
               onChange={(_, data) => {
                 void handleToggleDeveloperTools(data.checked);
               }}
             />
           </div>
         </div>
-        <div className={styles.settingsCard}>
-          <h3 className={styles.sectionTitle}>Inline stylesheet</h3>
-          <p className={styles.sectionBody}>
-            This stylesheet powers full-draft rendering and the fragment
-            preview.
-          </p>
-          <Textarea
-            className={styles.textarea}
-            id="theme-editor"
-            onChange={(_event, data) => {
-              const value = data.value;
-              setPreferences((currentPreferences) => ({
-                ...currentPreferences,
-                stylesheet: value,
-              }));
-            }}
-            resize="vertical"
-            value={preferences.stylesheet}
-          />
+        <div className={styles.card}>
+          <div className={styles.sectionHeading}>
+            <h3 className={styles.sectionTitle}>
+              {localizedStrings.editor.title}
+            </h3>
+            <p className={styles.sectionBody}>
+              {localizedStrings.localization.supportedLanguagesNote}
+            </p>
+          </div>
+          <div className={styles.editorSurface}>
+            <pre
+              aria-hidden="true"
+              className={styles.codeHighlight}
+              ref={editorHighlightRef}
+            >
+              <code
+                dangerouslySetInnerHTML={{
+                  __html: highlightCss(preferences.stylesheet),
+                }}
+              />
+            </pre>
+            <textarea
+              className={styles.codeMirror}
+              id="theme-editor"
+              onChange={handleStylesheetInputChange}
+              onScroll={handleStylesheetScroll}
+              ref={editorTextareaRef}
+              spellCheck={false}
+              value={preferences.stylesheet}
+            />
+          </div>
           <div className={styles.inlineButtonRow}>
+            <Button
+              appearance="secondary"
+              disabled={isWorking !== null}
+              id="lint-stylesheet-button"
+              onClick={() => {
+                void handleLintStylesheet();
+              }}
+            >
+              {localizedStrings.editor.lintButton}
+            </Button>
             <Button
               appearance="secondary"
               onClick={() => {
@@ -1089,9 +1541,10 @@ export function TaskpaneApp({
                 }));
               }}
             >
-              Reset default stylesheet
+              {localizedStrings.editor.resetButton}
             </Button>
           </div>
+          {renderLintResult(styles, localizedStrings, cssLintResult)}
         </div>
       </div>
     );
@@ -1099,12 +1552,13 @@ export function TaskpaneApp({
 
   function renderHelpPanel(): ReactElement {
     return (
-      <div className={styles.sectionStack}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>Help</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.help.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            MarkOut is taskpane-first in Outlook on the web. Selection work
-            happens through the pane instead of a native Outlook context menu.
+            {localizedStrings.help.panelDescription}
           </p>
         </div>
         <div className={styles.linkList}>
@@ -1114,10 +1568,9 @@ export function TaskpaneApp({
             rel="noreferrer"
             target="_blank"
           >
-            <strong>GitHub repository</strong>
+            <strong>{localizedStrings.help.repoTitle}</strong>
             <p className={styles.sectionBody}>
-              Track releases, issues, and the maintained Schoenfeld Solutions
-              fork.
+              {localizedStrings.help.repoDescription}
             </p>
           </a>
           <a
@@ -1126,43 +1579,42 @@ export function TaskpaneApp({
             rel="noreferrer"
             target="_blank"
           >
-            <strong>Hosted project docs</strong>
+            <strong>{localizedStrings.help.docsTitle}</strong>
             <p className={styles.sectionBody}>
-              Open the GitHub Pages landing page with manifest links and
-              deployment notes.
+              {localizedStrings.help.docsDescription}
             </p>
           </a>
+          <a
+            className={styles.linkCard}
+            href={WEBSITE_URL}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <strong>{localizedStrings.help.websiteTitle}</strong>
+            <p className={styles.sectionBody}>
+              {localizedStrings.help.websiteDescription}
+            </p>
+          </a>
+          <div className={styles.linkCard}>
+            <strong>{localizedStrings.buyMeACoffeePlaceholder}</strong>
+            <p className={styles.sectionBody}>
+              {localizedStrings.localization.buyMeACoffeePlaceholderDescription}
+            </p>
+          </div>
         </div>
-        <ul className={styles.list}>
-          <li>
-            Use <strong>Render selection</strong> only after selecting Markdown
-            in the message body.
-          </li>
-          <li>
-            Use <strong>Render entire draft</strong> when the full draft is
-            still unrendered and fragment-free.
-          </li>
-          <li>
-            Use <strong>Insert rendered markdown</strong> for pasted or dropped
-            Markdown content.
-          </li>
-          <li>
-            Smart Alerts auto-render remains configurable in settings and
-            continues to apply at send time.
-          </li>
-        </ul>
       </div>
     );
   }
 
   function renderIntroPanel(): ReactElement {
     return (
-      <div className={styles.sectionStack}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>What MarkOut does</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.intro.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            MarkOut keeps compose work Markdown-first while staying inside
-            Outlook's taskpane and Smart Alerts model.
+            {localizedStrings.intro.panelDescription}
           </p>
         </div>
         <div className={styles.introGrid}>
@@ -1171,11 +1623,10 @@ export function TaskpaneApp({
               <IntroComposeIllustration />
             </div>
             <h3 className={styles.sectionTitle}>
-              Render the draft when you are ready
+              {localizedStrings.intro.stepOneTitle}
             </h3>
             <p className={styles.sectionBody}>
-              Render the whole draft or only a selected body range without
-              leaving compose mode.
+              {localizedStrings.intro.stepOneBody}
             </p>
           </div>
           <div className={styles.introCard}>
@@ -1183,26 +1634,13 @@ export function TaskpaneApp({
               <IntroInsertIllustration />
             </div>
             <h3 className={styles.sectionTitle}>
-              Insert Markdown fragments safely
+              {localizedStrings.intro.stepTwoTitle}
             </h3>
             <p className={styles.sectionBody}>
-              Drop a file or paste Markdown, preview the fragment, then insert
-              it where Outlook still preserves your body selection or cursor.
+              {localizedStrings.intro.stepTwoBody}
             </p>
           </div>
         </div>
-        <ul className={styles.list}>
-          <li>
-            MarkOut blocks double conversion of its own rendered fragments.
-          </li>
-          <li>
-            Developer tools stay hidden unless you turn them on in settings.
-          </li>
-          <li>
-            The intro icon disappears after confirmation and can be restored
-            later.
-          </li>
-        </ul>
         <div className={styles.inlineButtonRow}>
           <Button
             appearance="primary"
@@ -1211,7 +1649,7 @@ export function TaskpaneApp({
               void handleConfirmIntro();
             }}
           >
-            I have read this
+            {localizedStrings.intro.confirm}
           </Button>
         </div>
       </div>
@@ -1220,34 +1658,37 @@ export function TaskpaneApp({
 
   function renderCreditsPanel(): ReactElement {
     return (
-      <div className={styles.sectionStack}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>Credits</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.credits.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            MarkOut continues as an independently maintained fork while
-            preserving visible credit to the upstream project.
+            {localizedStrings.credits.panelDescription}
           </p>
         </div>
         <div className={styles.creditsBox}>
-          <h3 className={styles.sectionTitle}>Upstream foundation</h3>
+          <h3 className={styles.sectionTitle}>
+            {localizedStrings.credits.upstreamTitle}
+          </h3>
           <p className={styles.sectionBody}>
-            Original product direction and implementation work came from{" "}
-            <strong>SierraSoftworks/markout</strong>.
+            {localizedStrings.credits.upstreamBody}
           </p>
         </div>
         <div className={styles.creditsBox}>
-          <h3 className={styles.sectionTitle}>Current maintenance</h3>
+          <h3 className={styles.sectionTitle}>
+            {localizedStrings.credits.currentMaintenanceTitle}
+          </h3>
           <p className={styles.sectionBody}>
-            This fork is maintained by <strong>Schoenfeld Solutions</strong>,
-            with ongoing work by <strong>Gabriel-Johannes Schönfeld</strong>.
+            {localizedStrings.credits.currentMaintenanceBody}
           </p>
         </div>
         <div className={styles.inlineButtonRow}>
           <Button as="a" href={REPOSITORY_URL} rel="noreferrer" target="_blank">
-            Open the fork
+            {localizedStrings.credits.openFork}
           </Button>
           <Button as="a" href={STAR_URL} rel="noreferrer" target="_blank">
-            Leave a star
+            {localizedStrings.credits.starFork}
           </Button>
         </div>
       </div>
@@ -1256,21 +1697,25 @@ export function TaskpaneApp({
 
   function renderDeveloperPanel(): ReactElement {
     return (
-      <div className={styles.sectionStack}>
+      <div className={styles.panelRoot}>
         <div className={styles.sectionHeading}>
-          <h2 className={styles.sectionTitle}>Developer tools</h2>
+          <h2 className={styles.sectionTitle}>
+            {localizedStrings.developer.panelTitle}
+          </h2>
           <p className={styles.sectionBody}>
-            Inspect host theme resolution and selection state without exposing
-            debug noise to regular users.
+            {localizedStrings.developer.panelDescription}
           </p>
         </div>
-        <div className={styles.developerBlock}>
+        <div className={mergeClasses(styles.card, styles.compactCard)}>
           <div className={styles.settingsRow}>
-            <div>
-              <h3 className={styles.sectionTitle}>Resolved taskpane theme</h3>
+            <div className={styles.sectionHeading}>
+              <h3 className={styles.sectionTitle}>
+                {localizedStrings.developer.hostNotesTitle}
+              </h3>
               <p className={styles.sectionBody}>
-                Preference: {preferences.themeMode}. Effective theme:{" "}
-                {resolvedColorMode}.
+                {localizedStrings.developer.resolvedTheme
+                  .replace("{mode}", preferences.themeMode)
+                  .replace("{resolvedMode}", resolvedColorMode)}
               </p>
             </div>
             <Button
@@ -1280,26 +1725,23 @@ export function TaskpaneApp({
                 void handleInspectSelection();
               }}
             >
-              Inspect selection
+              {localizedStrings.developer.inspectSelection}
             </Button>
           </div>
           <pre className={styles.developerCode}>
-            {selectionDebug === null
-              ? "No selection snapshot loaded yet."
-              : JSON.stringify(selectionDebug, null, 2)}
+            {selectionState.debug === null
+              ? localizedStrings.developer.noSelectionSnapshot
+              : JSON.stringify(selectionState.debug, null, 2)}
           </pre>
-        </div>
-        <div className={styles.developerBlock}>
-          <h3 className={styles.sectionTitle}>Host notes</h3>
-          <ul className={styles.list}>
-            <li>{SUBJECT_SELECTION_UNSUPPORTED_MESSAGE}</li>
-            <li>
-              Outlook decides whether a toolbar command appears directly on the
-              ribbon or in overflow/app surfaces.
+          <ul className={styles.linkList}>
+            <li className={styles.sectionBody}>
+              {localizedStrings.developer.subjectHint}
             </li>
-            <li>
-              Native Outlook context-menu commands are not the delivery path for
-              this add-in.
+            <li className={styles.sectionBody}>
+              {localizedStrings.developer.ribbonHint}
+            </li>
+            <li className={styles.sectionBody}>
+              {localizedStrings.developer.taskpaneHint}
             </li>
           </ul>
         </div>
@@ -1327,50 +1769,157 @@ export function TaskpaneApp({
   return (
     <FluentProvider
       className={styles.appShell}
+      data-locale={resolvedLocale}
       data-theme={resolvedColorMode}
       id="taskpane-shell"
       theme={currentTheme}
     >
-      <header className={styles.header}>
-        <p className={styles.eyebrow}>MarkOut</p>
-        <h1 className={styles.title}>Markdown-first Outlook compose</h1>
-        <p className={styles.subtitle}>
-          Taskpane-first rendering, fragment insertion, and Smart Alerts support
-          in a single Outlook-friendly workspace.
-        </p>
-        {renderStatus()}
-      </header>
-      <main className={styles.contentCard}>{renderActivePanel()}</main>
-      <nav aria-label="MarkOut sections" className={styles.toolbar}>
-        {toolbarPanels.map((panel) => (
-          <Button
-            appearance={activePanel === panel.key ? "primary" : "subtle"}
-            className={styles.toolbarButton}
-            icon={panel.icon}
-            id={`panel-button-${panel.key}`}
-            key={panel.key}
-            onClick={() => setActivePanel(panel.key)}
-          >
-            <span className={styles.toolbarLabel}>{panel.label}</span>
-          </Button>
-        ))}
+      <main className={styles.contentViewport}>
+        <div className={styles.messageStack}>
+          {renderAutoRenderFallbackMessage()}
+          {renderActionMessage()}
+        </div>
+        {renderActivePanel()}
+      </main>
+      <nav
+        aria-label={localizedStrings.appTitle}
+        className={styles.toolbar}
+        ref={toolbarRef}
+      >
+        {toolbarPanels.map((panel) => {
+          const toolbarTitle =
+            toolbarLayoutMode === "compact"
+              ? localizedStrings.tooltips.toolbarCompactHint(panel.label)
+              : panel.label;
+
+          return (
+            <Tooltip
+              content={toolbarTitle}
+              key={panel.key}
+              relationship="description"
+            >
+              <Button
+                appearance={activePanel === panel.key ? "primary" : "subtle"}
+                aria-label={panel.label}
+                className={mergeClasses(
+                  styles.toolbarButton,
+                  toolbarLayoutMode === "compact"
+                    ? styles.toolbarButtonCompact
+                    : undefined
+                )}
+                icon={panel.icon}
+                id={`panel-button-${panel.key}`}
+                onClick={() => {
+                  setActivePanel(panel.key);
+                }}
+                title={toolbarTitle}
+              >
+                {toolbarLayoutMode === "regular" ? (
+                  <span className={styles.toolbarLabel}>{panel.label}</span>
+                ) : null}
+              </Button>
+            </Tooltip>
+          );
+        })}
       </nav>
     </FluentProvider>
   );
 }
 
-function formatActionError(error: unknown): string {
+function localizeActionError(
+  strings: LocalizedStrings,
+  error: unknown
+): string {
+  if (
+    error instanceof Error &&
+    error.message === SUBJECT_SELECTION_UNSUPPORTED_MESSAGE
+  ) {
+    return strings.tooltips.renderSelectionSubject;
+  }
+
+  if (error instanceof Error && error.message === EMPTY_SELECTION_MESSAGE) {
+    return strings.tooltips.renderSelectionNoSelection;
+  }
+
+  if (
+    error instanceof Error &&
+    error.message === FULL_DRAFT_ALREADY_RENDERED_MESSAGE
+  ) {
+    return strings.tooltips.renderEntireDraft;
+  }
+
+  if (
+    error instanceof Error &&
+    error.message === RENDERED_SELECTION_BLOCKED_MESSAGE
+  ) {
+    return resolvedFragmentBlockMessage(strings);
+  }
+
   if (error instanceof Error) {
+    const readMatch = /^MarkOut could not read (.+)\.$/.exec(error.message);
+    if (readMatch !== null) {
+      const [, fileName = "the file"] = readMatch;
+      return strings.status.fileReadFailed(fileName);
+    }
+
+    const decodeMatch = /^MarkOut could not decode (.+)\.$/.exec(error.message);
+    if (decodeMatch !== null) {
+      const [, fileName = "the file"] = decodeMatch;
+      return strings.status.fileDecodeFailed(fileName);
+    }
+
     return error.message;
   }
 
-  return "MarkOut could not complete that action.";
+  return strings.status.unexpectedActionFailure;
+}
+
+function renderLintResult(
+  styles: ReturnType<typeof useStyles>,
+  strings: LocalizedStrings,
+  lintResult: StylesheetLintResult | null
+): ReactElement | null {
+  if (lintResult === null) {
+    return null;
+  }
+
+  if (lintResult.issues.length === 0) {
+    return (
+      <MessageBar intent="success">
+        <MessageBarBody>{strings.editor.lintNoIssues}</MessageBarBody>
+      </MessageBar>
+    );
+  }
+
+  return (
+    <ul className={styles.lintList}>
+      {lintResult.issues.map((issue, index) => (
+        <li
+          className={mergeClasses(
+            styles.lintItem,
+            issue.severity === "error" ? styles.lintItemError : undefined
+          )}
+          key={`${issue.code}-${index}`}
+        >
+          <strong>
+            {issue.severity === "error"
+              ? strings.editor.lintErrorLabel
+              : strings.editor.lintWarningLabel}
+            :
+          </strong>{" "}
+          {issue.message}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function readPreferences(settingsStore: SettingsStore): PreferenceState {
   return {
     autoRender: settingsStore.getAutoRender(),
+    creditsVisible: settingsStore.getCreditsVisible(),
     developerToolsEnabled: settingsStore.getDeveloperToolsEnabled(),
+    helpVisible: settingsStore.getHelpVisible(),
     introDismissed: settingsStore.getIntroDismissed(),
     stylesheet: settingsStore.getStylesheet(),
     themeMode: settingsStore.getThemeMode(),
@@ -1382,10 +1931,181 @@ function writePreferences(
   preferences: PreferenceState
 ): void {
   settingsStore.setAutoRender(preferences.autoRender);
+  settingsStore.setCreditsVisible(preferences.creditsVisible);
   settingsStore.setDeveloperToolsEnabled(preferences.developerToolsEnabled);
+  settingsStore.setHelpVisible(preferences.helpVisible);
   settingsStore.setIntroDismissed(preferences.introDismissed);
   settingsStore.setStylesheet(preferences.stylesheet);
   settingsStore.setThemeMode(preferences.themeMode);
+}
+
+export function buildToolbarPanels(
+  preferences: PreferenceState,
+  strings: LocalizedStrings
+): ToolbarPanelDescriptor[] {
+  const panels: ToolbarPanelDescriptor[] = [];
+
+  if (!preferences.introDismissed) {
+    panels.push({
+      icon: <InfoIcon />,
+      key: "intro",
+      label: strings.toolbar.intro,
+    });
+  }
+
+  panels.push({
+    icon: <InsertIcon />,
+    key: "insert",
+    label: strings.toolbar.insert,
+  });
+  panels.push({
+    icon: <SettingsIcon />,
+    key: "settings",
+    label: strings.toolbar.settings,
+  });
+
+  if (preferences.helpVisible) {
+    panels.push({
+      icon: <HelpIcon />,
+      key: "help",
+      label: strings.toolbar.help,
+    });
+  }
+
+  if (preferences.developerToolsEnabled) {
+    panels.push({
+      icon: <DeveloperIcon />,
+      key: "developer",
+      label: strings.toolbar.developer,
+    });
+  }
+
+  if (preferences.creditsVisible) {
+    panels.push({
+      icon: <CreditsIcon />,
+      key: "credits",
+      label: strings.toolbar.credits,
+    });
+  }
+
+  return panels;
+}
+
+export function visibleToolbarPanelCount(preferences: PreferenceState): number {
+  return buildToolbarPanels(preferences, getStrings("en-US")).length;
+}
+
+export function getRenderSelectionTooltip(
+  strings: LocalizedStrings,
+  availability: SelectionAvailability
+): string {
+  switch (availability) {
+    case "body-selection":
+      return strings.tooltips.renderSelection;
+    case "body-none":
+      return localizeActionError(strings, new Error(EMPTY_SELECTION_MESSAGE));
+    case "subject":
+      return localizeActionError(
+        strings,
+        new Error(SUBJECT_SELECTION_UNSUPPORTED_MESSAGE)
+      );
+    default:
+      return strings.tooltips.renderSelectionUnknown;
+  }
+}
+
+export function isRenderSelectionDisabled(
+  isBusy: boolean,
+  availability: SelectionAvailability
+): boolean {
+  return isBusy || availability !== "body-selection";
+}
+
+export function isInsertRenderedMarkdownDisabled(
+  isBusy: boolean,
+  markdownInput: string
+): boolean {
+  return isBusy || markdownInput.trim().length === 0;
+}
+
+export function getPanelAfterVisibilityChange(
+  activePanel: PanelKey,
+  changedPanel: "credits" | "developer" | "help",
+  visible: boolean
+): PanelKey {
+  return !visible && activePanel === changedPanel ? "settings" : activePanel;
+}
+
+export function resolveToolbarLayoutMode(
+  availableWidth: number,
+  itemCount: number
+): ToolbarLayoutMode {
+  return availableWidth / Math.max(itemCount, 1) >= TOOLBAR_LABEL_MIN_WIDTH
+    ? "regular"
+    : "compact";
+}
+
+function resolvedFragmentBlockMessage(strings: LocalizedStrings): string {
+  return strings.tooltips.renderedFragmentBlocked;
+}
+
+function highlightCss(stylesheet: string): string {
+  const source = stylesheet.length > 0 ? stylesheet : " ";
+
+  try {
+    return hljs.highlight(source, { language: "css" }).value;
+  } catch {
+    return escapeHtml(source);
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function useToolbarLayoutMode(
+  itemCount: number,
+  forcedMode: ToolbarLayoutMode | undefined
+): { mode: ToolbarLayoutMode; ref: RefObject<HTMLElement | null> } {
+  const ref = useRef<HTMLElement | null>(null);
+  const [mode, setMode] = useState<ToolbarLayoutMode>(forcedMode ?? "regular");
+
+  useEffect(() => {
+    if (forcedMode !== undefined) {
+      setMode(forcedMode);
+      return;
+    }
+
+    const updateMode = () => {
+      const availableWidth = ref.current?.clientWidth ?? window.innerWidth;
+      const nextMode = resolveToolbarLayoutMode(availableWidth, itemCount);
+      setMode(nextMode);
+    };
+
+    updateMode();
+
+    if (typeof ResizeObserver === "function" && ref.current !== null) {
+      const resizeObserver = new ResizeObserver(updateMode);
+      resizeObserver.observe(ref.current);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+
+    window.addEventListener("resize", updateMode);
+
+    return () => {
+      window.removeEventListener("resize", updateMode);
+    };
+  }, [forcedMode, itemCount]);
+
+  return { mode, ref };
 }
 
 function useResolvedColorMode(themeMode: ThemeMode): "dark" | "light" {
@@ -1431,7 +2151,7 @@ function useResolvedColorMode(themeMode: ThemeMode): "dark" | "light" {
   return themeMode === "system" ? systemColorMode : themeMode;
 }
 
-function resolveSystemColorMode(
+export function resolveSystemColorMode(
   officeTheme: Partial<Office.OfficeTheme> | undefined = readOfficeTheme()
 ): "dark" | "light" {
   const officeThemeColor = officeTheme?.bodyBackgroundColor;
@@ -1462,7 +2182,7 @@ function readOfficeTheme(): Partial<Office.OfficeTheme> | undefined {
   return mailboxWithTheme.officeTheme;
 }
 
-function isDarkColor(color: string): boolean {
+export function isDarkColor(color: string): boolean {
   const normalizedColor = normalizeHexColor(color);
 
   if (normalizedColor === null) {

@@ -27,6 +27,23 @@ and
 The UI therefore follows the Microsoft Office add-in taskpane model instead of
 trying to fake a host context menu.
 
+## Localization and notifications
+
+MarkOut currently supports `en-US` and `de-DE` in the taskpane runtime.
+
+- Runtime strings are resolved from `Office.context.displayLanguage`, with
+  `navigator.language` as a fallback and English as the final default.
+- Add-in-only manifest strings are localized with `Override Locale="de-de"`
+  entries for the visible Outlook labels and tooltips.
+- When Smart Alerts auto-render is enabled, MarkOut uses Outlook informational
+  notifications with `persistent: true` when the host supports them and falls
+  back to a pane-local message bar if that API path is unavailable.
+
+References:
+
+- [Localization for Office Add-ins](https://learn.microsoft.com/office/dev/add-ins/develop/localization)
+- [Create notifications for your Outlook add-in](https://learn.microsoft.com/office/dev/add-ins/outlook/notifications)
+
 ## Fork and credits
 
 MarkOut originated in the upstream project

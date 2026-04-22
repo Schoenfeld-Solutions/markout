@@ -13,6 +13,7 @@ import {
   MARKOUT_FRAGMENT_RENDERED_CLASS,
   MARKOUT_RENDERED_CLASS,
 } from "./render-markers";
+import { isInlineableSelector, parseStyleRules } from "./stylesheet-rules";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const markdownItEmoji = require("markdown-it-emoji") as (
@@ -154,37 +155,6 @@ function buildScopedStylesheet(
       return `${scopedSelector} { ${styleRule.declarationText} }`;
     })
     .join("\n");
-}
-
-function isInlineableSelector(selectorText: string): boolean {
-  return selectorText
-    .split(",")
-    .map((selector) => selector.trim())
-    .every((selector) => selector.length > 0 && !selector.includes(":"));
-}
-
-function parseStyleRules(
-  stylesheet: string
-): { declarationText: string; selectorText: string }[] {
-  return stylesheet
-    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
-    .split("}")
-    .flatMap((ruleFragment) => {
-      const separatorIndex = ruleFragment.indexOf("{");
-
-      if (separatorIndex === -1) {
-        return [];
-      }
-
-      const selectorText = ruleFragment.slice(0, separatorIndex).trim();
-      const declarationText = ruleFragment.slice(separatorIndex + 1).trim();
-
-      if (selectorText.length === 0 || declarationText.length === 0) {
-        return [];
-      }
-
-      return [{ declarationText, selectorText }];
-    });
 }
 
 function mergeInlineStyles(element: Element, declarationText: string): void {
