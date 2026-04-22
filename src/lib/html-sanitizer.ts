@@ -270,6 +270,10 @@ export function sanitizeHtml(html: string): string {
   return new DefaultHtmlSanitizer().sanitize(html);
 }
 
+export function isSafeStyleProperty(propertyName: string): boolean {
+  return SAFE_STYLE_PROPERTIES.has(propertyName.trim().toLowerCase());
+}
+
 function sanitizeStyle(style: string): string | null {
   const safeDeclarations = style
     .split(";")

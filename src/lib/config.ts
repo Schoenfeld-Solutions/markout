@@ -1,57 +1,64 @@
 export const defaultStylesheet = `
 .mo {
-  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
-  font-size: 14px;
-  color: rgb(36,41,46);
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
 }
 
 code {
-  font-size: 1em;
-  line-height: 1.2em;
-  padding: 0;
+  color: inherit;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.95em;
+  line-height: inherit;
   margin: 0;
-  font-family: Consolas, Inconsolata, Courier, monospace;
-}
-
-pre {
-  margin: 1em !important;
-  padding: 1em !important;
-  border: 1px solid rgba(100, 100, 100, 0.2);
-  border-radius: 3px;
-}
-
-code {
+  padding: 0;
   white-space: normal;
-  display: inline-block;
-  color: #B21D12;
+}
+
+.hljs,
+pre {
+  background-color: rgba(127, 127, 127, 0.08);
+  border: 1px solid rgba(127, 127, 127, 0.22);
+  border-radius: 6px;
+  color: inherit;
+  display: block;
+  font-family: Consolas, "Courier New", monospace;
+  margin: 1em 0 !important;
+  overflow-x: auto;
+  padding: 0.75em !important;
+}
+
+.hljs {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 pre code {
-  white-space: pre;
-  overflow: auto;
+  color: inherit;
   display: block !important;
-  color: #000;
+  overflow: auto;
+  white-space: pre;
 }
 
 p {
-  margin: 0 0 1.2em 0 !important;
+  margin: 0 0 1em 0 !important;
 }
 
 table, dl, blockquote, q, ul, ol {
-  margin: 1.2em 0 !important;
+  margin: 1em 0 !important;
 }
 
 ul, ol {
-  padding-left: 2em;
-  margin: 2em 0;
+  margin: 1em 0;
+  padding-left: 1.5em;
 }
 
 li {
-  margin: 0.5em 0;
+  margin: 0.35em 0;
 }
 
 li p {
-  margin: 0.5em 0 !important;
+  margin: 0.35em 0 !important;
 }
 
 ul ul, ul ol, ol ul, ol ol {
@@ -72,20 +79,19 @@ dl {
 }
 
 dl dt {
-  font-size: 1em;
   font-weight: bold;
   font-style: italic;
 }
 
 dl dd {
-  margin: 0 0 1em;
+  margin: 0 0 1em 0;
   padding: 0 1em;
 }
 
 blockquote, q {
-  border-left: 4px solid #DDD;
+  border-left: 4px solid rgba(127, 127, 127, 0.35);
+  color: inherit;
   padding: 0 1em;
-  color: #777;
   quotes: none;
 }
 
@@ -97,16 +103,17 @@ h1, h2, h3, h4, h5, h6 {
   margin: 1.3em 0 1em;
   padding: 0;
   font-weight: bold;
+  color: inherit;
 }
 
 h1 {
   font-size: 1.6em;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
 }
 
 h2 {
   font-size: 1.4em;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.24);
 }
 
 h3 {
@@ -123,19 +130,13 @@ h5 {
 
 h6 {
   font-size: 1em;
-  color: #777;
+  color: inherit;
 }
 
 table {
-  padding: 0;
-  border-collapse: collapse;
   border-spacing: 0;
-  font-size: 1em;
+  border-collapse: collapse;
   font: inherit;
-  border: 0;
-}
-
-tbody {
   margin: 0;
   padding: 0;
   border: 0;
@@ -143,69 +144,65 @@ tbody {
 
 table tr {
   border: 0;
-  border-top: 1px solid #CCC;
-  background-color: white;
+  border-top: 1px solid rgba(127, 127, 127, 0.28);
+  background-color: transparent;
   margin: 0;
   padding: 0;
 }
 
 table tr:nth-child(2n) {
-  background-color: #F8F8F8;
+  background-color: rgba(127, 127, 127, 0.06);
 }
 
 table tr th, table tr td {
-  font-size: 1em;
-  border: 1px solid #CCC;
+  border: 1px solid rgba(127, 127, 127, 0.28);
   margin: 0;
   padding: 0.5em 1em;
 }
 
 table tr th {
- font-weight: bold;
-  background-color: #F0F0F0;
+  background-color: rgba(127, 127, 127, 0.1);
+  font-weight: bold;
 }
 
 a {
-  color: #0366d6;
-  text-decoration: none;
+  color: inherit;
+  text-decoration: underline;
 }
 
 .hljs {
-    display: block;
-    font-family: Consolas, Inconsolata, Courier, monospace;
-    overflow-x: auto;
-    padding: 0.5em;
-    color: black
+  color: inherit;
 }
 
 .hljs-variable,.hljs-template-variable,.hljs-symbol,.hljs-bullet,.hljs-section,.hljs-addition,.hljs-attribute,.hljs-link {
-    color: #333
+  color: inherit;
 }
 
 .hljs-string {
-    color: #B21D12;
+  color: inherit;
 }
 
 .hljs-comment,.hljs-quote,.hljs-meta,.hljs-deletion {
-    color: #ccc
+  color: inherit;
 }
 
 .hljs-keyword,.hljs-selector-tag,.hljs-section,.hljs-name,.hljs-type,.hljs-strong,.hljs-attr {
-    font-weight: bold
+  font-weight: bold;
 }
 
 .hljs-literal,.hljs-number {
-    color: #409EFF;
-    font-weight: bold;
+  font-weight: bold;
 }
 
 .hljs-emphasis {
-    font-style: italic
+  font-style: italic;
 }
 `;
 
 const SETTING_AUTORENDER = "markout.autorender";
+const SETTING_CREDITS_VISIBLE = "markout.creditsVisible";
 const SETTING_DEVELOPER_TOOLS = "markout.developerToolsEnabled";
+const SETTING_HELP_VISIBLE = "markout.helpVisible";
 const SETTING_INTRO_DISMISSED = "markout.introDismissed";
 const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_THEME_MODE = "markout.themeMode";
@@ -220,13 +217,17 @@ export type ThemeMode = "dark" | "light" | "system";
 
 export interface SettingsStore {
   getAutoRender(): boolean;
+  getCreditsVisible(): boolean;
   getDeveloperToolsEnabled(): boolean;
+  getHelpVisible(): boolean;
   getIntroDismissed(): boolean;
   getStylesheet(): string;
   getThemeMode(): ThemeMode;
   save(): Promise<void>;
   setAutoRender(enabled: boolean): void;
+  setCreditsVisible(visible: boolean): void;
   setDeveloperToolsEnabled(enabled: boolean): void;
+  setHelpVisible(visible: boolean): void;
   setIntroDismissed(dismissed: boolean): void;
   setStylesheet(stylesheet: string): void;
   setThemeMode(mode: ThemeMode): void;
@@ -242,7 +243,9 @@ function normalizeStylesheet(stylesheet: string): string {
 
 class InMemorySettingsStore implements SettingsStore {
   private autoRender = false;
+  private creditsVisible = true;
   private developerToolsEnabled = false;
+  private helpVisible = true;
   private introDismissed = false;
   private stylesheet = defaultStylesheet;
   private themeMode: ThemeMode = "system";
@@ -251,8 +254,16 @@ class InMemorySettingsStore implements SettingsStore {
     return this.autoRender;
   }
 
+  public getCreditsVisible(): boolean {
+    return this.creditsVisible;
+  }
+
   public getDeveloperToolsEnabled(): boolean {
     return this.developerToolsEnabled;
+  }
+
+  public getHelpVisible(): boolean {
+    return this.helpVisible;
   }
 
   public getIntroDismissed(): boolean {
@@ -275,8 +286,16 @@ class InMemorySettingsStore implements SettingsStore {
     this.autoRender = enabled;
   }
 
+  public setCreditsVisible(visible: boolean): void {
+    this.creditsVisible = visible;
+  }
+
   public setDeveloperToolsEnabled(enabled: boolean): void {
     this.developerToolsEnabled = enabled;
+  }
+
+  public setHelpVisible(visible: boolean): void {
+    this.helpVisible = visible;
   }
 
   public setIntroDismissed(dismissed: boolean): void {
@@ -299,8 +318,18 @@ class OfficeSettingsStore implements SettingsStore {
     return this.roamingSettings.get(SETTING_AUTORENDER) === true;
   }
 
+  public getCreditsVisible(): boolean {
+    const storedValue = this.roamingSettings.get(SETTING_CREDITS_VISIBLE);
+    return typeof storedValue === "boolean" ? storedValue : true;
+  }
+
   public getDeveloperToolsEnabled(): boolean {
     return this.roamingSettings.get(SETTING_DEVELOPER_TOOLS) === true;
+  }
+
+  public getHelpVisible(): boolean {
+    const storedValue = this.roamingSettings.get(SETTING_HELP_VISIBLE);
+    return typeof storedValue === "boolean" ? storedValue : true;
   }
 
   public getIntroDismissed(): boolean {
@@ -345,8 +374,16 @@ class OfficeSettingsStore implements SettingsStore {
     this.roamingSettings.set(SETTING_AUTORENDER, enabled);
   }
 
+  public setCreditsVisible(visible: boolean): void {
+    this.roamingSettings.set(SETTING_CREDITS_VISIBLE, visible);
+  }
+
   public setDeveloperToolsEnabled(enabled: boolean): void {
     this.roamingSettings.set(SETTING_DEVELOPER_TOOLS, enabled);
+  }
+
+  public setHelpVisible(visible: boolean): void {
+    this.roamingSettings.set(SETTING_HELP_VISIBLE, visible);
   }
 
   public setIntroDismissed(dismissed: boolean): void {

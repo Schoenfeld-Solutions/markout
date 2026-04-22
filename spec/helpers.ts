@@ -261,6 +261,11 @@ export class FakeBody {
 export class FakeMailboxItem {
   public readonly body: FakeBody;
   public readonly customProperties = new FakeCustomProperties();
+  public infobarHandlers: ((
+    event: Office.InfobarClickedEventArgs
+  ) => void | Promise<void>)[] = [];
+  public lastNotificationDetails: Office.NotificationMessageDetails | null =
+    null;
   public nextHtmlSelectionError: OfficeErrorLike | null = null;
   public nextTextSelectionError: OfficeErrorLike | null = null;
   public selectionHtml = "";
@@ -268,18 +273,49 @@ export class FakeMailboxItem {
   public selectionText = "";
   public readonly sessionData = new FakeSessionData();
   public failNextLoadCustomProperties = false;
+  public failNextNotificationRemove = false;
+  public failNextNotificationReplace = false;
   public throwOnNotificationReplace = false;
   public readonly notificationMessages = {
+    removeAsync: jest.fn(
+      (_key: string, callback?: (result: Office.AsyncResult<void>) => void) => {
+        if (this.failNextNotificationRemove) {
+          this.failNextNotificationRemove = false;
+          callback?.(
+            failedAsyncResult<void>({
+              message: "Notification remove failed.",
+              name: "NotificationRemoveError",
+            })
+          );
+          return;
+        }
+
+        this.lastNotificationDetails = null;
+        callback?.(succeededAsyncResult<void>(undefined));
+      }
+    ),
     replaceAsync: jest.fn(
       (
         _key: string,
-        _details: Office.NotificationMessageDetails,
+        details: Office.NotificationMessageDetails,
         callback?: (result: Office.AsyncResult<void>) => void
       ) => {
         if (this.throwOnNotificationReplace) {
           throw new Error("Notification replace failed.");
         }
 
+        if (this.failNextNotificationReplace) {
+          this.failNextNotificationReplace = false;
+          callback?.(
+            failedAsyncResult<void>({
+              message: "Notification replace failed.",
+              name: "NotificationReplaceError",
+            })
+          );
+          return;
+        }
+
+        this.lastNotificationDetails = details;
         callback?.(succeededAsyncResult<void>(undefined));
       }
     ),
@@ -342,6 +378,30 @@ export class FakeMailboxItem {
       })
     );
   }
+
+  public addHandlerAsync(
+    eventType: Office.EventType,
+    handler: (event: Office.InfobarClickedEventArgs) => void | Promise<void>,
+    callback?: (result: Office.AsyncResult<void>) => void
+  ): void {
+    if (eventType === Office.EventType.InfobarClicked) {
+      this.infobarHandlers.push(handler);
+    }
+
+    callback?.(succeededAsyncResult<void>(undefined));
+  }
+
+  public async triggerInfobarDismiss(): Promise<void> {
+    for (const handler of this.infobarHandlers) {
+      await handler({
+        infobarDetails: {
+          actionType: Office.MailboxEnums.InfobarActionType.Dismiss,
+          infobarType: Office.MailboxEnums.InfobarType.Informational,
+        } as Office.InfobarDetails,
+        type: Office.EventType.InfobarClicked,
+      } as unknown as Office.InfobarClickedEventArgs);
+    }
+  }
 }
 
 export interface FakeOfficeEnvironment {
@@ -354,6 +414,7 @@ export interface FakeOfficeEnvironment {
 }
 
 export function installOfficeEnvironment(options?: {
+  displayLanguage?: string;
   mailboxItem?: FakeMailboxItem | undefined;
   roamingSettings?: FakeRoamingSettings;
 }): FakeOfficeEnvironment {
@@ -362,6 +423,7 @@ export function installOfficeEnvironment(options?: {
     args: Office.OfficeThemeChangedEventArgs
   ) => void | Promise<void>)[] = [];
   const mailboxItem = options?.mailboxItem;
+  const displayLanguage = options?.displayLanguage ?? "en-US";
   const roamingSettings = options?.roamingSettings ?? new FakeRoamingSettings();
   const outlookHost = "Outlook" as unknown as Office.HostType;
   const officeTheme: Office.OfficeTheme = {
@@ -387,6 +449,7 @@ export function installOfficeEnvironment(options?: {
       Text: "text",
     },
     context: {
+      displayLanguage,
       mailbox: {
         addHandlerAsync: jest.fn(
           (
@@ -409,14 +472,25 @@ export function installOfficeEnvironment(options?: {
       roamingSettings,
     },
     EventType: {
+      InfobarClicked: "olkInfobarClicked",
       OfficeThemeChanged: "officeThemeChanged",
     },
     HostType: {
       Outlook: "Outlook",
     },
     MailboxEnums: {
+      InfobarActionType: {
+        Dismiss: "Dismiss",
+      },
+      InfobarType: {
+        Error: 2,
+        Informational: 0,
+        Insight: 3,
+        ProgressIndicator: 1,
+      },
       ItemNotificationMessageType: {
         ErrorMessage: "errorMessage",
+        InformationalMessage: "informationalMessage",
       },
     },
     onReady(
