@@ -82,6 +82,10 @@ export interface LocalizedStrings {
     autoRenderFallbackTitle: string;
     autoRenderStickyBody: string;
   };
+  runtimeError: {
+    body: string;
+    title: string;
+  };
   settings: {
     autoRenderDescription: string;
     autoRenderTitle: string;
@@ -256,6 +260,10 @@ const EN_US: LocalizedStrings = {
     autoRenderFallbackTitle: "Auto-render is enabled",
     autoRenderStickyBody:
       "MarkOut will render the current draft automatically when Smart Alerts run during send.",
+  },
+  runtimeError: {
+    body: "MarkOut hit an unexpected taskpane error. Reload Outlook and reopen MarkOut from Apps. If this keeps happening, reinstall the current manifest and try again.",
+    title: "MarkOut could not render the taskpane",
   },
   settings: {
     autoRenderDescription:
@@ -448,6 +456,10 @@ const DE_DE: LocalizedStrings = {
     autoRenderFallbackTitle: "Auto-Render ist aktiv",
     autoRenderStickyBody:
       "MarkOut rendert den aktuellen Entwurf automatisch, wenn Smart Alerts beim Senden ausgeführt werden.",
+  },
+  runtimeError: {
+    body: "MarkOut ist in einen unerwarteten Taskpane-Fehler gelaufen. Lade Outlook neu und öffne MarkOut erneut über Apps. Wenn der Fehler bestehen bleibt, installiere das aktuelle Manifest erneut und versuche es noch einmal.",
+    title: "MarkOut konnte die Taskpane nicht rendern",
   },
   settings: {
     autoRenderDescription:

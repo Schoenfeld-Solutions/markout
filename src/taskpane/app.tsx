@@ -7,7 +7,6 @@ import {
   Radio,
   RadioGroup,
   Switch,
-  Tooltip,
   makeStyles,
   mergeClasses,
   shorthands,
@@ -1281,58 +1280,43 @@ export function TaskpaneApp({
           </div>
           {renderPreview()}
           <div className={styles.actionRow}>
-            <Tooltip
-              content={renderSelectionTooltip}
-              relationship="description"
+            <Button
+              appearance="primary"
+              aria-label={localizedStrings.insert.renderSelectionButton}
+              disabled={renderSelectionDisabled}
+              id="render-selection-button"
+              onClick={() => {
+                void handleRenderSelection();
+              }}
+              title={renderSelectionTooltip}
             >
-              <Button
-                appearance="primary"
-                aria-label={localizedStrings.insert.renderSelectionButton}
-                disabled={renderSelectionDisabled}
-                id="render-selection-button"
-                onClick={() => {
-                  void handleRenderSelection();
-                }}
-                title={renderSelectionTooltip}
-              >
-                {localizedStrings.insert.renderSelectionButton}
-              </Button>
-            </Tooltip>
-            <Tooltip
-              content={localizedStrings.tooltips.renderEntireDraft}
-              relationship="description"
+              {localizedStrings.insert.renderSelectionButton}
+            </Button>
+            <Button
+              appearance="secondary"
+              disabled={isWorking !== null}
+              id="render-entire-draft-button"
+              onClick={() => {
+                void handleRenderEntireDraft();
+              }}
+              title={localizedStrings.tooltips.renderEntireDraft}
             >
-              <Button
-                appearance="secondary"
-                disabled={isWorking !== null}
-                id="render-entire-draft-button"
-                onClick={() => {
-                  void handleRenderEntireDraft();
-                }}
-                title={localizedStrings.tooltips.renderEntireDraft}
-              >
-                {localizedStrings.insert.renderEntireDraftButton}
-              </Button>
-            </Tooltip>
-            <Tooltip
-              content={localizedStrings.tooltips.insertRenderedMarkdown}
-              relationship="description"
+              {localizedStrings.insert.renderEntireDraftButton}
+            </Button>
+            <Button
+              appearance="secondary"
+              disabled={isInsertRenderedMarkdownDisabled(
+                isWorking !== null,
+                markdownInput
+              )}
+              id="insert-rendered-markdown-button"
+              onClick={() => {
+                void handleInsertRenderedMarkdown();
+              }}
+              title={localizedStrings.tooltips.insertRenderedMarkdown}
             >
-              <Button
-                appearance="secondary"
-                disabled={isInsertRenderedMarkdownDisabled(
-                  isWorking !== null,
-                  markdownInput
-                )}
-                id="insert-rendered-markdown-button"
-                onClick={() => {
-                  void handleInsertRenderedMarkdown();
-                }}
-                title={localizedStrings.tooltips.insertRenderedMarkdown}
-              >
-                {localizedStrings.insert.insertButton}
-              </Button>
-            </Tooltip>
+              {localizedStrings.insert.insertButton}
+            </Button>
           </div>
         </div>
       </div>
@@ -1793,32 +1777,27 @@ export function TaskpaneApp({
               : panel.label;
 
           return (
-            <Tooltip
-              content={toolbarTitle}
+            <Button
+              appearance={activePanel === panel.key ? "primary" : "subtle"}
+              aria-label={panel.label}
+              className={mergeClasses(
+                styles.toolbarButton,
+                toolbarLayoutMode === "compact"
+                  ? styles.toolbarButtonCompact
+                  : undefined
+              )}
+              icon={panel.icon}
+              id={`panel-button-${panel.key}`}
               key={panel.key}
-              relationship="description"
+              onClick={() => {
+                setActivePanel(panel.key);
+              }}
+              title={toolbarTitle}
             >
-              <Button
-                appearance={activePanel === panel.key ? "primary" : "subtle"}
-                aria-label={panel.label}
-                className={mergeClasses(
-                  styles.toolbarButton,
-                  toolbarLayoutMode === "compact"
-                    ? styles.toolbarButtonCompact
-                    : undefined
-                )}
-                icon={panel.icon}
-                id={`panel-button-${panel.key}`}
-                onClick={() => {
-                  setActivePanel(panel.key);
-                }}
-                title={toolbarTitle}
-              >
-                {toolbarLayoutMode === "regular" ? (
-                  <span className={styles.toolbarLabel}>{panel.label}</span>
-                ) : null}
-              </Button>
-            </Tooltip>
+              {toolbarLayoutMode === "regular" ? (
+                <span className={styles.toolbarLabel}>{panel.label}</span>
+              ) : null}
+            </Button>
           );
         })}
       </nav>
