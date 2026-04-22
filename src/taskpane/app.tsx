@@ -298,13 +298,15 @@ const useStyles = makeStyles({
     minWidth: 0,
     overflowWrap: "anywhere",
     wordBreak: "break-word",
-    "& .mo": {
+    "& .markout-fragment-host, & .markout-fragment-host .mo": {
       color: "inherit",
       fontFamily: "inherit",
       fontSize: "inherit",
+      lineHeight: "inherit",
     },
     "& a": {
       color: "inherit",
+      textDecorationLine: "underline",
     },
     "& img": {
       maxWidth: "100%",
@@ -517,16 +519,8 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
   },
   selectControl: {
-    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
-    ...shorthands.borderRadius(tokens.borderRadiusMedium),
-    backgroundColor: tokens.colorNeutralBackground1,
-    color: tokens.colorNeutralForeground1,
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    minHeight: "2.25rem",
-    minWidth: "12rem",
-    paddingInlineEnd: tokens.spacingHorizontalM,
-    paddingInlineStart: tokens.spacingHorizontalM,
+    minWidth: 0,
+    width: "100%",
   },
   toolbar: {
     ...shorthands.borderTop("1px", "solid", tokens.colorNeutralStroke2),
@@ -1955,9 +1949,7 @@ export function TaskpaneApp({
               </span>
               <strong>{localizedStrings.help.repoTitle}</strong>
             </div>
-            <p className={styles.sectionBody}>
-              {localizedStrings.help.repoDescription}
-            </p>
+            {renderOptionalBody(localizedStrings.help.repoDescription)}
           </a>
           <a
             className={styles.linkCard}
@@ -1971,9 +1963,7 @@ export function TaskpaneApp({
               </span>
               <strong>{localizedStrings.help.docsTitle}</strong>
             </div>
-            <p className={styles.sectionBody}>
-              {localizedStrings.help.docsDescription}
-            </p>
+            {renderOptionalBody(localizedStrings.help.docsDescription)}
           </a>
           <a
             className={styles.linkCard}
@@ -1987,9 +1977,7 @@ export function TaskpaneApp({
               </span>
               <strong>{localizedStrings.help.websiteTitle}</strong>
             </div>
-            <p className={styles.sectionBody}>
-              {localizedStrings.help.websiteDescription}
-            </p>
+            {renderOptionalBody(localizedStrings.help.websiteDescription)}
           </a>
         </div>
       </div>
@@ -2003,9 +1991,7 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.intro.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.intro.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.intro.panelDescription)}
         </div>
         <div className={styles.introGrid}>
           <div className={styles.introCard}>

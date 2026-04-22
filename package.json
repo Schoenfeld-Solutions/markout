@@ -35,6 +35,7 @@
     "start:web": "npm run dev",
     "stop": "office-addin-debugging stop manifest-localhost.xml",
     "test": "jest --runInBand",
+    "test:taskpane-ui": "tsx scripts/run-taskpane-ui-playwright.ts",
     "test:host-smoke": "tsx spec/outlook-host-smoke.ts",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit",

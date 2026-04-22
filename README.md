@@ -150,6 +150,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
+npm run test:taskpane-ui
 npm run build
 npm run check:bundle
 npm run validate:manifest
@@ -158,6 +159,10 @@ npm run check
 
 `npm run validate:manifest:localhost` is available for local manifest checks, but `manifest-localhost.xml`
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
+
+`npm run test:taskpane-ui` starts a local, test-only taskpane mock and drives it
+with Playwright so sidebar layout, preview theming, and generated fragment HTML
+can be verified without Outlook.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest validation.

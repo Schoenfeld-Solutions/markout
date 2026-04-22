@@ -341,11 +341,89 @@ describe("taskpane app helpers", () => {
 
     expect(strings.settings.panelDescription).toBe("");
     expect(strings.settings.languageDescription).toBe("");
+    expect(strings.settings.themeDescription).toBe("");
     expect(strings.insert.panelDescription).toBe("");
     expect(strings.insert.previewDescription).toBe("");
     expect(strings.help.panelDescription).toBe("");
+    expect(strings.help.repoDescription).toBe("");
+    expect(strings.help.docsDescription).toBe("");
+    expect(strings.help.websiteDescription).toBe("");
     expect(strings.credits.panelDescription).toBe("");
     expect(strings.developer.panelDescription).toBe("");
+    expect(strings.intro.panelDescription).toBe("");
+  });
+
+  it("does not leave the removed descriptions behind in intro, settings, or help", async () => {
+    const restoreMatchMedia = ensureMatchMedia();
+    let root: Root | null = null;
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      await act(async () => {
+        root?.render(
+          <TaskpaneApp
+            locale="en-US"
+            notificationService={createNotificationService()}
+            services={createServices()}
+            settingsStore={createSettingsStore()}
+          />
+        );
+        await Promise.resolve();
+      });
+
+      expect(container.textContent).not.toContain(
+        "MarkOut keeps compose work Markdown-first while staying inside Outlook's taskpane and Smart Alerts model."
+      );
+
+      const settingsButton = container.querySelector<HTMLButtonElement>(
+        "#panel-button-settings"
+      );
+      expect(settingsButton).not.toBeNull();
+      settingsButton?.click();
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(container.textContent).not.toContain(
+        "System follows Outlook theme when the host provides it and falls back to the browser preference otherwise."
+      );
+
+      const helpButton =
+        container.querySelector<HTMLButtonElement>("#panel-button-help");
+      expect(helpButton).not.toBeNull();
+      helpButton?.click();
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(container.textContent).not.toContain(
+        "Track issues, releases, and the maintained Schoenfeld Solutions fork."
+      );
+      expect(container.textContent).not.toContain(
+        "Open the GitHub Pages landing page with manifests, hosted docs, and deployment notes."
+      );
+      expect(container.textContent).not.toContain(
+        "Open the Schoenfeld Solutions website. A support link can be added here later."
+      );
+      expect(
+        Array.from(container.querySelectorAll("p")).every(
+          (paragraph) => paragraph.textContent.trim().length > 0
+        )
+      ).toBe(true);
+    } finally {
+      act(() => {
+        root?.unmount();
+      });
+      restoreMatchMedia();
+    }
   });
 
   it("shows a runtime fallback instead of leaving the pane empty after a render crash", () => {

@@ -4,19 +4,54 @@ const path = require("path");
 const webpack = require("webpack");
 
 module.exports = async (_env, options) => {
+  const env = _env ?? {};
   const isProduction = options.mode === "production";
+  const includeTaskpaneMock =
+    env.taskpaneMock === true || env.taskpaneMock === "true";
   const httpsOptions =
     !isProduction && options.https === undefined
       ? await devCerts.getHttpsServerOptions()
       : options.https;
 
+  const entry = {
+    commands: "./src/commands/commands.ts",
+    launchevent: "./src/launchevent/launchevent.ts",
+    taskpane: "./src/taskpane/taskpane.tsx",
+  };
+
+  if (includeTaskpaneMock) {
+    entry["taskpane-mock"] = "./src/taskpane/mock/taskpane-mock.tsx";
+  }
+
+  const plugins = [
+    new webpack.DefinePlugin({
+      "process.env.NODE_DEBUG": JSON.stringify(""),
+    }),
+    new HtmlWebpackPlugin({
+      chunks: ["commands", "launchevent"],
+      filename: "commands.html",
+      template: "./src/commands/commands.html",
+    }),
+    new HtmlWebpackPlugin({
+      chunks: ["taskpane"],
+      filename: "taskpane.html",
+      template: "./src/taskpane/taskpane.html",
+    }),
+  ];
+
+  if (includeTaskpaneMock) {
+    plugins.push(
+      new HtmlWebpackPlugin({
+        chunks: ["taskpane-mock"],
+        filename: "taskpane-mock.html",
+        template: "./src/taskpane/mock/taskpane-mock.html",
+      })
+    );
+  }
+
   return {
     devtool: "source-map",
-    entry: {
-      commands: "./src/commands/commands.ts",
-      launchevent: "./src/launchevent/launchevent.ts",
-      taskpane: "./src/taskpane/taskpane.tsx",
-    },
+    entry,
     mode: isProduction ? "production" : "development",
     module: {
       rules: [
@@ -74,21 +109,7 @@ module.exports = async (_env, options) => {
       path: path.resolve(__dirname, "dist"),
       publicPath: "",
     },
-    plugins: [
-      new webpack.DefinePlugin({
-        "process.env.NODE_DEBUG": JSON.stringify(""),
-      }),
-      new HtmlWebpackPlugin({
-        chunks: ["commands", "launchevent"],
-        filename: "commands.html",
-        template: "./src/commands/commands.html",
-      }),
-      new HtmlWebpackPlugin({
-        chunks: ["taskpane"],
-        filename: "taskpane.html",
-        template: "./src/taskpane/taskpane.html",
-      }),
-    ],
+    plugins,
     resolve: {
       extensions: [".tsx", ".ts", ".html", ".js"],
     },

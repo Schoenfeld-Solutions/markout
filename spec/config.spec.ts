@@ -113,9 +113,20 @@ describe("settings store", () => {
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
     expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
-    expect(defaultStylesheet).toContain("color: inherit;");
-    expect(defaultStylesheet).toContain("font-family: inherit;");
-    expect(defaultStylesheet).toContain("font-size: 1em;");
+    expect(defaultStylesheet).toMatch(/\.mo\s*\{\s*line-height:\s*1\.5;\s*\}/);
+    expect(defaultStylesheet).not.toMatch(
+      /\.mo\s*\{[^}]*\b(?:color|font-family|font-size|font)\b/i
+    );
+    expect(defaultStylesheet).not.toMatch(
+      /h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*\b(?:color|font-family)\b/i
+    );
+    expect(defaultStylesheet).not.toContain("border-bottom");
+    expect(defaultStylesheet).not.toMatch(/a\s*\{[^}]*\bcolor\b/i);
+    expect(defaultStylesheet).toContain("li {\n  margin: 0;\n}");
+    expect(defaultStylesheet).toContain("li p {\n  margin: 0 !important;\n}");
+    expect(defaultStylesheet).toMatch(
+      /code,\s*pre,\s*\.hljs\s*\{[^}]*font-family:/i
+    );
     expect(defaultStylesheet).not.toContain("font-size: 14px;");
     expect(defaultStylesheet).not.toContain("rgb(36,41,46)");
   });
@@ -151,10 +162,43 @@ describe("settings store", () => {
     const persistedStore = createOfficeSettingsStore(roamingSettings);
 
     expect(roamingSettings.get("markout.stylesheetPreset")).toBe(
-      "default-host-inherit-v1"
+      "default-host-inherit-v2"
     );
     expect(persistedStore.getStylesheet()).toBe(defaultStylesheet);
     expect(persistedStore.hasStylesheetMigrationPending()).toBe(false);
+  });
+
+  it("remigrates the persisted v1 preset to the stricter v2 default", () => {
+    const roamingSettings = new FakeRoamingSettings();
+
+    roamingSettings.set(
+      "markout.stylesheet",
+      `
+        .mo {
+          color: inherit;
+          font-family: inherit;
+          font-size: 1em;
+          line-height: 1.5;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+          color: inherit;
+          font-family: inherit;
+          font-weight: bold;
+        }
+      `
+    );
+    roamingSettings.set("markout.stylesheetPreset", "default-host-inherit-v1");
+
+    const settingsStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(true);
   });
 
   it("keeps obvious user custom css instead of migrating it", () => {

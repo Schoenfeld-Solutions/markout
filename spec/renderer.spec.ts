@@ -72,27 +72,65 @@ describe("renderer", () => {
     const output = await renderMarkdown({
       css: `
         .mo {
-          color: inherit;
-          font-family: inherit;
-          font-size: 1em;
           line-height: 1.5;
         }
         a {
-          color: inherit;
+          text-decoration: underline;
+        }
+        h1 {
+          font-size: 1.75em;
+          font-weight: bold;
         }
         p { margin-bottom: 1em; }
       `,
-      markdown: "Body text",
+      markdown: "# Title\n\nBody text with [a link](https://example.com).",
     });
 
-    expect(output).toContain('<div class="mo markout-rendered"');
-    expect(output).toContain('<p style="margin-bottom: 1em;">Body text</p>');
-    expect(output).toContain("font-family: inherit;");
-    expect(output).toContain("font-size: 1em;");
+    expect(output).toContain(
+      '<div class="mo markout-rendered" style="line-height: 1.5;">'
+    );
+    expect(output).toContain(
+      '<h1 style="font-size: 1.75em; font-weight: bold;">Title</h1>'
+    );
+    expect(output).toContain(
+      '<p style="margin-bottom: 1em;">Body text with <a href="https://example.com" style="text-decoration: underline;">a link</a>.</p>'
+    );
+    expect(output).not.toContain("font-family: inherit;");
+    expect(output).not.toContain("font-size: 1em;");
+    expect(output).not.toContain("color: inherit;");
     expect(output).not.toContain("rgb(36, 41, 46)");
     expect(output).not.toContain("font-size: 14px");
     expect(output).not.toContain("-apple-system");
+    expect(output).not.toContain("border-bottom");
     expect(output).not.toContain("nth-child");
+  });
+
+  it("keeps lists compact without adding artificial spacing between items", async () => {
+    const output = await renderMarkdown({
+      css: `
+        ul,
+        ol {
+          margin: 0.9em 0;
+          padding-left: 1.5em;
+        }
+
+        li {
+          margin: 0;
+        }
+
+        li p {
+          margin: 0;
+        }
+      `,
+      markdown: "- one\n- two\n- three",
+    });
+
+    expect(output).toContain(
+      '<ul style="margin: 0.9em 0px; padding-left: 1.5em;">'
+    );
+    expect(output).toContain('<li style="margin: 0px;">one</li>');
+    expect(output).toContain('<li style="margin: 0px;">two</li>');
+    expect(output).toContain('<li style="margin: 0px;">three</li>');
   });
 
   it("detects full-render and fragment markers independently", () => {
