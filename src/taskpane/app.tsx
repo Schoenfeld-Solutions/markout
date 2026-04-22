@@ -4,10 +4,11 @@ import {
   MessageBar,
   MessageBarBody,
   MessageBarTitle,
-  Radio,
-  RadioGroup,
   Select,
   Switch,
+  Toolbar,
+  ToolbarRadioButton,
+  ToolbarRadioGroup,
   makeStyles,
   mergeClasses,
   shorthands,
@@ -303,7 +304,7 @@ const useStyles = makeStyles({
       fontSize: "inherit",
     },
     "& a": {
-      color: tokens.colorBrandForegroundLink,
+      color: "inherit",
     },
     "& img": {
       maxWidth: "100%",
@@ -318,6 +319,25 @@ const useStyles = makeStyles({
       whiteSpace: "pre-wrap",
       wordBreak: "break-word",
     },
+    "& .markout-fragment-host .hljs-comment, & .markout-fragment-host .hljs-quote, & .markout-fragment-host .hljs-meta, & .markout-fragment-host .hljs-deletion":
+      {
+        color: tokens.colorNeutralForeground3,
+      },
+    "& .markout-fragment-host .hljs-string": {
+      color: tokens.colorPaletteBerryForeground2,
+    },
+    "& .markout-fragment-host .hljs-variable, & .markout-fragment-host .hljs-template-variable, & .markout-fragment-host .hljs-symbol, & .markout-fragment-host .hljs-bullet, & .markout-fragment-host .hljs-section, & .markout-fragment-host .hljs-addition, & .markout-fragment-host .hljs-attribute, & .markout-fragment-host .hljs-link":
+      {
+        color: tokens.colorNeutralForeground2,
+      },
+    "& .markout-fragment-host .hljs-literal, & .markout-fragment-host .hljs-number":
+      {
+        color: tokens.colorBrandForeground1,
+      },
+    "& .markout-fragment-host .hljs-keyword, & .markout-fragment-host .hljs-selector-tag, & .markout-fragment-host .hljs-name, & .markout-fragment-host .hljs-type, & .markout-fragment-host .hljs-attr":
+      {
+        color: tokens.colorBrandForeground1,
+      },
     "& code": {
       ...shorthands.borderRadius(tokens.borderRadiusSmall),
       backgroundColor: tokens.colorNeutralBackground3,
@@ -375,9 +395,24 @@ const useStyles = makeStyles({
     justifyContent: "space-between",
     minWidth: 0,
   },
-  radioGroup: {
+  themeModeToolbar: {
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusLarge),
+    backgroundColor: tokens.colorNeutralBackground1,
     display: "grid",
-    gap: tokens.spacingVerticalXS,
+    padding: tokens.spacingHorizontalXXS,
+    width: "100%",
+  },
+  themeModeToolbarGroup: {
+    display: "grid",
+    gap: tokens.spacingHorizontalXXS,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    width: "100%",
+  },
+  themeModeToolbarButton: {
+    justifyContent: "center",
+    minWidth: 0,
+    width: "100%",
   },
   linkList: {
     display: "grid",
@@ -754,6 +789,7 @@ export function TaskpaneApp({
   const deferredStylesheet = useDeferredValue(preferences.stylesheet);
   const lastPersistedStylesheetRef = useRef(preferences.stylesheet);
   const previousAutoRenderRef = useRef(preferences.autoRender);
+  const migratedStylesheetSavedRef = useRef(false);
   const codeMirrorHostRef = useRef<HTMLDivElement | null>(null);
   const codeMirrorModulesRef = useRef<CodeMirrorModules | null>(null);
   const codeMirrorViewRef = useRef<CodeMirrorEditorView | null>(null);
@@ -764,6 +800,9 @@ export function TaskpaneApp({
   const resolvedColorMode = useResolvedColorMode(preferences.themeMode);
   const currentTheme =
     resolvedColorMode === "dark" ? webDarkTheme : webLightTheme;
+  const previewFrameStyle = {
+    colorScheme: resolvedColorMode,
+  } as const;
 
   const updateSelectionState = useEffectEvent(async (): Promise<boolean> => {
     try {
@@ -853,6 +892,31 @@ export function TaskpaneApp({
     localizedStrings.status.previewFailed,
     services.composeMarkdown,
   ]);
+
+  useEffect(() => {
+    if (
+      migratedStylesheetSavedRef.current ||
+      !settingsStore.hasStylesheetMigrationPending()
+    ) {
+      return;
+    }
+
+    migratedStylesheetSavedRef.current = true;
+    settingsStore.setStylesheet(preferences.stylesheet);
+
+    void settingsStore.save().then(
+      () => {
+        lastPersistedStylesheetRef.current = settingsStore.getStylesheet();
+      },
+      (error: unknown) => {
+        migratedStylesheetSavedRef.current = false;
+        console.error(
+          "MarkOut failed to persist the migrated default stylesheet.",
+          error
+        );
+      }
+    );
+  }, [preferences.stylesheet, settingsStore]);
 
   useEffect(() => {
     if (preferences.stylesheet === lastPersistedStylesheetRef.current) {
@@ -1470,6 +1534,12 @@ export function TaskpaneApp({
     );
   }
 
+  function renderOptionalBody(copy: string): ReactElement | null {
+    return copy.trim().length > 0 ? (
+      <p className={styles.sectionBody}>{copy}</p>
+    ) : null;
+  }
+
   function renderPreview(): ReactElement {
     if (previewState === "loading") {
       return (
@@ -1478,6 +1548,7 @@ export function TaskpaneApp({
             styles.previewFrame,
             styles.previewFrameEmpty
           )}
+          style={previewFrameStyle}
         >
           {localizedStrings.insert.previewLoading}
         </div>
@@ -1491,6 +1562,7 @@ export function TaskpaneApp({
             styles.previewFrame,
             styles.previewFrameEmpty
           )}
+          style={previewFrameStyle}
         >
           {localizedStrings.insert.emptyPreview}
         </div>
@@ -1498,7 +1570,12 @@ export function TaskpaneApp({
     }
 
     return (
-      <div id="mo-preview" className={styles.previewFrame} aria-live="polite">
+      <div
+        id="mo-preview"
+        className={styles.previewFrame}
+        aria-live="polite"
+        style={previewFrameStyle}
+      >
         <div
           className={styles.previewContent}
           dangerouslySetInnerHTML={{ __html: previewHtml }}
@@ -1514,9 +1591,7 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.insert.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.insert.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.insert.panelDescription)}
         </div>
         <div
           className={mergeClasses(
@@ -1564,9 +1639,7 @@ export function TaskpaneApp({
             <h3 className={styles.sectionTitle}>
               {localizedStrings.insert.previewTitle}
             </h3>
-            <p className={styles.sectionBody}>
-              {localizedStrings.insert.previewDescription}
-            </p>
+            {renderOptionalBody(localizedStrings.insert.previewDescription)}
           </div>
           {renderPreview()}
           <div className={styles.actionRow}>
@@ -1620,45 +1693,66 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.settings.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.settings.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.settings.panelDescription)}
         </div>
         <div className={styles.card}>
           <h3 className={styles.sectionTitle}>
             {localizedStrings.settings.themeTitle}
           </h3>
-          <p className={styles.sectionBody}>
-            {localizedStrings.settings.themeDescription}
-          </p>
-          <RadioGroup
-            className={styles.radioGroup}
-            onChange={(_, data) => {
-              void handleThemeModeChange(data.value as ThemeMode);
+          {renderOptionalBody(localizedStrings.settings.themeDescription)}
+          <Toolbar
+            aria-label={localizedStrings.settings.themeTitle}
+            checkedValues={{ "theme-mode": [preferences.themeMode] }}
+            className={styles.themeModeToolbar}
+            onCheckedValueChange={(_, data) => {
+              const nextMode = data.checkedItems[0];
+
+              if (
+                data.name === "theme-mode" &&
+                (nextMode === "light" ||
+                  nextMode === "dark" ||
+                  nextMode === "system")
+              ) {
+                void handleThemeModeChange(nextMode);
+              }
             }}
-            value={preferences.themeMode}
           >
-            <Radio
-              label={localizedStrings.settings.themeModeLight}
-              value="light"
-            />
-            <Radio
-              label={localizedStrings.settings.themeModeDark}
-              value="dark"
-            />
-            <Radio
-              label={localizedStrings.settings.themeModeSystem}
-              value="system"
-            />
-          </RadioGroup>
+            <ToolbarRadioGroup className={styles.themeModeToolbarGroup}>
+              <ToolbarRadioButton
+                appearance="subtle"
+                className={styles.themeModeToolbarButton}
+                id="theme-mode-light"
+                name="theme-mode"
+                value="light"
+              >
+                {localizedStrings.settings.themeModeLight}
+              </ToolbarRadioButton>
+              <ToolbarRadioButton
+                appearance="subtle"
+                className={styles.themeModeToolbarButton}
+                id="theme-mode-dark"
+                name="theme-mode"
+                value="dark"
+              >
+                {localizedStrings.settings.themeModeDark}
+              </ToolbarRadioButton>
+              <ToolbarRadioButton
+                appearance="subtle"
+                className={styles.themeModeToolbarButton}
+                id="theme-mode-system"
+                name="theme-mode"
+                value="system"
+              >
+                {localizedStrings.settings.themeModeSystem}
+              </ToolbarRadioButton>
+            </ToolbarRadioGroup>
+          </Toolbar>
         </div>
         <div className={styles.card}>
           <h3 className={styles.sectionTitle}>
             {localizedStrings.settings.languageTitle}
           </h3>
-          <p className={styles.sectionBody}>
-            {localizedStrings.settings.languageDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.settings.languageDescription)}
           <Select
             className={styles.selectControl}
             id="language-preference-select"
@@ -1846,9 +1940,7 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.help.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.help.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.help.panelDescription)}
         </div>
         <div className={styles.linkList}>
           <a
@@ -1961,9 +2053,7 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.credits.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.credits.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.credits.panelDescription)}
         </div>
         <div className={styles.creditsBox}>
           <div className={styles.linkCardHeader}>
@@ -2010,9 +2100,7 @@ export function TaskpaneApp({
           <h2 className={styles.sectionTitle}>
             {localizedStrings.developer.panelTitle}
           </h2>
-          <p className={styles.sectionBody}>
-            {localizedStrings.developer.panelDescription}
-          </p>
+          {renderOptionalBody(localizedStrings.developer.panelDescription)}
         </div>
         <div className={mergeClasses(styles.card, styles.compactCard)}>
           <div className={styles.settingsRow}>

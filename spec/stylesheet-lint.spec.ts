@@ -1,3 +1,4 @@
+import { defaultStylesheet } from "../src/lib/config";
 import { lintStylesheet } from "../src/lib/stylesheet-lint";
 
 describe("stylesheet lint", () => {
@@ -43,5 +44,12 @@ describe("stylesheet lint", () => {
 
     expect(result.issues).toEqual([]);
     expect(result.validRuleCount).toBe(2);
+  });
+
+  it("keeps the shipped default stylesheet free of lint findings", () => {
+    const result = lintStylesheet(defaultStylesheet);
+
+    expect(result.issues).toEqual([]);
+    expect(result.validRuleCount).toBeGreaterThan(0);
   });
 });
