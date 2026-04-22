@@ -71,7 +71,15 @@ describe("renderer", () => {
   it("keeps default output host-inherit friendly for base text styles", async () => {
     const output = await renderMarkdown({
       css: `
-        .mo { line-height: 1.5; }
+        .mo {
+          color: inherit;
+          font-family: inherit;
+          font-size: 1em;
+          line-height: 1.5;
+        }
+        a {
+          color: inherit;
+        }
         p { margin-bottom: 1em; }
       `,
       markdown: "Body text",
@@ -79,9 +87,12 @@ describe("renderer", () => {
 
     expect(output).toContain('<div class="mo markout-rendered"');
     expect(output).toContain('<p style="margin-bottom: 1em;">Body text</p>');
-    expect(output).not.toContain("color:");
-    expect(output).not.toContain("font:");
-    expect(output).not.toContain("font-family:");
+    expect(output).toContain("font-family: inherit;");
+    expect(output).toContain("font-size: 1em;");
+    expect(output).not.toContain("rgb(36, 41, 46)");
+    expect(output).not.toContain("font-size: 14px");
+    expect(output).not.toContain("-apple-system");
+    expect(output).not.toContain("nth-child");
   });
 
   it("detects full-render and fragment markers independently", () => {

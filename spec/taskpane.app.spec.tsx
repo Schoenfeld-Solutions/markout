@@ -33,6 +33,7 @@ function createSettingsStore(
     helpVisible: boolean;
     introDismissed: boolean;
     languagePreference: LanguagePreference;
+    stylesheetMigrationPending: boolean;
     stylesheet: string;
     themeMode: "dark" | "light" | "system";
   }> = {}
@@ -46,6 +47,8 @@ function createSettingsStore(
     getLanguagePreference: () => overrides.languagePreference ?? "system",
     getStylesheet: () => overrides.stylesheet ?? "",
     getThemeMode: () => overrides.themeMode ?? "system",
+    hasStylesheetMigrationPending: () =>
+      overrides.stylesheetMigrationPending ?? false,
     save: () => Promise.resolve(),
     setAutoRender: () => undefined,
     setCreditsVisible: () => undefined,
@@ -331,6 +334,18 @@ describe("taskpane app helpers", () => {
       });
       restoreMatchMedia();
     }
+  });
+
+  it("ships simplified panel copy for the reduced settings and insert layouts", () => {
+    const strings = getStrings("en-US");
+
+    expect(strings.settings.panelDescription).toBe("");
+    expect(strings.settings.languageDescription).toBe("");
+    expect(strings.insert.panelDescription).toBe("");
+    expect(strings.insert.previewDescription).toBe("");
+    expect(strings.help.panelDescription).toBe("");
+    expect(strings.credits.panelDescription).toBe("");
+    expect(strings.developer.panelDescription).toBe("");
   });
 
   it("shows a runtime fallback instead of leaving the pane empty after a render crash", () => {

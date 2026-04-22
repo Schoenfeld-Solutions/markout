@@ -20,6 +20,7 @@ describe("settings store", () => {
     expect(settingsStore.getIntroDismissed()).toBe(false);
     expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
   it("falls back to defaults when invalid values are stored", () => {
@@ -43,6 +44,7 @@ describe("settings store", () => {
     expect(settingsStore.getIntroDismissed()).toBe(false);
     expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
   it("persists stylesheet, auto-render, theme, intro, and developer settings", async () => {
@@ -67,6 +69,7 @@ describe("settings store", () => {
     expect(settingsStore.getIntroDismissed()).toBe(true);
     expect(settingsStore.getLanguagePreference()).toBe("de-DE");
     expect(settingsStore.getThemeMode()).toBe("dark");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
   it("falls back to in-memory settings when roaming settings are unavailable", async () => {
@@ -80,6 +83,7 @@ describe("settings store", () => {
     expect(settingsStore.getIntroDismissed()).toBe(false);
     expect(settingsStore.getLanguagePreference()).toBe("system");
     expect(settingsStore.getThemeMode()).toBe("system");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
 
     settingsStore.setStylesheet(".mo { color: rgb(4, 5, 6); }");
     settingsStore.setAutoRender(true);
@@ -99,6 +103,7 @@ describe("settings store", () => {
     expect(settingsStore.getIntroDismissed()).toBe(true);
     expect(settingsStore.getLanguagePreference()).toBe("en-US");
     expect(settingsStore.getThemeMode()).toBe("light");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
   it("normalizes empty stylesheet updates back to the default stylesheet", () => {
@@ -107,9 +112,70 @@ describe("settings store", () => {
     settingsStore.setStylesheet("   ");
 
     expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
-    expect(defaultStylesheet).toContain("line-height: 1.5;");
-    expect(defaultStylesheet).not.toContain("font: inherit;");
-    expect(defaultStylesheet).not.toContain("color: inherit;");
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
+    expect(defaultStylesheet).toContain("color: inherit;");
+    expect(defaultStylesheet).toContain("font-family: inherit;");
+    expect(defaultStylesheet).toContain("font-size: 1em;");
+    expect(defaultStylesheet).not.toContain("font-size: 14px;");
+    expect(defaultStylesheet).not.toContain("rgb(36,41,46)");
+  });
+
+  it("aggressively migrates legacy MarkOut defaults to the current host-inherit preset", async () => {
+    const roamingSettings = new FakeRoamingSettings();
+    const legacyDefault = `
+      .mo {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        color: rgb(36, 41, 46);
+      }
+
+      blockquote::before, blockquote::after, q::before, q::after {
+        content: none;
+      }
+
+      table tr:nth-child(2n) {
+        background-color: #F8F8F8;
+      }
+    `;
+
+    roamingSettings.set("markout.stylesheet", legacyDefault);
+
+    const settingsStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(true);
+
+    settingsStore.setStylesheet(settingsStore.getStylesheet());
+    await settingsStore.save();
+
+    const persistedStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(roamingSettings.get("markout.stylesheetPreset")).toBe(
+      "default-host-inherit-v1"
+    );
+    expect(persistedStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(persistedStore.hasStylesheetMigrationPending()).toBe(false);
+  });
+
+  it("keeps obvious user custom css instead of migrating it", () => {
+    const roamingSettings = new FakeRoamingSettings();
+    const customStylesheet = `
+      .mo {
+        line-height: 1.8;
+      }
+
+      .signature-note {
+        color: rgb(120, 40, 160);
+        font-style: italic;
+      }
+    `;
+
+    roamingSettings.set("markout.stylesheet", customStylesheet);
+
+    const settingsStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(settingsStore.getStylesheet()).toBe(customStylesheet);
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
   it("surfaces save failures from roaming settings", async () => {

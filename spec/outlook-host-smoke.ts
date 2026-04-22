@@ -17,11 +17,13 @@ interface HostSmokeConfig {
   insertPanelButtonSelector: string;
   introConfirmButtonSelector: string;
   introPanelButtonSelector: string;
+  markdownInputSelector: string;
   messageBodySelector: string;
   openButtonSelector: string | null;
   openButtonText: string;
   outputDirectory: string;
   previewSelector: string;
+  previewThemeCheck: boolean;
   recipient: string;
   renderButtonSelector: string;
   sendButtonSelector: string | null;
@@ -31,6 +33,8 @@ interface HostSmokeConfig {
   storageStatePath: string;
   taskpaneFrameSelector: string;
   taskpaneReadySelector: string;
+  themeModeDarkSelector: string;
+  themeModeLightSelector: string;
   timeoutMs: number;
   toFieldSelector: string;
 }
@@ -43,6 +47,20 @@ const DEFAULT_OUTPUT_DIRECTORY = path.join(
 );
 const DEFAULT_TASKPANE_FRAME_SELECTOR = 'iframe[src*="taskpane.html"]';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const PREVIEW_THEME_MARKDOWN_SAMPLE = `# Preview heading
+
+Paragraph with \`inline code\`.
+
+> Blockquote content
+
+| Column | Value |
+| --- | --- |
+| Alpha | Beta |
+
+\`\`\`ts
+const preview = "dark-mode";
+\`\`\`
+`;
 
 void runHostSmoke().catch((error: unknown) => {
   console.error("MarkOut host smoke failed.", error);
@@ -84,6 +102,10 @@ async function runHostSmoke(): Promise<void> {
     await assertIntroDismissed(taskpane, config);
     await assertAutoRenderEnabled(taskpane, config);
     await openInsertPanel(taskpane, config);
+
+    if (config.previewThemeCheck) {
+      await verifyPreviewThemes(taskpane, config);
+    }
 
     await page.locator(config.toFieldSelector).first().fill(config.recipient);
     await page
@@ -300,6 +322,10 @@ function readHostSmokeConfig(): HostSmokeConfig {
       "MARKOUT_HOST_SMOKE_INTRO_PANEL_BUTTON_SELECTOR",
       "#panel-button-intro"
     ),
+    markdownInputSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_MARKDOWN_INPUT_SELECTOR",
+      "#markdown-input"
+    ),
     messageBodySelector: readStringEnv(
       "MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR",
       '[aria-label="Message body"], div[contenteditable="true"][role="textbox"]'
@@ -318,6 +344,10 @@ function readHostSmokeConfig(): HostSmokeConfig {
     previewSelector: readStringEnv(
       "MARKOUT_HOST_SMOKE_PREVIEW_SELECTOR",
       "#mo-preview"
+    ),
+    previewThemeCheck: readBooleanEnv(
+      "MARKOUT_HOST_SMOKE_PREVIEW_THEME_CHECK",
+      false
     ),
     recipient: readRequiredEnv("MARKOUT_HOST_SMOKE_RECIPIENT"),
     renderButtonSelector: readStringEnv(
@@ -347,6 +377,14 @@ function readHostSmokeConfig(): HostSmokeConfig {
     taskpaneReadySelector: readStringEnv(
       "MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR",
       "#taskpane-shell"
+    ),
+    themeModeDarkSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_THEME_MODE_DARK_SELECTOR",
+      "#theme-mode-dark"
+    ),
+    themeModeLightSelector: readStringEnv(
+      "MARKOUT_HOST_SMOKE_THEME_MODE_LIGHT_SELECTOR",
+      "#theme-mode-light"
     ),
     timeoutMs: readNumberEnv(
       "MARKOUT_HOST_SMOKE_TIMEOUT_MS",
@@ -420,6 +458,121 @@ async function openInsertPanel(
     .locator(config.previewSelector)
     .first()
     .waitFor({ state: "visible", timeout: config.timeoutMs });
+}
+
+function parseRgbChannels(value: string): [number, number, number] | null {
+  const match = /rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(value);
+
+  if (match === null) {
+    return null;
+  }
+
+  return [Number(match[1] ?? 0), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+function relativeLuminance([red, green, blue]: [
+  number,
+  number,
+  number,
+]): number {
+  const normalizedRed = normalizeColorChannel(red);
+  const normalizedGreen = normalizeColorChannel(green);
+  const normalizedBlue = normalizeColorChannel(blue);
+
+  return (
+    normalizedRed * 0.2126 + normalizedGreen * 0.7152 + normalizedBlue * 0.0722
+  );
+}
+
+function normalizeColorChannel(channel: number): number {
+  const normalizedChannel = channel / 255;
+
+  return normalizedChannel <= 0.03928
+    ? normalizedChannel / 12.92
+    : ((normalizedChannel + 0.055) / 1.055) ** 2.4;
+}
+
+async function assertPreviewReadable(
+  preview: Locator,
+  mode: "dark" | "light"
+): Promise<void> {
+  const colors = await preview.evaluate((element) => {
+    const sampleElement =
+      element.querySelector("h1, p, blockquote, code, th, td") ?? element;
+
+    return {
+      background: getComputedStyle(element).backgroundColor,
+      foreground: getComputedStyle(sampleElement).color,
+    };
+  });
+  const backgroundChannels = parseRgbChannels(colors.background);
+  const foregroundChannels = parseRgbChannels(colors.foreground);
+
+  if (backgroundChannels === null || foregroundChannels === null) {
+    throw new Error(
+      `MarkOut could not resolve preview colors in ${mode} mode.`
+    );
+  }
+
+  const luminanceDelta = Math.abs(
+    relativeLuminance(backgroundChannels) -
+      relativeLuminance(foregroundChannels)
+  );
+
+  if (luminanceDelta < 0.24) {
+    throw new Error(`MarkOut preview text is not readable in ${mode} mode.`);
+  }
+}
+
+async function selectThemeMode(
+  taskpane: FrameLocator,
+  selector: string,
+  timeoutMs: number
+): Promise<void> {
+  const button = taskpane.locator(selector).first();
+  await button.click();
+  await waitFor(async () => {
+    return (await button.getAttribute("aria-checked")) === "true";
+  }, timeoutMs);
+}
+
+async function verifyPreviewThemes(
+  taskpane: FrameLocator,
+  config: HostSmokeConfig
+): Promise<void> {
+  const preview = taskpane.locator(config.previewSelector).first();
+  const markdownInput = taskpane.locator(config.markdownInputSelector).first();
+
+  await openSettingsPanel(taskpane, config);
+  await selectThemeMode(
+    taskpane,
+    config.themeModeDarkSelector,
+    config.timeoutMs
+  );
+  await openInsertPanel(taskpane, config);
+  await markdownInput.fill(PREVIEW_THEME_MARKDOWN_SAMPLE);
+  await waitFor(async () => {
+    return (await preview.textContent())?.includes("Preview heading") ?? false;
+  }, config.timeoutMs);
+  await assertPreviewReadable(preview, "dark");
+  await preview.screenshot({
+    path: path.join(config.outputDirectory, "markout-preview-dark.png"),
+  });
+
+  await openSettingsPanel(taskpane, config);
+  await selectThemeMode(
+    taskpane,
+    config.themeModeLightSelector,
+    config.timeoutMs
+  );
+  await openInsertPanel(taskpane, config);
+  await waitFor(async () => {
+    return (await preview.textContent())?.includes("Preview heading") ?? false;
+  }, config.timeoutMs);
+  await assertPreviewReadable(preview, "light");
+  await preview.screenshot({
+    path: path.join(config.outputDirectory, "markout-preview-light.png"),
+  });
 }
 
 async function openSettingsPanel(

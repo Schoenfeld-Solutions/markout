@@ -1,48 +1,34 @@
+import { parseStyleRules } from "./stylesheet-rules";
+
 export const defaultStylesheet = `
 .mo {
+  color: inherit;
+  font-family: inherit;
+  font-size: 1em;
   line-height: 1.5;
 }
 
-code {
-  font-size: 0.95em;
-  margin: 0;
-  padding: 0.08em 0.3em;
-  background-color: rgba(127, 127, 127, 0.08);
-  border-radius: 4px;
-  white-space: normal;
-}
-
-.hljs,
-pre {
-  background-color: rgba(127, 127, 127, 0.08);
-  border: 1px solid rgba(127, 127, 127, 0.22);
-  border-radius: 6px;
-  display: block;
-  margin: 1em 0 !important;
-  overflow-x: auto;
-  padding: 0.75em !important;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-pre code {
-  background-color: transparent;
-  border-radius: 0;
-  display: block !important;
-  padding: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
+a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 p {
   margin: 0 0 1em 0 !important;
 }
 
-table, dl, blockquote, q, ul, ol {
+table,
+dl,
+blockquote,
+q,
+ul,
+ol,
+pre {
   margin: 1em 0 !important;
 }
 
-ul, ol {
+ul,
+ol {
   margin: 1em 0;
   padding-left: 1.5em;
 }
@@ -82,30 +68,35 @@ dl dd {
   padding: 0 1em;
 }
 
-blockquote, q {
+blockquote,
+q {
   border-left: 4px solid rgba(127, 127, 127, 0.35);
   padding: 0 1em;
   quotes: none;
 }
 
-blockquote::before, blockquote::after, q::before, q::after {
-  content: none;
-}
-
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: inherit;
+  font-family: inherit;
+  line-height: 1.25;
   margin: 1.3em 0 1em;
   padding: 0;
   font-weight: bold;
 }
 
 h1 {
-  font-size: 1.6em;
+  font-size: 1.8em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
   padding-bottom: 0.12em;
 }
 
 h2 {
-  font-size: 1.4em;
+  font-size: 1.5em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.24);
   padding-bottom: 0.1em;
 }
@@ -132,19 +123,13 @@ table {
   margin: 0;
   padding: 0;
   border: 0;
-  width: 100%;
 }
 
 table tr {
   border: 0;
   border-top: 1px solid rgba(127, 127, 127, 0.28);
-  background-color: transparent;
   margin: 0;
   padding: 0;
-}
-
-table tr:nth-child(2n) {
-  background-color: rgba(127, 127, 127, 0.06);
 }
 
 table tr th, table tr td {
@@ -154,12 +139,41 @@ table tr th, table tr td {
 }
 
 table tr th {
-  background-color: rgba(127, 127, 127, 0.1);
   font-weight: bold;
 }
 
-a {
-  text-decoration: underline;
+code,
+pre,
+.hljs {
+  font-family: Consolas, Inconsolata, Courier, monospace;
+}
+
+code {
+  font-size: 0.95em;
+  margin: 0;
+  padding: 0.08em 0.3em;
+  background-color: rgba(127, 127, 127, 0.08);
+  border-radius: 4px;
+  white-space: normal;
+}
+
+.hljs,
+pre {
+  background-color: rgba(127, 127, 127, 0.08);
+  border: 1px solid rgba(127, 127, 127, 0.22);
+  border-radius: 6px;
+  display: block;
+  overflow-x: auto;
+  padding: 0.75em !important;
+  white-space: pre-wrap;
+}
+
+pre code {
+  background-color: transparent;
+  border-radius: 0;
+  display: block !important;
+  padding: 0;
+  white-space: pre-wrap;
 }
 
 .hljs-keyword,.hljs-selector-tag,.hljs-section,.hljs-name,.hljs-type,.hljs-strong,.hljs-attr {
@@ -182,7 +196,73 @@ const SETTING_HELP_VISIBLE = "markout.helpVisible";
 const SETTING_INTRO_DISMISSED = "markout.introDismissed";
 const SETTING_LANGUAGE_PREFERENCE = "markout.languagePreference";
 const SETTING_STYLESHEET = "markout.stylesheet";
+const SETTING_STYLESHEET_PRESET = "markout.stylesheetPreset";
 const SETTING_THEME_MODE = "markout.themeMode";
+const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v1";
+const CUSTOM_STYLESHEET_PRESET = "custom";
+
+const LEGACY_DEFAULT_SIGNATURE_PATTERNS = [
+  /font-family:\s*-apple-system/i,
+  /font-size:\s*14px/i,
+  /color:\s*rgb\(\s*36\s*,\s*41\s*,\s*46\s*\)/i,
+  /blockquote::before/i,
+  /table\s+tr:nth-child\(2n\)/i,
+  /\.hljs-string/i,
+  /#0366d6/i,
+  /background-color:\s*white/i,
+];
+
+const KNOWN_DEFAULT_SELECTORS = new Set([
+  ".mo",
+  "a",
+  "p",
+  "table",
+  "dl",
+  "blockquote",
+  "q",
+  "ul",
+  "ol",
+  "pre",
+  "li",
+  "li p",
+  "ul ul",
+  "ul ol",
+  "ol ul",
+  "ol ol",
+  "ul ul ol",
+  "ul ol ol",
+  "ol ul ol",
+  "ol ol ol",
+  "dl dt",
+  "dl dd",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "table tr",
+  "table tr th",
+  "table tr td",
+  "code",
+  ".hljs",
+  "pre code",
+  ".hljs-keyword",
+  ".hljs-selector-tag",
+  ".hljs-section",
+  ".hljs-name",
+  ".hljs-type",
+  ".hljs-strong",
+  ".hljs-attr",
+  ".hljs-literal",
+  ".hljs-number",
+  ".hljs-emphasis",
+]);
+
+interface ResolvedStylesheetState {
+  migrationPending: boolean;
+  stylesheet: string;
+}
 
 interface RoamingSettingsLike {
   get(name: string): unknown;
@@ -202,6 +282,7 @@ export interface SettingsStore {
   getLanguagePreference(): LanguagePreference;
   getStylesheet(): string;
   getThemeMode(): ThemeMode;
+  hasStylesheetMigrationPending(): boolean;
   save(): Promise<void>;
   setAutoRender(enabled: boolean): void;
   setCreditsVisible(visible: boolean): void;
@@ -223,6 +304,99 @@ function isLanguagePreference(value: unknown): value is LanguagePreference {
 
 function normalizeStylesheet(stylesheet: string): string {
   return stylesheet.trim().length > 0 ? stylesheet : defaultStylesheet;
+}
+
+function normalizeStylesheetForComparison(stylesheet: string): string {
+  return stylesheet.replace(/\r/g, "").trim().replace(/\s+/g, " ");
+}
+
+function splitSelectors(selectorText: string): string[] {
+  return selectorText
+    .split(",")
+    .map((selector) => selector.trim())
+    .filter((selector) => selector.length > 0);
+}
+
+function getNormalizedSelectorSet(stylesheet: string): Set<string> {
+  return new Set(
+    parseStyleRules(stylesheet).flatMap((rule) =>
+      splitSelectors(rule.selectorText)
+    )
+  );
+}
+
+function isDefaultDerivedSelectorSet(stylesheet: string): boolean {
+  const selectors = getNormalizedSelectorSet(stylesheet);
+
+  return (
+    selectors.size > 0 &&
+    Array.from(selectors).every((selector) =>
+      KNOWN_DEFAULT_SELECTORS.has(selector)
+    )
+  );
+}
+
+function isDefaultPreset(value: unknown): boolean {
+  return value === CURRENT_STYLESHEET_PRESET;
+}
+
+function isCustomPreset(value: unknown): boolean {
+  return value === CUSTOM_STYLESHEET_PRESET;
+}
+
+function isClearlyDefaultDerivedStylesheet(stylesheet: string): boolean {
+  const normalizedStylesheet = normalizeStylesheetForComparison(stylesheet);
+
+  if (
+    normalizedStylesheet.length === 0 ||
+    normalizedStylesheet === normalizeStylesheetForComparison(defaultStylesheet)
+  ) {
+    return true;
+  }
+
+  if (
+    LEGACY_DEFAULT_SIGNATURE_PATTERNS.some((pattern) =>
+      pattern.test(normalizedStylesheet)
+    )
+  ) {
+    return true;
+  }
+
+  return isDefaultDerivedSelectorSet(normalizedStylesheet);
+}
+
+function resolveStoredStylesheetState(
+  storedStylesheet: unknown,
+  storedPreset: unknown
+): ResolvedStylesheetState {
+  if (
+    typeof storedStylesheet !== "string" ||
+    storedStylesheet.trim().length === 0
+  ) {
+    return {
+      migrationPending: false,
+      stylesheet: defaultStylesheet,
+    };
+  }
+
+  if (isDefaultPreset(storedPreset) || isCustomPreset(storedPreset)) {
+    return {
+      migrationPending: false,
+      stylesheet: normalizeStylesheet(storedStylesheet),
+    };
+  }
+
+  if (isClearlyDefaultDerivedStylesheet(storedStylesheet)) {
+    return {
+      migrationPending: true,
+      stylesheet: defaultStylesheet,
+    };
+  }
+
+  return {
+    migrationPending: false,
+    stylesheet: storedStylesheet,
+  };
 }
 
 class InMemorySettingsStore implements SettingsStore {
@@ -267,6 +441,10 @@ class InMemorySettingsStore implements SettingsStore {
     return this.themeMode;
   }
 
+  public hasStylesheetMigrationPending(): boolean {
+    return false;
+  }
+
   public async save(): Promise<void> {
     return Promise.resolve();
   }
@@ -307,6 +485,13 @@ class InMemorySettingsStore implements SettingsStore {
 class OfficeSettingsStore implements SettingsStore {
   public constructor(private readonly roamingSettings: RoamingSettingsLike) {}
 
+  private getResolvedStylesheetState(): ResolvedStylesheetState {
+    return resolveStoredStylesheetState(
+      this.roamingSettings.get(SETTING_STYLESHEET),
+      this.roamingSettings.get(SETTING_STYLESHEET_PRESET)
+    );
+  }
+
   public getAutoRender(): boolean {
     return this.roamingSettings.get(SETTING_AUTORENDER) === true;
   }
@@ -338,22 +523,17 @@ class OfficeSettingsStore implements SettingsStore {
   }
 
   public getStylesheet(): string {
-    const storedStylesheet = this.roamingSettings.get(SETTING_STYLESHEET);
-
-    if (
-      typeof storedStylesheet === "string" &&
-      storedStylesheet.trim().length > 0
-    ) {
-      return storedStylesheet;
-    }
-
-    return defaultStylesheet;
+    return this.getResolvedStylesheetState().stylesheet;
   }
 
   public getThemeMode(): ThemeMode {
     const storedThemeMode = this.roamingSettings.get(SETTING_THEME_MODE);
 
     return isThemeMode(storedThemeMode) ? storedThemeMode : "system";
+  }
+
+  public hasStylesheetMigrationPending(): boolean {
+    return this.getResolvedStylesheetState().migrationPending;
   }
 
   public async save(): Promise<void> {
@@ -396,9 +576,14 @@ class OfficeSettingsStore implements SettingsStore {
   }
 
   public setStylesheet(stylesheet: string): void {
+    const normalizedStylesheet = normalizeStylesheet(stylesheet);
+    this.roamingSettings.set(SETTING_STYLESHEET, normalizedStylesheet);
     this.roamingSettings.set(
-      SETTING_STYLESHEET,
-      normalizeStylesheet(stylesheet)
+      SETTING_STYLESHEET_PRESET,
+      normalizeStylesheetForComparison(normalizedStylesheet) ===
+        normalizeStylesheetForComparison(defaultStylesheet)
+        ? CURRENT_STYLESHEET_PRESET
+        : CUSTOM_STYLESHEET_PRESET
     );
   }
 
@@ -451,8 +636,11 @@ export function getStylesheet(): string {
 export async function saveStylesheet(stylesheet?: string): Promise<string> {
   const settingsStore = createOfficeSettingsStore();
 
-  if (stylesheet !== undefined) {
-    settingsStore.setStylesheet(stylesheet);
+  if (
+    stylesheet !== undefined ||
+    settingsStore.hasStylesheetMigrationPending()
+  ) {
+    settingsStore.setStylesheet(stylesheet ?? settingsStore.getStylesheet());
   }
 
   await settingsStore.save();

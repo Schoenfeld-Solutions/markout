@@ -167,8 +167,7 @@ const EN_US: LocalizedStrings = {
       "This fork is maintained by Schoenfeld Solutions, with ongoing work by Gabriel-Johannes Schönfeld.",
     currentMaintenanceTitle: "Current maintenance",
     openFork: "Open the fork",
-    panelDescription:
-      "MarkOut continues as an independently maintained fork while preserving visible credit to the upstream project.",
+    panelDescription: "",
     panelTitle: "Credits",
     starFork: "Leave a star",
     upstreamBody:
@@ -179,8 +178,7 @@ const EN_US: LocalizedStrings = {
     hostNotesTitle: "Host notes",
     inspectSelection: "Inspect selection",
     noSelectionSnapshot: "No selection snapshot loaded yet.",
-    panelDescription:
-      "Inspect host theme resolution and selection state without exposing debug noise to regular users.",
+    panelDescription: "",
     panelTitle: "Developer tools",
     resolvedTheme: "Preference: {mode}. Effective theme: {resolvedMode}.",
     ribbonHint:
@@ -210,8 +208,7 @@ const EN_US: LocalizedStrings = {
     docsDescription:
       "Open the GitHub Pages landing page with manifests, hosted docs, and deployment notes.",
     docsTitle: "Hosted project docs",
-    panelDescription:
-      "Use these links for the maintained fork, hosted project docs, and the operator website.",
+    panelDescription: "",
     panelTitle: "Help",
     repoDescription:
       "Track issues, releases, and the maintained Schoenfeld Solutions fork.",
@@ -242,11 +239,9 @@ const EN_US: LocalizedStrings = {
     inputLabel: "Markdown input",
     inputPlaceholder:
       "Paste Markdown here, or drop a Markdown file into the pane.",
-    panelDescription:
-      "Build a fragment in the pane, replace a selected body range, or insert rendered content at the current body cursor.",
+    panelDescription: "",
     panelTitle: "Insert rendered Markdown",
-    previewDescription:
-      "Preview uses the same sanitized fragment pipeline that MarkOut inserts into the draft body.",
+    previewDescription: "",
     previewLoading: "Rendering preview...",
     previewTitle: "Preview",
     renderEntireDraftButton: "Render entire draft",
@@ -275,16 +270,14 @@ const EN_US: LocalizedStrings = {
     developerTitle: "Developer tools",
     helpDescription: "Show or hide the help icon in the bottom toolbar.",
     helpTitle: "Help visibility",
-    languageDescription:
-      "Browser default follows the Office display language first, then the browser language.",
+    languageDescription: "",
     languageEnglish: "English",
     languageGerman: "Deutsch",
     languageSystem: "Browser default",
     languageTitle: "Language",
     introDescription: "Restore or hide the intro icon in the bottom toolbar.",
     introTitle: "Intro visibility",
-    panelDescription:
-      "Control theme behavior, Smart Alerts rendering, panel visibility, and the inline stylesheet.",
+    panelDescription: "",
     panelTitle: "Settings",
     themeDescription:
       "System follows Outlook theme when the host provides it and falls back to the browser preference otherwise.",
@@ -365,8 +358,7 @@ const DE_DE: LocalizedStrings = {
       "Dieser Fork wird von Schoenfeld Solutions gepflegt, mit laufender Weiterentwicklung durch Gabriel-Johannes Schönfeld.",
     currentMaintenanceTitle: "Aktuelle Pflege",
     openFork: "Fork öffnen",
-    panelDescription:
-      "MarkOut wird als eigenständig gepflegter Fork fortgeführt und gibt dem Upstream weiterhin sichtbar Credit.",
+    panelDescription: "",
     panelTitle: "Credits",
     starFork: "Stern vergeben",
     upstreamBody:
@@ -377,8 +369,7 @@ const DE_DE: LocalizedStrings = {
     hostNotesTitle: "Host-Hinweise",
     inspectSelection: "Selektion prüfen",
     noSelectionSnapshot: "Noch kein Selektions-Snapshot geladen.",
-    panelDescription:
-      "Host-Theme und Selektionszustand prüfen, ohne normale Nutzer mit Debug-Ausgaben zu belasten.",
+    panelDescription: "",
     panelTitle: "Developer-Tools",
     resolvedTheme: "Präferenz: {mode}. Effektives Theme: {resolvedMode}.",
     ribbonHint:
@@ -408,8 +399,7 @@ const DE_DE: LocalizedStrings = {
     docsDescription:
       "Öffnet die GitHub-Pages-Landingpage mit Manifests, gehosteter Doku und Deployment-Hinweisen.",
     docsTitle: "Gehostete Projektdoku",
-    panelDescription:
-      "Diese Links führen zum gepflegten Fork, zur gehosteten Projektdoku und zur Betreiber-Website.",
+    panelDescription: "",
     panelTitle: "Hilfe",
     repoDescription:
       "Issues, Releases und den gepflegten Schoenfeld-Solutions-Fork ansehen.",
@@ -440,11 +430,9 @@ const DE_DE: LocalizedStrings = {
     inputLabel: "Markdown-Eingabe",
     inputPlaceholder:
       "Markdown hier einfügen oder eine Markdown-Datei in die Pane ziehen.",
-    panelDescription:
-      "Ein Fragment in der Pane vorbereiten, einen selektierten Body-Bereich ersetzen oder gerenderten Inhalt am aktuellen Cursor einfügen.",
+    panelDescription: "",
     panelTitle: "Gerendertes Markdown einfügen",
-    previewDescription:
-      "Die Vorschau nutzt dieselbe sanitizte Fragment-Pipeline wie der spätere Draft-Insert.",
+    previewDescription: "",
     previewLoading: "Vorschau wird gerendert...",
     previewTitle: "Vorschau",
     renderEntireDraftButton: "Gesamten Entwurf rendern",
@@ -475,8 +463,7 @@ const DE_DE: LocalizedStrings = {
     helpDescription:
       "Hilfe-Symbol in der unteren Toolbar ein- oder ausblenden.",
     helpTitle: "Hilfe-Sichtbarkeit",
-    languageDescription:
-      "Browser-Default folgt zuerst der Office-Anzeigesprache und danach der Browsersprache.",
+    languageDescription: "",
     languageEnglish: "English",
     languageGerman: "Deutsch",
     languageSystem: "Browser-Default",
@@ -484,8 +471,7 @@ const DE_DE: LocalizedStrings = {
     introDescription:
       "Intro-Symbol in der unteren Toolbar wiederherstellen oder ausblenden.",
     introTitle: "Intro-Sichtbarkeit",
-    panelDescription:
-      "Theme-Verhalten, Smart-Alerts-Rendering, Panel-Sichtbarkeit und das Inline-Stylesheet steuern.",
+    panelDescription: "",
     panelTitle: "Einstellungen",
     themeDescription:
       "System folgt dem Outlook-Theme, wenn der Host es liefert, und fällt sonst auf die Browser-Präferenz zurück.",
