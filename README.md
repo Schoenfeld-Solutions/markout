@@ -42,8 +42,8 @@ that remains covered by the MIT license in [LICENSE](LICENSE).
 MarkOut stays on the Outlook add-in-only XML manifest because Outlook on Mac still doesn't support
 the unified Microsoft 365 manifest for this scenario. The repo therefore uses:
 
-- `manifest.xml` for production deployments
-- `manifest.beta.xml` for staging deployments
+- `manifest.xml` for stable production deployments
+- `manifest.beta.xml` for post-merge preview and testing deployments
 - `manifest-localhost.xml` for local sideloading and development
 
 ## Installation
@@ -55,7 +55,8 @@ for testing, use one of the supported flows documented by Microsoft:
 2. Choose **Add from File**.
 3. Select the manifest you want to test:
    - `manifest-localhost.xml` for local development
-   - `manifest.xml` for the production deployment
+   - `manifest.xml` for the stable production deployment
+   - `manifest.beta.xml` for the post-merge preview and testing channel
 
 The command buttons appear in message compose and appointment compose surfaces. The task pane is used
 for all manual rendering and insertion work, while Smart Alerts can auto-render content before send
@@ -95,6 +96,13 @@ For hosted builds, download one of the published manifests first and then use **
 - `https://schoenfeld-solutions.github.io/markout/manifest.xml`
 - `https://schoenfeld-solutions.github.io/markout/manifest.beta.xml`
 
+Hosted channel semantics:
+
+- `manifest.xml` is the stable production channel and is sourced from the
+  `release/production` branch.
+- `manifest.beta.xml` is the post-merge preview/testing channel and is sourced
+  from `main`.
+
 The Pages root at `https://schoenfeld-solutions.github.io/markout/` now serves a static MarkOut
 landing page instead of a generic GitHub 404.
 
@@ -127,26 +135,30 @@ is intentionally not a Marketplace-valid manifest because it targets `https://lo
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest validation.
 
-## Preview deployments
+## Release channels
 
-MarkOut can publish **PR-specific preview runtimes** to a separate Cloudflare Pages
-project while GitHub Pages remains the production host for `main`.
+MarkOut follows a deliberate **post-merge preview model** on GitHub Pages.
 
-- Preview deploys are gated by the repository variable `MARKOUT_PREVIEW_ENABLED=true`.
-- The preview workflow expects:
-  - secret `CLOUDFLARE_API_TOKEN`
-  - secret `CLOUDFLARE_ACCOUNT_ID`
-  - variable `CLOUDFLARE_PAGES_PROJECT_NAME`
-- Each PR preview publishes to the stable alias `pr-<number>.<project>.pages.dev`
-  and generates `manifest.preview.xml` for that PR.
-- The workflow comments the preview site and preview manifest links back onto the PR.
+- `main` is the integration branch for the hosted beta channel.
+- `release/production` is the stable source branch for the hosted production
+  channel.
+- GitHub Actions packages both channels onto the same GitHub Pages site:
+  - `/markout/outlook/` from `release/production`
+  - `/markout/outlook-beta/` from `main`
+- Normal pushes to `main` must not silently move production.
+- Promotion from beta to production happens manually through the
+  **Promote Production Channel** workflow by choosing a validated `main` commit.
+- The first rollout should bootstrap `release/production` from the current
+  stable production commit so future promotions can stay explicit and
+  fast-forward only.
 
-Preview verification in Outlook still uses **Add from File**:
+The expected testing flow is therefore:
 
-1. Download the generated `manifest.preview.xml` from the PR preview link.
-2. Remove any conflicting MarkOut sideload in OWA if necessary.
-3. Open **Get Add-ins** > **My add-ins** > **Add a custom add-in** > **Add from File**.
-4. Select the downloaded preview manifest and verify the PR build in compose.
+1. Review and merge the PR into `main`.
+2. Install `manifest.beta.xml` in OWA with **Add from File**.
+3. Verify the new hosted beta channel in compose.
+4. Promote the validated `main` commit to `release/production`.
+5. Verify the stable production channel with `manifest.xml`.
 
 ## Dependency maintenance
 
@@ -189,23 +201,26 @@ Common optional overrides:
 - `MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR`
 - `MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR`
 
-The smoke verifies that the task pane opens, the preview loads, auto-render remains enabled after reload,
-manual rendering updates the draft body, and the Smart Alerts send flow completes successfully.
+The smoke verifies that the task pane opens, the preview loads, auto-render
+remains enabled after reload, manual rendering updates the draft body, and the
+Smart Alerts send flow completes successfully.
 
-For PR preview smoke runs, the workflow can also assert that the opened taskpane
-iframe comes from the expected preview host via `MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX`.
-That still assumes the preview manifest has been installed for the dedicated test
-account before the smoke is executed.
+`MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX` can be used to assert that the
+opened taskpane iframe comes from the intended hosted channel:
+
+- `https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html`
+  for post-merge beta verification
+- `https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html`
+  for stable production verification
 
 ## Deployment notes
 
 - Support and issue tracking live at `https://github.com/Schoenfeld-Solutions/markout`.
 - The published GitHub Pages site is `https://schoenfeld-solutions.github.io/markout/`.
-- PR previews can be published to a separate Cloudflare Pages project with PR-specific aliases.
 - The Pages root serves a static MarkOut landing page with links to hosted manifests, task pane runtimes, and the repository.
 - Unknown GitHub Pages paths use a custom MarkOut 404 page instead of the default GitHub Pages error screen.
-- Production assets are served from `https://schoenfeld-solutions.github.io/markout/outlook/`.
-- Staging assets are served from `https://schoenfeld-solutions.github.io/markout/outlook-beta/`.
+- Production assets are served from `https://schoenfeld-solutions.github.io/markout/outlook/` and sourced from `release/production`.
+- Beta assets are served from `https://schoenfeld-solutions.github.io/markout/outlook-beta/` and sourced from `main`.
 - Manifest variants must remain behaviorally aligned.
 
 [gfm]: https://github.github.com/gfm/

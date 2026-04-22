@@ -2,7 +2,9 @@ name: Build and Publish GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - release/production
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -35,52 +37,15 @@ jobs:
       - name: Run quality gates
         run: npm run check
 
-      - name: Package GitHub Pages artifact
-        run: |
-          mkdir -p ./out/outlook/
-          mkdir -p ./out/outlook-beta/
-          cp site/index.html ./out/index.html
-          cp site/404.html ./out/404.html
-          cp manifest.xml ./out/manifest.xml
-          cp manifest.beta.xml ./out/manifest.beta.xml
-          cp -R assets ./out/
-          cp -R assets ./out/outlook/
-          cp -R dist/. ./out/outlook/
-          cp -R assets ./out/outlook-beta/
-          cp -R dist/. ./out/outlook-beta/
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: site-build
-          path: ./out
-
-      - name: Configure GitHub Pages
-        if: github.event_name == 'push'
-        uses: actions/configure-pages@v5
-
-      - name: Upload GitHub Pages artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: ./out
-
-  preview:
+  package-site:
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.MARKOUT_PREVIEW_ENABLED == 'true'
-
-    permissions:
-      contents: read
-      pull-requests: write
-
-    outputs:
-      preview_alias_url: ${{ steps.preview_urls.outputs.alias_url }}
-      preview_manifest_url: ${{ steps.preview_urls.outputs.manifest_url }}
+    if: github.event_name != 'pull_request'
 
     steps:
       - uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           submodules: true
 
       - name: Setup Node.js environment
@@ -89,127 +54,89 @@ jobs:
           cache: npm
           node-version: 25.x
 
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Validate preview deployment configuration
+      - name: Resolve release channel refs
+        id: resolve_refs
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          REF_NAME: ${{ github.ref_name }}
+          ZERO_SHA: 0000000000000000000000000000000000000000
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN is required when MARKOUT_PREVIEW_ENABLED is true."; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID is required when MARKOUT_PREVIEW_ENABLED is true."; exit 1; }
-          test -n "$CLOUDFLARE_PAGES_PROJECT_NAME" || { echo "CLOUDFLARE_PAGES_PROJECT_NAME is required when MARKOUT_PREVIEW_ENABLED is true."; exit 1; }
+          git fetch origin main release/production --depth=1 || git fetch origin main --depth=1
+          git rev-parse --verify origin/main >/dev/null
 
-      - name: Download site build artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: site-build
-          path: ./preview-site
+          echo "beta_ref=origin/main" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy preview runtime
-        id: deploy_preview_runtime
-        uses: cloudflare/wrangler-action@v3
-        with:
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy ./preview-site --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }} --branch=pr-${{ github.event.pull_request.number }}
-
-      - name: Resolve preview alias URL
-        id: preview_alias
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy_preview_runtime.outputs.deployment-url }}
-          PREVIEW_ALIAS_URL: ${{ steps.deploy_preview_runtime.outputs.pages-deployment-alias-url }}
-        run: |
-          if [ -z "$PREVIEW_ALIAS_URL" ]; then
-            PREVIEW_ALIAS_URL="$DEPLOYMENT_URL"
+          if git rev-parse --verify origin/release/production >/dev/null 2>&1; then
+            echo "production_ref=origin/release/production" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          test -n "$PREVIEW_ALIAS_URL" || { echo "Cloudflare preview deployment did not expose a deployment URL."; exit 1; }
-          echo "alias_url=$PREVIEW_ALIAS_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Generate preview manifest
-        run: |
-          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/generate-preview-manifest.ts \
-            --source manifest.beta.xml \
-            --output preview-site/manifest.preview.xml \
-            --base-url "${{ steps.preview_alias.outputs.alias_url }}" \
-            --display-name "MarkOut (Preview PR #${{ github.event.pull_request.number }})"
-
-      - name: Deploy preview manifest
-        id: deploy_preview_manifest
-        uses: cloudflare/wrangler-action@v3
-        with:
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy ./preview-site --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }} --branch=pr-${{ github.event.pull_request.number }}
-
-      - name: Resolve preview urls
-        id: preview_urls
-        env:
-          FALLBACK_ALIAS_URL: ${{ steps.preview_alias.outputs.alias_url }}
-          PREVIEW_ALIAS_URL: ${{ steps.deploy_preview_manifest.outputs.pages-deployment-alias-url }}
-        run: |
-          if [ -z "$PREVIEW_ALIAS_URL" ]; then
-            PREVIEW_ALIAS_URL="$FALLBACK_ALIAS_URL"
+          if [ "$REF_NAME" = "main" ] && [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "$ZERO_SHA" ]; then
+            echo "::warning::origin/release/production is missing. Falling back to the previous main commit for the production channel. Create release/production with the Promote Production workflow before the next release."
+            echo "production_ref=$EVENT_BEFORE" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          test -n "$PREVIEW_ALIAS_URL" || { echo "Preview alias URL is missing after manifest deployment."; exit 1; }
-          PREVIEW_MANIFEST_URL="${PREVIEW_ALIAS_URL%/}/manifest.preview.xml"
-          echo "alias_url=$PREVIEW_ALIAS_URL" >> "$GITHUB_OUTPUT"
-          echo "manifest_url=$PREVIEW_MANIFEST_URL" >> "$GITHUB_OUTPUT"
+
+          echo "Missing origin/release/production. Bootstrap the production channel before deploying GitHub Pages."
+          exit 1
+
+      - name: Create source worktrees
+        run: |
+          git worktree add --detach ./beta-source "${{ steps.resolve_refs.outputs.beta_ref }}"
+          git worktree add --detach ./production-source "${{ steps.resolve_refs.outputs.production_ref }}"
+
+      - name: Summarize release channels
+        run: |
           {
-            echo "### MarkOut preview"
+            echo "### MarkOut release channels"
             echo ""
-            echo "- Preview site: $PREVIEW_ALIAS_URL"
-            echo "- Preview manifest: $PREVIEW_MANIFEST_URL"
-            echo "- Preview branch alias: pr-${{ github.event.pull_request.number }}"
+            echo "- Beta source: \`${{ steps.resolve_refs.outputs.beta_ref }}\`"
+            echo "- Production source: \`${{ steps.resolve_refs.outputs.production_ref }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Comment preview links on PR
-        uses: actions/github-script@v8
-        env:
-          PREVIEW_ALIAS_URL: ${{ steps.preview_urls.outputs.alias_url }}
-          PREVIEW_MANIFEST_URL: ${{ steps.preview_urls.outputs.manifest_url }}
+      - name: Install beta dependencies
+        working-directory: ./beta-source
+        run: npm ci
+
+      - name: Build beta channel
+        working-directory: ./beta-source
+        run: npm run build
+
+      - name: Install production dependencies
+        working-directory: ./production-source
+        run: npm ci
+
+      - name: Build production channel
+        working-directory: ./production-source
+        run: npm run build
+
+      - name: Package GitHub Pages artifact
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/package-github-pages-site.ts \
+            --beta-root ./beta-source \
+            --production-root ./production-source \
+            --output-root ./out
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
         with:
-          script: |
-            const marker = "<!-- markout-preview -->";
-            const body = [
-              marker,
-              "## MarkOut Preview",
-              "",
-              `- Preview site: ${process.env.PREVIEW_ALIAS_URL}`,
-              `- Preview manifest: ${process.env.PREVIEW_MANIFEST_URL}`,
-              "",
-              "Install the preview manifest with Outlook's **Add from File** flow before running a real OWA verification for this PR."
-            ].join("\n");
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-            const existingComment = comments.find((comment) =>
-              comment.user?.type === "Bot" && comment.body?.includes(marker)
-            );
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body
-              });
-              return;
-            }
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
+          name: site-build
+          path: ./out
+
+      - name: Configure GitHub Pages
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./out
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [build]
-    if: github.event_name == 'push'
+    needs: [package-site]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     permissions:
       contents: read
@@ -259,63 +186,7 @@ jobs:
           MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR }}
           MARKOUT_HOST_SMOKE_BROWSER_EXECUTABLE: ${{ vars.MARKOUT_HOST_SMOKE_BROWSER_EXECUTABLE }}
           MARKOUT_HOST_SMOKE_COMPOSE_URL: ${{ vars.MARKOUT_HOST_SMOKE_COMPOSE_URL }}
-          MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX: ${{ vars.MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX }}
-          MARKOUT_HOST_SMOKE_HEADLESS: "true"
-          MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_INTRO_PANEL_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_INTRO_PANEL_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_MESSAGE_BODY_SELECTOR }}
-          MARKOUT_HOST_SMOKE_OPEN_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_OPEN_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_OPEN_BUTTON_TEXT: ${{ vars.MARKOUT_HOST_SMOKE_OPEN_BUTTON_TEXT }}
-          MARKOUT_HOST_SMOKE_PREVIEW_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_PREVIEW_SELECTOR }}
-          MARKOUT_HOST_SMOKE_RECIPIENT: ${{ vars.MARKOUT_HOST_SMOKE_RECIPIENT }}
-          MARKOUT_HOST_SMOKE_RENDER_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_RENDER_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_SEND_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_SEND_BUTTON_TEXT: ${{ vars.MARKOUT_HOST_SMOKE_SEND_BUTTON_TEXT }}
-          MARKOUT_HOST_SMOKE_SETTINGS_PANEL_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_SETTINGS_PANEL_BUTTON_SELECTOR }}
-          MARKOUT_HOST_SMOKE_SENT_CONFIRMATION_TEXT: ${{ vars.MARKOUT_HOST_SMOKE_SENT_CONFIRMATION_TEXT }}
-          MARKOUT_HOST_SMOKE_STORAGE_STATE: ${{ runner.temp }}/markout-storage-state.json
-          MARKOUT_HOST_SMOKE_TASKPANE_FRAME_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_TASKPANE_FRAME_SELECTOR }}
-          MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_TASKPANE_READY_SELECTOR }}
-          MARKOUT_HOST_SMOKE_TIMEOUT_MS: ${{ vars.MARKOUT_HOST_SMOKE_TIMEOUT_MS }}
-          MARKOUT_HOST_SMOKE_TO_FIELD_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_TO_FIELD_SELECTOR }}
-        run: npm run test:host-smoke
-
-  preview-host-smoke:
-    runs-on: ubuntu-latest
-    needs: [preview]
-    if: github.event_name == 'pull_request' && needs.preview.result == 'success' && vars.MARKOUT_HOST_SMOKE_PREVIEW_ENABLED == 'true'
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
-
-      - name: Setup Node.js environment
-        uses: actions/setup-node@v6.3.0
-        with:
-          cache: npm
-          node-version: 25.x
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Write host smoke storage state
-        env:
-          MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON: ${{ secrets.MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON }}
-        run: |
-          if [ -z "$MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON" ]; then
-            echo "MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON is required when MARKOUT_HOST_SMOKE_PREVIEW_ENABLED is true."
-            exit 1
-          fi
-          printf '%s' "$MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON" > "$RUNNER_TEMP/markout-storage-state.json"
-
-      - name: Run preview Outlook host smoke
-        env:
-          MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_AUTORENDER_SWITCH_SELECTOR }}
-          MARKOUT_HOST_SMOKE_BROWSER_EXECUTABLE: ${{ vars.MARKOUT_HOST_SMOKE_BROWSER_EXECUTABLE }}
-          MARKOUT_HOST_SMOKE_COMPOSE_URL: ${{ vars.MARKOUT_HOST_SMOKE_COMPOSE_URL }}
-          MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX: ${{ needs.preview.outputs.preview_alias_url }}/outlook-beta/taskpane.html
+          MARKOUT_HOST_SMOKE_EXPECTED_TASKPANE_URL_PREFIX: ${{ github.ref_name == 'release/production' && 'https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html' || 'https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html' }}
           MARKOUT_HOST_SMOKE_HEADLESS: "true"
           MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_INSERT_PANEL_BUTTON_SELECTOR }}
           MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR: ${{ vars.MARKOUT_HOST_SMOKE_INTRO_CONFIRM_BUTTON_SELECTOR }}

@@ -18,7 +18,8 @@ constraints documented in [README.md](README.md).
 
 - Do not commit feature work directly on `main`.
 - Use a short-lived feature branch in the form `dev/<topic>`.
-- Do not use `codex/<topic>` branch names in this repository.
+- Treat `main` as the integration branch for the hosted beta/testing channel.
+- Treat `release/production` as the stable production source branch.
 - Keep pull requests focused and behaviorally coherent.
 - Update README and manifests in the same workstream when setup, hosting,
   support URLs, or Outlook behavior changes.
@@ -84,20 +85,25 @@ Additional checks when relevant:
 If the host smoke cannot be run because credentials or Outlook test
 infrastructure are unavailable, call that out explicitly in the PR.
 
-## Preview deployment workflow
+## Release channel workflow
 
-- PR previews publish to a **separate Cloudflare Pages project**; GitHub Pages
-  remains the production host for `main`.
-- Required GitHub configuration for preview deploys:
-  - secret `CLOUDFLARE_API_TOKEN`
-  - secret `CLOUDFLARE_ACCOUNT_ID`
-  - variable `CLOUDFLARE_PAGES_PROJECT_NAME`
-  - variable `MARKOUT_PREVIEW_ENABLED=true`
-- The preview workflow generates `manifest.preview.xml` per PR and comments the
-  preview links onto the PR.
-- If you want automated preview host smoke, also enable
-  `MARKOUT_HOST_SMOKE_PREVIEW_ENABLED=true` and make sure the dedicated Outlook
-  test account has the preview manifest installed for that PR alias.
+- MarkOut intentionally uses a **post-merge preview model**.
+- There is no separate PR-preview host in the default delivery stack.
+- GitHub Actions + GitHub Pages are the only supported hosted delivery path.
+- `manifest.beta.xml` and `/outlook-beta/` are the post-merge preview/testing
+  channel sourced from `main`.
+- `manifest.xml` and `/outlook/` are the stable production channel sourced from
+  `release/production`.
+- Bootstrap `release/production` once from the current stable production commit
+  before relying on independent promotions.
+- Normal pushes to `main` must not move production.
+- Production is updated only through the manual
+  **Promote Production Channel** workflow by selecting a validated `main` SHA.
+- The expected rollout path is:
+  1. merge to `main`
+  2. verify with `manifest.beta.xml`
+  3. promote the validated commit
+  4. verify with `manifest.xml`
 
 ## Dependency and automation policy
 

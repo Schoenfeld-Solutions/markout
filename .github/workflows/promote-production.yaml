@@ -1,0 +1,52 @@
+name: Promote Production Channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Commit SHA from main to promote into release/production
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate promotion target
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test -n "$SOURCE_SHA" || { echo "source_sha is required."; exit 1; }
+
+          git fetch origin main release/production --depth=1 || git fetch origin main --depth=1
+          git rev-parse --verify "$SOURCE_SHA^{commit}" >/dev/null
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
+            echo "The requested source_sha is not reachable from origin/main."
+            exit 1
+          }
+
+          if git rev-parse --verify origin/release/production >/dev/null 2>&1; then
+            git merge-base --is-ancestor origin/release/production "$SOURCE_SHA" || {
+              echo "The requested source_sha is not a fast-forward from origin/release/production."
+              exit 1
+            }
+          fi
+
+      - name: Promote release/production
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          git push origin "$SOURCE_SHA:refs/heads/release/production"
+          {
+            echo "### Production promotion"
+            echo ""
+            echo "- Promoted SHA: \`$SOURCE_SHA\`"
+            echo "- Target branch: \`release/production\`"
+          } >> "$GITHUB_STEP_SUMMARY"
