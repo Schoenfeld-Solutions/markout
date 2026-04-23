@@ -73,6 +73,10 @@ the unified Microsoft 365 manifest for this scenario. The repo therefore uses:
 - `manifest.beta.xml` for post-merge preview and testing deployments
 - `manifest-localhost.xml` for local sideloading and development
 
+Each manifest is now a distinct add-in with its own add-in ID and explicit
+runtime channel marker.
+No browser settings or restore-state keys are shared across production, beta, and local add-ins.
+
 ## Installation
 
 Microsoft no longer supports installing Outlook add-ins with **Add from URL**. To sideload MarkOut
@@ -167,6 +171,11 @@ can be verified without Outlook.
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest validation.
 
+`npm run check:repo-contracts` enforces manifest/version/channel invariants and
+release-policy documentation drift.
+Pull requests also require a Conventional Commit PR title, dependency review,
+`npm run test:taskpane-ui`, and the coverage gate in GitHub Actions.
+
 ## Release channels
 
 MarkOut follows a deliberate **post-merge preview model** on GitHub Pages.
@@ -180,9 +189,9 @@ MarkOut follows a deliberate **post-merge preview model** on GitHub Pages.
 - Normal pushes to `main` must not silently move production.
 - Promotion from beta to production happens manually through the
   **Promote Production Channel** workflow by choosing a validated `main` commit.
-- The first rollout should bootstrap `release/production` from the current
-  stable production commit so future promotions can stay explicit and
-  fast-forward only.
+- Release packaging hard-fails if `release/production` is missing.
+- Promotion requires a successful beta release run for the exact `main` SHA and
+  approval of the protected `production-promotion` environment.
 
 The expected testing flow is therefore:
 
@@ -191,6 +200,16 @@ The expected testing flow is therefore:
 3. Verify the new hosted beta channel in compose.
 4. Promote the validated `main` commit to `release/production`.
 5. Verify the stable production channel with `manifest.xml`.
+
+Architecture decisions and operating procedures for this flow live in:
+
+- [`docs/adr/0001-channel-isolation.md`](docs/adr/0001-channel-isolation.md)
+- [`docs/adr/0002-taskpane-boundaries.md`](docs/adr/0002-taskpane-boundaries.md)
+- [`docs/adr/0003-release-gates.md`](docs/adr/0003-release-gates.md)
+- [`docs/runbooks/beta-verification.md`](docs/runbooks/beta-verification.md)
+- [`docs/runbooks/production-promotion.md`](docs/runbooks/production-promotion.md)
+- [`docs/runbooks/rollback.md`](docs/runbooks/rollback.md)
+- [`docs/runbooks/host-smoke-failures.md`](docs/runbooks/host-smoke-failures.md)
 
 ## Dependency maintenance
 
@@ -215,6 +234,11 @@ Required environment variables:
 
 - `MARKOUT_HOST_SMOKE_STORAGE_STATE`
 - `MARKOUT_HOST_SMOKE_RECIPIENT`
+
+In GitHub Actions, hosted release pushes fail early if the repository is missing
+the required host-smoke storage state or recipient configuration.
+The beta release must pass host smoke before a SHA is eligible for production
+promotion, and production runs host smoke again after deployment.
 
 Common optional overrides:
 

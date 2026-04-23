@@ -5,8 +5,6 @@ on:
     branches:
       - main
       - release/production
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -37,10 +35,62 @@ jobs:
       - name: Run quality gates
         run: npm run check
 
-  package-site:
+  validate-release-branches:
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name != 'pull_request'
+
+    outputs:
+      beta_ref: ${{ steps.refs.outputs.beta_ref }}
+      production_ref: ${{ steps.refs.outputs.production_ref }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release channel refs
+        id: refs
+        run: |
+          git fetch origin main release/production --depth=1
+          git rev-parse --verify origin/main >/dev/null
+
+          if ! git rev-parse --verify origin/release/production >/dev/null 2>&1; then
+            echo "Missing origin/release/production. Refusing to publish GitHub Pages without an explicit production source branch."
+            exit 1
+          fi
+
+          echo "beta_ref=origin/main" >> "$GITHUB_OUTPUT"
+          echo "production_ref=origin/release/production" >> "$GITHUB_OUTPUT"
+
+  validate-host-smoke-configuration:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Validate host smoke prerequisites
+        env:
+          MARKOUT_HOST_SMOKE_RECIPIENT: ${{ vars.MARKOUT_HOST_SMOKE_RECIPIENT }}
+          MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON: ${{ secrets.MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON }}
+        run: |
+          test -n "$MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON" || {
+            echo "MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON is required."
+            exit 1
+          }
+
+          test -n "$MARKOUT_HOST_SMOKE_RECIPIENT" || {
+            echo "MARKOUT_HOST_SMOKE_RECIPIENT is required."
+            exit 1
+          }
+
+  package-site:
+    runs-on: ubuntu-latest
+    needs: [validate-release-branches]
+
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v6
@@ -54,44 +104,18 @@ jobs:
           cache: npm
           node-version: 25.x
 
-      - name: Resolve release channel refs
-        id: resolve_refs
-        env:
-          EVENT_BEFORE: ${{ github.event.before }}
-          REF_NAME: ${{ github.ref_name }}
-          ZERO_SHA: 0000000000000000000000000000000000000000
-        run: |
-          git fetch origin main release/production --depth=1 || git fetch origin main --depth=1
-          git rev-parse --verify origin/main >/dev/null
-
-          echo "beta_ref=origin/main" >> "$GITHUB_OUTPUT"
-
-          if git rev-parse --verify origin/release/production >/dev/null 2>&1; then
-            echo "production_ref=origin/release/production" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$REF_NAME" = "main" ] && [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "$ZERO_SHA" ]; then
-            echo "::warning::origin/release/production is missing. Falling back to the previous main commit for the production channel. Create release/production with the Promote Production workflow before the next release."
-            echo "production_ref=$EVENT_BEFORE" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Missing origin/release/production. Bootstrap the production channel before deploying GitHub Pages."
-          exit 1
-
       - name: Create source worktrees
         run: |
-          git worktree add --detach ./beta-source "${{ steps.resolve_refs.outputs.beta_ref }}"
-          git worktree add --detach ./production-source "${{ steps.resolve_refs.outputs.production_ref }}"
+          git worktree add --detach ./beta-source "${{ needs.validate-release-branches.outputs.beta_ref }}"
+          git worktree add --detach ./production-source "${{ needs.validate-release-branches.outputs.production_ref }}"
 
       - name: Summarize release channels
         run: |
           {
             echo "### MarkOut release channels"
             echo ""
-            echo "- Beta source: \`${{ steps.resolve_refs.outputs.beta_ref }}\`"
-            echo "- Production source: \`${{ steps.resolve_refs.outputs.production_ref }}\`"
+            echo "- Beta source: \`${{ needs.validate-release-branches.outputs.beta_ref }}\`"
+            echo "- Production source: \`${{ needs.validate-release-branches.outputs.production_ref }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install beta dependencies
@@ -117,6 +141,21 @@ jobs:
             --production-root ./production-source \
             --output-root ./out
 
+      - name: Generate SBOM
+        run: npm sbom --sbom-format cyclonedx --omit dev > ./out/sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-sbom
+          path: ./out/sbom.cdx.json
+
+      - name: Attest GitHub Pages artifact provenance
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: ./out
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
@@ -140,8 +179,8 @@ jobs:
 
     permissions:
       contents: read
-      pages: write
       id-token: write
+      pages: write
 
     environment:
       name: github-pages
@@ -154,8 +193,8 @@ jobs:
 
   host-smoke:
     runs-on: ubuntu-latest
-    needs: [deploy]
-    if: github.event_name == 'push' && vars.MARKOUT_HOST_SMOKE_ENABLED == 'true'
+    needs: [deploy, validate-host-smoke-configuration]
+    if: github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v6
@@ -176,9 +215,10 @@ jobs:
           MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON: ${{ secrets.MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON }}
         run: |
           if [ -z "$MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON" ]; then
-            echo "MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON is required when MARKOUT_HOST_SMOKE_ENABLED is true."
+            echo "MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON is required."
             exit 1
           fi
+
           printf '%s' "$MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON" > "$RUNNER_TEMP/markout-storage-state.json"
 
       - name: Run Outlook host smoke

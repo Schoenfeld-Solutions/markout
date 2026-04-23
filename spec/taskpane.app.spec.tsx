@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 
+import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ComposeNotificationService } from "../src/lib/compose-notifications";
@@ -19,6 +20,7 @@ import {
   supportsMarkdownFile,
 } from "../src/taskpane/app";
 import { getStrings } from "../src/taskpane/i18n";
+import { HelpPanel, IntroPanel, SettingsPanel } from "../src/taskpane/panels";
 import { TaskpaneRuntimeErrorBoundary } from "../src/taskpane/runtime";
 
 (
@@ -118,6 +120,14 @@ function ensureMatchMedia(): () => void {
       value: originalMatchMedia,
     });
   };
+}
+
+function createPanelStyles(): Record<string, string> {
+  const styles: Record<string, string> = {};
+
+  return new Proxy(styles, {
+    get: (_, key) => String(key),
+  });
 }
 
 describe("taskpane app helpers", () => {
@@ -356,6 +366,7 @@ describe("taskpane app helpers", () => {
   it("does not leave the removed descriptions behind in intro, settings, or help", async () => {
     const restoreMatchMedia = ensureMatchMedia();
     let root: Root | null = null;
+    const strings = getStrings("en-US");
 
     try {
       document.body.innerHTML = '<div id="root"></div>';
@@ -369,12 +380,40 @@ describe("taskpane app helpers", () => {
 
       await act(async () => {
         root?.render(
-          <TaskpaneApp
-            locale="en-US"
-            notificationService={createNotificationService()}
-            services={createServices()}
-            settingsStore={createSettingsStore()}
-          />
+          <FluentProvider theme={webLightTheme}>
+            <>
+              <IntroPanel
+                onConfirm={() => undefined}
+                strings={strings}
+                styles={createPanelStyles()}
+              />
+              <SettingsPanel
+                autoRenderEnabled={false}
+                codeMirrorHostRef={{ current: null }}
+                cssLintResult={null}
+                developerToolsEnabled={false}
+                helpVisible={true}
+                introVisible={true}
+                isCodeMirrorLoading={false}
+                isWorking={false}
+                languagePreference="system"
+                onCreditsVisibilityChange={() => undefined}
+                onDeveloperToolsChange={() => undefined}
+                onHelpVisibilityChange={() => undefined}
+                onIntroVisibilityChange={() => undefined}
+                onLanguagePreferenceChange={() => undefined}
+                onLintStylesheet={() => undefined}
+                onResetStylesheet={() => undefined}
+                onThemeModeChange={() => undefined}
+                onToggleAutoRender={() => undefined}
+                preferencesThemeMode="system"
+                showCredits={true}
+                strings={strings}
+                styles={createPanelStyles()}
+              />
+              <HelpPanel strings={strings} styles={createPanelStyles()} />
+            </>
+          </FluentProvider>
         );
         await Promise.resolve();
       });
@@ -383,26 +422,9 @@ describe("taskpane app helpers", () => {
         "MarkOut keeps compose work Markdown-first while staying inside Outlook's taskpane and Smart Alerts model."
       );
 
-      const settingsButton = container.querySelector<HTMLButtonElement>(
-        "#panel-button-settings"
-      );
-      expect(settingsButton).not.toBeNull();
-      settingsButton?.click();
-      await act(async () => {
-        await Promise.resolve();
-      });
-
       expect(container.textContent).not.toContain(
         "System follows Outlook theme when the host provides it and falls back to the browser preference otherwise."
       );
-
-      const helpButton =
-        container.querySelector<HTMLButtonElement>("#panel-button-help");
-      expect(helpButton).not.toBeNull();
-      helpButton?.click();
-      await act(async () => {
-        await Promise.resolve();
-      });
 
       expect(container.textContent).not.toContain(
         "Track issues, releases, and the maintained Schoenfeld Solutions fork."

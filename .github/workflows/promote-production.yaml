@@ -8,11 +8,15 @@ on:
         required: true
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
-  promote:
+  validate:
     runs-on: ubuntu-latest
+
+    outputs:
+      release_run_url: ${{ steps.release_evidence.outputs.release_run_url }}
 
     steps:
       - uses: actions/checkout@v6
@@ -23,30 +27,83 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          test -n "$SOURCE_SHA" || { echo "source_sha is required."; exit 1; }
+          test -n "$SOURCE_SHA" || {
+            echo "source_sha is required."
+            exit 1
+          }
 
-          git fetch origin main release/production --depth=1 || git fetch origin main --depth=1
+          git fetch origin main release/production --depth=1
           git rev-parse --verify "$SOURCE_SHA^{commit}" >/dev/null
           git merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
             echo "The requested source_sha is not reachable from origin/main."
             exit 1
           }
 
-          if git rev-parse --verify origin/release/production >/dev/null 2>&1; then
-            git merge-base --is-ancestor origin/release/production "$SOURCE_SHA" || {
-              echo "The requested source_sha is not a fast-forward from origin/release/production."
-              exit 1
-            }
+          if ! git rev-parse --verify origin/release/production >/dev/null 2>&1; then
+            echo "Missing origin/release/production. Bootstrap production before promoting."
+            exit 1
           fi
+
+          git merge-base --is-ancestor origin/release/production "$SOURCE_SHA" || {
+            echo "The requested source_sha is not a fast-forward from origin/release/production."
+            exit 1
+          }
+
+      - name: Verify successful beta deployment evidence
+        id: release_evidence
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const sourceSha = `${{ inputs.source_sha }}`;
+            const { owner, repo } = context.repo;
+            const workflowRuns = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              branch: "main",
+              event: "push",
+              head_sha: sourceSha,
+              per_page: 50,
+              status: "completed",
+            });
+
+            const releaseRun = workflowRuns.data.workflow_runs.find((run) => {
+              return (
+                run.name === "Build and Publish GitHub Pages" &&
+                run.head_sha === sourceSha &&
+                run.conclusion === "success"
+              );
+            });
+
+            if (releaseRun === undefined) {
+              core.setFailed(
+                "No successful Build and Publish GitHub Pages push run was found for the requested main SHA. Beta deployment evidence and host smoke must be green before promotion."
+              );
+              return;
+            }
+
+            core.setOutput("release_run_url", releaseRun.html_url);
+
+  promote:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment:
+      name: production-promotion
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Promote release/production
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
+          git fetch origin main release/production --depth=1
           git push origin "$SOURCE_SHA:refs/heads/release/production"
           {
             echo "### Production promotion"
             echo ""
             echo "- Promoted SHA: \`$SOURCE_SHA\`"
             echo "- Target branch: \`release/production\`"
+            echo "- Beta release evidence: ${{ needs.validate.outputs.release_run_url }}"
           } >> "$GITHUB_STEP_SUMMARY"

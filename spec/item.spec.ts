@@ -57,16 +57,20 @@ class InMemoryRenderStateStore implements RenderStateStore {
 
   public setPendingRenderState(originalHtml: string): Promise<void> {
     this.renderState = {
+      channelId: "production",
       originalHtml,
       phase: "pending",
+      storedAt: new Date().toISOString(),
     };
     return Promise.resolve();
   }
 
   public setRenderedRenderState(originalHtml: string): Promise<void> {
     this.renderState = {
+      channelId: "production",
       originalHtml,
       phase: "rendered",
+      storedAt: new Date().toISOString(),
     };
     return Promise.resolve();
   }
@@ -102,10 +106,13 @@ describe("item renderer", () => {
     });
 
     expect(await itemRenderer.renderItem()).toBe("rendered");
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml,
-      phase: "rendered",
-    });
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml,
+        phase: "rendered",
+      })
+    );
     expect(await bodyAccessor.getHtml()).toContain(
       `<img src="https://example.com/safe.png">`
     );
@@ -173,10 +180,13 @@ describe("item renderer", () => {
 
     expect(await itemRenderer.ensureRendered()).toBe(true);
     expect(renderInput).toContain("Original draft");
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml,
-      phase: "rendered",
-    });
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml,
+        phase: "rendered",
+      })
+    );
     expect(await bodyAccessor.getHtml()).toContain("Recovered output");
   });
 

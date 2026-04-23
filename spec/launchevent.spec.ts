@@ -38,7 +38,9 @@ describe("launch events", () => {
     });
     const ensureRenderedMock = jest.fn();
     jest.doMock("../src/lib/item", () => ({
-      ensureRendered: ensureRenderedMock,
+      createItemRenderer: () => ({
+        ensureRendered: ensureRenderedMock,
+      }),
     }));
 
     const { onMessageSendHandler } =
@@ -58,7 +60,9 @@ describe("launch events", () => {
     environment.roamingSettings.set("markout.autorender", true);
     const ensureRenderedMock = jest.fn().mockResolvedValue(true);
     jest.doMock("../src/lib/item", () => ({
-      ensureRendered: ensureRenderedMock,
+      createItemRenderer: () => ({
+        ensureRendered: ensureRenderedMock,
+      }),
     }));
 
     const { onMessageSendHandler } =
@@ -77,7 +81,9 @@ describe("launch events", () => {
     });
     environment.roamingSettings.set("markout.autorender", true);
     jest.doMock("../src/lib/item", () => ({
-      ensureRendered: jest.fn().mockRejectedValue(new Error("boom")),
+      createItemRenderer: () => ({
+        ensureRendered: jest.fn().mockRejectedValue(new Error("boom")),
+      }),
     }));
 
     const { onAppointmentSendHandler } =

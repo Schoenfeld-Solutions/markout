@@ -11,6 +11,7 @@ import {
 } from "./render-markers";
 import { createLazyMarkdownRenderer } from "./lazy-markdown-renderer";
 import type { MarkdownRenderer } from "./renderer";
+import { resolveRuntimeChannelConfig } from "./runtime";
 
 export const SUBJECT_SELECTION_UNSUPPORTED_MESSAGE =
   "MarkOut can only update the message body. Move the cursor into the body or select text there first.";
@@ -150,10 +151,12 @@ function assertSelectionIsNotAlreadyRendered(
 }
 
 function createDefaultDependencies(): ComposeMarkdownDependencies {
+  const runtimeChannelConfig = resolveRuntimeChannelConfig();
+
   return {
     bodyAccessor: createOfficeBodyAccessor(),
     htmlSanitizer: new DefaultHtmlSanitizer(),
     markdownRenderer: createLazyMarkdownRenderer(),
-    settingsStore: createOfficeSettingsStore(),
+    settingsStore: createOfficeSettingsStore(undefined, runtimeChannelConfig),
   };
 }

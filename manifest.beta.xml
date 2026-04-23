@@ -3,7 +3,7 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
   xsi:type="MailApp">
-  <Id>05c2e1c9-3e1d-406e-9a91-e9ac64854143</Id>
+  <Id>934e43d2-950c-4cab-8ec0-4ff2808e6c11</Id>
   <Version>1.0.1.0</Version>
   <ProviderName>Schoenfeld Solutions</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
@@ -30,7 +30,7 @@
   <FormSettings>
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html" />
+        <SourceLocation DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html?channel=beta" />
       </DesktopSettings>
     </Form>
   </FormSettings>
@@ -118,10 +118,10 @@
           <bt:Image id="Icon.80x80" DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-128.png" />
         </bt:Images>
         <bt:Urls>
-          <bt:Url id="Commands.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html" />
-          <bt:Url id="Taskpane.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html" />
-          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html" />
-          <bt:Url id="JSRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/launchevent.js" />
+          <bt:Url id="Commands.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html?channel=beta" />
+          <bt:Url id="Taskpane.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html?channel=beta" />
+          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html?channel=beta" />
+          <bt:Url id="JSRuntime.Url" DefaultValue="https://schoenfeld-solutions.github.io/markout/outlook-beta/launchevent.js?channel=beta" />
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="GroupLabel" DefaultValue="MarkOut">

@@ -3,7 +3,7 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
   xsi:type="MailApp">
-  <Id>05c2e1c9-3e1d-406e-9a91-e9ac64854143</Id>
+  <Id>8a0c8f5a-b1bb-4838-bb0d-dc0732b5d73c</Id>
   <Version>1.0.1.0</Version>
   <ProviderName>Schoenfeld Solutions</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
@@ -31,7 +31,7 @@
   <FormSettings>
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html?channel=local" />
       </DesktopSettings>
     </Form>
   </FormSettings>
@@ -118,10 +118,10 @@
           <bt:Image id="Icon.80x80" DefaultValue="https://raw.githubusercontent.com/Schoenfeld-Solutions/markout/main/assets/icon-128.png" />
         </bt:Images>
         <bt:Urls>
-          <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html" />
-          <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
-          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://localhost:3000/commands.html" />
-          <bt:Url id="JSRuntime.Url" DefaultValue="https://localhost:3000/launchevent.js" />
+          <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html?channel=local" />
+          <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html?channel=local" />
+          <bt:Url id="WebViewRuntime.Url" DefaultValue="https://localhost:3000/commands.html?channel=local" />
+          <bt:Url id="JSRuntime.Url" DefaultValue="https://localhost:3000/launchevent.js?channel=local" />
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="GroupLabel" DefaultValue="MarkOut">

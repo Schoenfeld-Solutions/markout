@@ -2,9 +2,15 @@ import {
   createOfficeSettingsStore,
   defaultStylesheet,
 } from "../src/lib/config";
+import {
+  getChannelScopedKey,
+  getRuntimeChannelConfig,
+} from "../src/lib/runtime";
 import { FakeRoamingSettings, installOfficeEnvironment } from "./helpers";
 
 describe("settings store", () => {
+  const runtimeChannelConfig = getRuntimeChannelConfig("production");
+
   beforeEach(() => {
     installOfficeEnvironment();
   });
@@ -161,9 +167,11 @@ describe("settings store", () => {
 
     const persistedStore = createOfficeSettingsStore(roamingSettings);
 
-    expect(roamingSettings.get("markout.stylesheetPreset")).toBe(
-      "default-host-inherit-v2"
-    );
+    expect(
+      roamingSettings.get(
+        getChannelScopedKey(runtimeChannelConfig, "stylesheetPreset")
+      )
+    ).toBe("default-host-inherit-v2");
     expect(persistedStore.getStylesheet()).toBe(defaultStylesheet);
     expect(persistedStore.hasStylesheetMigrationPending()).toBe(false);
   });

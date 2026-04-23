@@ -1,42 +1,40 @@
 import { createOfficeRenderStateStore } from "../src/lib/render-state-store";
+import { getRuntimeChannelConfig } from "../src/lib/runtime";
 import { FakeMailboxItem, installOfficeEnvironment } from "./helpers";
 
-class InMemoryPersistentStorage {
-  private readonly values = new Map<string, string>();
-
-  public getItem(name: string): string | null {
-    return this.values.get(name) ?? null;
-  }
-
-  public removeItem(name: string): void {
-    this.values.delete(name);
-  }
-
-  public setItem(name: string, value: string): void {
-    this.values.set(name, value);
-  }
-}
-
 describe("render state store", () => {
+  const runtimeChannelConfig = getRuntimeChannelConfig("production");
+
   beforeEach(() => {
     installOfficeEnvironment();
   });
 
   it("persists rendered and pending render states", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
 
     await renderStateStore.setPendingRenderState("<div>Original</div>");
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml: "<div>Original</div>",
-      phase: "pending",
-    });
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml: "<div>Original</div>",
+        phase: "pending",
+        storedAt: expect.any(String),
+      })
+    );
 
     await renderStateStore.setRenderedRenderState("<div>Original</div>");
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml: "<div>Original</div>",
-      phase: "rendered",
-    });
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml: "<div>Original</div>",
+        phase: "rendered",
+        storedAt: expect.any(String),
+      })
+    );
 
     await renderStateStore.clearRenderState();
     expect(await renderStateStore.getRenderState()).toBeNull();
@@ -49,11 +47,17 @@ describe("render state store", () => {
       "<div>Legacy</div>"
     );
 
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml: "<div>Legacy</div>",
-      phase: "rendered",
-    });
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml: "<div>Legacy</div>",
+        phase: "rendered",
+      })
+    );
 
     mailboxItem.customProperties.set("markout.originalHtml", "false");
     expect(await renderStateStore.getRenderState()).toBeNull();
@@ -62,7 +66,10 @@ describe("render state store", () => {
   it("surfaces custom property load failures", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
     mailboxItem.failNextLoadCustomProperties = true;
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
 
     await expect(renderStateStore.getRenderState()).rejects.toMatchObject({
       message: "Loading custom properties failed.",
@@ -73,7 +80,10 @@ describe("render state store", () => {
   it("surfaces custom property save failures", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
     mailboxItem.customProperties.failNextSave = true;
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
 
     await expect(
       renderStateStore.setPendingRenderState("<div>Original</div>")
@@ -92,61 +102,57 @@ describe("render state store", () => {
     };
     const renderStateStore = createOfficeRenderStateStore(
       mailboxItem,
-      undefined
+      runtimeChannelConfig
     );
     const largeHtml = "<div>" + "A".repeat(4000) + "</div>";
 
     await renderStateStore.setPendingRenderState(largeHtml);
 
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml: largeHtml,
-      phase: "pending",
-    });
-    expect(
-      mailboxItem.customProperties.get("markout.originalHtml")
-    ).toBeUndefined();
-    expect(mailboxItem.sessionData.get("markout.originalHtml")).toContain(
-      '"phase":"pending"'
+    expect(await renderStateStore.getRenderState()).toEqual(
+      expect.objectContaining({
+        channelId: "production",
+        originalHtml: largeHtml,
+        phase: "pending",
+      })
     );
+    expect(
+      mailboxItem.customProperties.get("markout.production.originalHtml")
+    ).toBeUndefined();
+    expect(
+      mailboxItem.sessionData.get("markout.production.originalHtml")
+    ).toContain('"phase":"pending"');
 
     await renderStateStore.clearRenderState();
-    expect(mailboxItem.sessionData.get("markout.originalHtml")).toBeUndefined();
+    expect(
+      mailboxItem.sessionData.get("markout.production.originalHtml")
+    ).toBeUndefined();
   });
 
-  it("stores large render states in persistent browser storage when available", async () => {
+  it("fails closed when large render state cannot be stored in session data", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
-    const persistentStorage = new InMemoryPersistentStorage();
+    mailboxItem.customProperties.nextSaveError = {
+      message:
+        "Specified argument was out of the range of valid values. Parameter name: customProperties",
+      name: "Sys.ArgumentOutOfRangeException",
+    };
+    mailboxItem.sessionData.nextSetError = {
+      message: "Quota exceeded.",
+      name: "QuotaExceededError",
+    };
     const renderStateStore = createOfficeRenderStateStore(
       mailboxItem,
-      persistentStorage
+      runtimeChannelConfig
     );
     const largeHtml = "<div>" + "A".repeat(80000) + "</div>";
 
-    await renderStateStore.setPendingRenderState(largeHtml);
-
-    const storedPointer = mailboxItem.customProperties.get(
-      "markout.originalHtml"
-    );
-
-    expect(storedPointer).toContain('"originalHtmlStorage":"local"');
-    expect(storedPointer).not.toContain(largeHtml);
-    expect(await renderStateStore.getRenderState()).toEqual({
-      originalHtml: largeHtml,
-      phase: "pending",
+    await expect(
+      renderStateStore.setPendingRenderState(largeHtml)
+    ).rejects.toMatchObject({
+      code: "restore-state-too-large",
+      message:
+        "MarkOut couldn't persist the original draft HTML because Outlook's restore-state storage is full for this channel.",
+      name: "MarkOutError",
     });
-
-    const parsedPointer = JSON.parse(storedPointer ?? "{}") as {
-      originalHtmlStorageKey?: string;
-    };
-
-    expect(
-      persistentStorage.getItem(parsedPointer.originalHtmlStorageKey ?? "")
-    ).toBe(largeHtml);
-
-    await renderStateStore.clearRenderState();
-    expect(
-      persistentStorage.getItem(parsedPointer.originalHtmlStorageKey ?? "")
-    ).toBeNull();
   });
 
   it("treats missing session-data keys as an empty render state", async () => {
@@ -155,14 +161,20 @@ describe("render state store", () => {
       message: "The specified key was not found.",
       name: "KeyNotFound",
     };
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
 
     await expect(renderStateStore.getRenderState()).resolves.toBeNull();
   });
 
   it("ignores missing session-data keys during cleanup", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
-    const renderStateStore = createOfficeRenderStateStore(mailboxItem);
+    const renderStateStore = createOfficeRenderStateStore(
+      mailboxItem,
+      runtimeChannelConfig
+    );
 
     await renderStateStore.setPendingRenderState("<div>Original</div>");
     mailboxItem.sessionData.nextRemoveError = {
@@ -176,8 +188,15 @@ describe("render state store", () => {
   it("fails when no active compose item is available", () => {
     installOfficeEnvironment({ mailboxItem: undefined });
 
-    expect(() => createOfficeRenderStateStore()).toThrow(
-      "MarkOut requires an active Outlook compose item."
-    );
+    try {
+      createOfficeRenderStateStore();
+      throw new Error("Expected createOfficeRenderStateStore to throw");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "office-compose-item-missing",
+        message: "MarkOut requires an active Outlook compose item.",
+        name: "MarkOutError",
+      });
+    }
   });
 });

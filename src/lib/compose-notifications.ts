@@ -1,6 +1,9 @@
-const AUTO_RENDER_DISMISSED_KEY = "markout.autorender.notificationDismissed";
-const AUTO_RENDER_NOTIFICATION_KEY = "markout.autorender.notification";
-const TRANSIENT_NOTIFICATION_KEY = "markout.compose.notification";
+import {
+  getChannelScopedKey,
+  resolveRuntimeChannelConfig,
+  type RuntimeChannelConfig,
+} from "./runtime";
+
 const TRANSIENT_NOTIFICATION_TIMEOUT_MS = 4200;
 const NOTIFICATION_MESSAGE_MAX_LENGTH = 145;
 
@@ -80,7 +83,31 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
   private transientGeneration = 0;
   private transientTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  public constructor(private readonly item: NotificationAwareItemLike | null) {}
+  public constructor(
+    private readonly item: NotificationAwareItemLike | null,
+    private readonly runtimeChannelConfig: RuntimeChannelConfig
+  ) {}
+
+  private getAutoRenderDismissedKey(): string {
+    return getChannelScopedKey(
+      this.runtimeChannelConfig,
+      "autorender.notificationDismissed"
+    );
+  }
+
+  private getAutoRenderNotificationKey(): string {
+    return getChannelScopedKey(
+      this.runtimeChannelConfig,
+      "autorender.notification"
+    );
+  }
+
+  private getTransientNotificationKey(): string {
+    return getChannelScopedKey(
+      this.runtimeChannelConfig,
+      "compose.notification"
+    );
+  }
 
   public async clearAutoRenderDismissed(): Promise<void> {
     const currentItem = this.item;
@@ -97,7 +124,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     }
 
     await new Promise<void>((resolve, reject) => {
-      sessionData.removeAsync(AUTO_RENDER_DISMISSED_KEY, (result) => {
+      sessionData.removeAsync(this.getAutoRenderDismissedKey(), (result) => {
         if (result.status === Office.AsyncResultStatus.Failed) {
           reject(toOfficeError(result.error));
           return;
@@ -115,7 +142,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
   }
 
   public async clearAutoRenderNotification(): Promise<void> {
-    await this.removeNotification(AUTO_RENDER_NOTIFICATION_KEY).catch(
+    await this.removeNotification(this.getAutoRenderNotificationKey()).catch(
       () => undefined
     );
   }
@@ -124,7 +151,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     this.transientGeneration += 1;
     this.clearTransientTimeout();
 
-    await this.removeNotification(TRANSIENT_NOTIFICATION_KEY).catch(
+    await this.removeNotification(this.getTransientNotificationKey()).catch(
       () => undefined
     );
   }
@@ -145,7 +172,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     try {
       const dismissedValue = await new Promise<string | undefined>(
         (resolve, reject) => {
-          sessionData.getAsync(AUTO_RENDER_DISMISSED_KEY, (result) => {
+          sessionData.getAsync(this.getAutoRenderDismissedKey(), (result) => {
             if (result.status === Office.AsyncResultStatus.Failed) {
               reject(toOfficeError(result.error));
               return;
@@ -181,14 +208,18 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     }
 
     await new Promise<void>((resolve, reject) => {
-      sessionData.setAsync(AUTO_RENDER_DISMISSED_KEY, "true", (result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          reject(toOfficeError(result.error));
-          return;
-        }
+      sessionData.setAsync(
+        this.getAutoRenderDismissedKey(),
+        "true",
+        (result) => {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            reject(toOfficeError(result.error));
+            return;
+          }
 
-        resolve();
-      });
+          resolve();
+        }
+      );
     }).catch(() => undefined);
   }
 
@@ -227,7 +258,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     copy: AutoRenderNotificationCopy
   ): Promise<NotificationSurface> {
     try {
-      await this.upsertNotification(AUTO_RENDER_NOTIFICATION_KEY, {
+      await this.upsertNotification(this.getAutoRenderNotificationKey(), {
         icon: "Icon.16x16",
         message: normalizeNotificationMessage(copy.message),
         persistent: true,
@@ -250,7 +281,10 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
 
     for (const details of buildTransientNotificationAttempts(copy)) {
       try {
-        await this.upsertNotification(TRANSIENT_NOTIFICATION_KEY, details);
+        await this.upsertNotification(
+          this.getTransientNotificationKey(),
+          details
+        );
         this.scheduleTransientRemoval(generation);
         return "outlook";
       } catch {
@@ -332,7 +366,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
       }
 
       this.transientTimeoutId = null;
-      void this.removeNotification(TRANSIENT_NOTIFICATION_KEY).catch(
+      void this.removeNotification(this.getTransientNotificationKey()).catch(
         () => undefined
       );
     }, TRANSIENT_NOTIFICATION_TIMEOUT_MS);
@@ -404,7 +438,8 @@ function normalizeNotificationMessage(message: string): string {
 }
 
 export function createComposeNotificationService(
-  item: NotificationAwareItemLike | null = getCurrentComposeItem()
+  item: NotificationAwareItemLike | null = getCurrentComposeItem(),
+  runtimeChannelConfig: RuntimeChannelConfig = resolveRuntimeChannelConfig()
 ): ComposeNotificationService {
-  return new OutlookComposeNotificationService(item);
+  return new OutlookComposeNotificationService(item, runtimeChannelConfig);
 }

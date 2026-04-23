@@ -1,3 +1,8 @@
+import {
+  getChannelScopedKey,
+  resolveRuntimeChannelConfig,
+  type RuntimeChannelConfig,
+} from "./runtime";
 import { parseStyleRules } from "./stylesheet-rules";
 
 export const defaultStylesheet = `
@@ -480,41 +485,57 @@ class InMemorySettingsStore implements SettingsStore {
 }
 
 class OfficeSettingsStore implements SettingsStore {
-  public constructor(private readonly roamingSettings: RoamingSettingsLike) {}
+  public constructor(
+    private readonly roamingSettings: RoamingSettingsLike,
+    private readonly runtimeChannelConfig: RuntimeChannelConfig
+  ) {}
+
+  private getScopedKey(key: string): string {
+    return getChannelScopedKey(
+      this.runtimeChannelConfig,
+      key.replace(/^markout\./, "")
+    );
+  }
+
+  private getStoredValue(key: string): unknown {
+    const scopedValue = this.roamingSettings.get(this.getScopedKey(key));
+
+    return scopedValue === undefined
+      ? this.roamingSettings.get(key)
+      : scopedValue;
+  }
 
   private getResolvedStylesheetState(): ResolvedStylesheetState {
     return resolveStoredStylesheetState(
-      this.roamingSettings.get(SETTING_STYLESHEET),
-      this.roamingSettings.get(SETTING_STYLESHEET_PRESET)
+      this.getStoredValue(SETTING_STYLESHEET),
+      this.getStoredValue(SETTING_STYLESHEET_PRESET)
     );
   }
 
   public getAutoRender(): boolean {
-    return this.roamingSettings.get(SETTING_AUTORENDER) === true;
+    return this.getStoredValue(SETTING_AUTORENDER) === true;
   }
 
   public getCreditsVisible(): boolean {
-    const storedValue = this.roamingSettings.get(SETTING_CREDITS_VISIBLE);
+    const storedValue = this.getStoredValue(SETTING_CREDITS_VISIBLE);
     return typeof storedValue === "boolean" ? storedValue : true;
   }
 
   public getDeveloperToolsEnabled(): boolean {
-    return this.roamingSettings.get(SETTING_DEVELOPER_TOOLS) === true;
+    return this.getStoredValue(SETTING_DEVELOPER_TOOLS) === true;
   }
 
   public getHelpVisible(): boolean {
-    const storedValue = this.roamingSettings.get(SETTING_HELP_VISIBLE);
+    const storedValue = this.getStoredValue(SETTING_HELP_VISIBLE);
     return typeof storedValue === "boolean" ? storedValue : true;
   }
 
   public getIntroDismissed(): boolean {
-    return this.roamingSettings.get(SETTING_INTRO_DISMISSED) === true;
+    return this.getStoredValue(SETTING_INTRO_DISMISSED) === true;
   }
 
   public getLanguagePreference(): LanguagePreference {
-    const storedPreference = this.roamingSettings.get(
-      SETTING_LANGUAGE_PREFERENCE
-    );
+    const storedPreference = this.getStoredValue(SETTING_LANGUAGE_PREFERENCE);
 
     return isLanguagePreference(storedPreference) ? storedPreference : "system";
   }
@@ -524,7 +545,7 @@ class OfficeSettingsStore implements SettingsStore {
   }
 
   public getThemeMode(): ThemeMode {
-    const storedThemeMode = this.roamingSettings.get(SETTING_THEME_MODE);
+    const storedThemeMode = this.getStoredValue(SETTING_THEME_MODE);
 
     return isThemeMode(storedThemeMode) ? storedThemeMode : "system";
   }
@@ -549,34 +570,49 @@ class OfficeSettingsStore implements SettingsStore {
   }
 
   public setAutoRender(enabled: boolean): void {
-    this.roamingSettings.set(SETTING_AUTORENDER, enabled);
+    this.roamingSettings.set(this.getScopedKey(SETTING_AUTORENDER), enabled);
   }
 
   public setCreditsVisible(visible: boolean): void {
-    this.roamingSettings.set(SETTING_CREDITS_VISIBLE, visible);
+    this.roamingSettings.set(
+      this.getScopedKey(SETTING_CREDITS_VISIBLE),
+      visible
+    );
   }
 
   public setDeveloperToolsEnabled(enabled: boolean): void {
-    this.roamingSettings.set(SETTING_DEVELOPER_TOOLS, enabled);
+    this.roamingSettings.set(
+      this.getScopedKey(SETTING_DEVELOPER_TOOLS),
+      enabled
+    );
   }
 
   public setHelpVisible(visible: boolean): void {
-    this.roamingSettings.set(SETTING_HELP_VISIBLE, visible);
+    this.roamingSettings.set(this.getScopedKey(SETTING_HELP_VISIBLE), visible);
   }
 
   public setIntroDismissed(dismissed: boolean): void {
-    this.roamingSettings.set(SETTING_INTRO_DISMISSED, dismissed);
+    this.roamingSettings.set(
+      this.getScopedKey(SETTING_INTRO_DISMISSED),
+      dismissed
+    );
   }
 
   public setLanguagePreference(preference: LanguagePreference): void {
-    this.roamingSettings.set(SETTING_LANGUAGE_PREFERENCE, preference);
+    this.roamingSettings.set(
+      this.getScopedKey(SETTING_LANGUAGE_PREFERENCE),
+      preference
+    );
   }
 
   public setStylesheet(stylesheet: string): void {
     const normalizedStylesheet = normalizeStylesheet(stylesheet);
-    this.roamingSettings.set(SETTING_STYLESHEET, normalizedStylesheet);
     this.roamingSettings.set(
-      SETTING_STYLESHEET_PRESET,
+      this.getScopedKey(SETTING_STYLESHEET),
+      normalizedStylesheet
+    );
+    this.roamingSettings.set(
+      this.getScopedKey(SETTING_STYLESHEET_PRESET),
       normalizeStylesheetForComparison(normalizedStylesheet) ===
         normalizeStylesheetForComparison(defaultStylesheet)
         ? CURRENT_STYLESHEET_PRESET
@@ -585,7 +621,7 @@ class OfficeSettingsStore implements SettingsStore {
   }
 
   public setThemeMode(mode: ThemeMode): void {
-    this.roamingSettings.set(SETTING_THEME_MODE, mode);
+    this.roamingSettings.set(this.getScopedKey(SETTING_THEME_MODE), mode);
   }
 }
 
@@ -613,13 +649,14 @@ export function createOfficeSettingsStore(
   roamingSettings:
     | RoamingSettingsLike
     | null
-    | undefined = getDefaultRoamingSettings()
+    | undefined = getDefaultRoamingSettings(),
+  runtimeChannelConfig: RuntimeChannelConfig = resolveRuntimeChannelConfig()
 ): SettingsStore {
   if (!isRoamingSettingsLike(roamingSettings)) {
     return new InMemorySettingsStore();
   }
 
-  return new OfficeSettingsStore(roamingSettings);
+  return new OfficeSettingsStore(roamingSettings, runtimeChannelConfig);
 }
 
 export function getAutoRender(): boolean {
