@@ -48,11 +48,16 @@ interface AsyncSessionDataLike {
 }
 
 interface NotificationMessagesLike {
+  addAsync?(
+    key: string,
+    details: Office.NotificationMessageDetails,
+    callback?: (result: Office.AsyncResult<void>) => void
+  ): void;
   removeAsync?(
     key: string,
     callback?: (result: Office.AsyncResult<void>) => void
   ): void;
-  replaceAsync(
+  replaceAsync?(
     key: string,
     details: Office.NotificationMessageDetails,
     callback?: (result: Office.AsyncResult<void>) => void
@@ -222,7 +227,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     copy: AutoRenderNotificationCopy
   ): Promise<NotificationSurface> {
     try {
-      await this.replaceNotification(AUTO_RENDER_NOTIFICATION_KEY, {
+      await this.upsertNotification(AUTO_RENDER_NOTIFICATION_KEY, {
         icon: "Icon.16x16",
         message: normalizeNotificationMessage(copy.message),
         persistent: true,
@@ -243,18 +248,17 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     this.transientGeneration = generation;
     this.clearTransientTimeout();
 
-    try {
-      await this.replaceNotification(TRANSIENT_NOTIFICATION_KEY, {
-        icon: "Icon.16x16",
-        message: normalizeNotificationMessage(copy.message),
-        persistent: false,
-        type: mapNotificationIntent(copy.intent),
-      });
-      this.scheduleTransientRemoval(generation);
-      return "outlook";
-    } catch {
-      return "pane";
+    for (const details of buildTransientNotificationAttempts(copy)) {
+      try {
+        await this.upsertNotification(TRANSIENT_NOTIFICATION_KEY, details);
+        this.scheduleTransientRemoval(generation);
+        return "outlook";
+      } catch {
+        continue;
+      }
     }
+
+    return "pane";
   }
 
   private clearTransientTimeout(): void {
@@ -288,25 +292,36 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     });
   }
 
-  private async replaceNotification(
+  private async upsertNotification(
     key: string,
     details: Office.NotificationMessageDetails
   ): Promise<void> {
     const notificationMessages = this.item?.notificationMessages;
 
-    if (notificationMessages === undefined) {
+    if (
+      notificationMessages === undefined ||
+      (typeof notificationMessages.replaceAsync !== "function" &&
+        typeof notificationMessages.addAsync !== "function")
+    ) {
       throw new Error("Outlook notification messages are not available.");
     }
 
     await new Promise<void>((resolve, reject) => {
-      notificationMessages.replaceAsync(key, details, (result) => {
+      const handler = (result: Office.AsyncResult<void>) => {
         if (result.status === Office.AsyncResultStatus.Failed) {
           reject(toOfficeError(result.error));
           return;
         }
 
         resolve();
-      });
+      };
+
+      if (typeof notificationMessages.replaceAsync === "function") {
+        notificationMessages.replaceAsync(key, details, handler);
+        return;
+      }
+
+      notificationMessages.addAsync?.(key, details, handler);
     });
   }
 
@@ -353,6 +368,29 @@ function mapNotificationIntent(
   return intent === "error"
     ? Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage
     : Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage;
+}
+
+function buildTransientNotificationAttempts(
+  copy: ComposeTransientNotificationCopy
+): Office.NotificationMessageDetails[] {
+  const message = normalizeNotificationMessage(copy.message);
+  const informationalMessage = {
+    icon: "Icon.16x16",
+    message,
+    type: Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage,
+  } satisfies Office.NotificationMessageDetails;
+
+  if (copy.intent !== "error") {
+    return [informationalMessage];
+  }
+
+  return [
+    {
+      message,
+      type: mapNotificationIntent(copy.intent),
+    } satisfies Office.NotificationMessageDetails,
+    informationalMessage,
+  ];
 }
 
 function normalizeNotificationMessage(message: string): string {

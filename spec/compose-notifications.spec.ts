@@ -53,8 +53,8 @@ describe("compose notification service", () => {
     ).resolves.toBe("outlook");
 
     expect(mailboxItem.lastNotificationDetails).toMatchObject({
+      icon: "Icon.16x16",
       message: "Rendered Markdown was inserted at the current body cursor.",
-      persistent: false,
       type: Office.MailboxEnums.ItemNotificationMessageType
         .InformationalMessage,
     });
@@ -76,8 +76,37 @@ describe("compose notification service", () => {
     });
 
     expect(mailboxItem.lastNotificationDetails).toMatchObject({
-      persistent: false,
       type: Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage,
+    });
+  });
+
+  it("retries transient errors as informational infobars when the host rejects error message details", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    mailboxItem.notificationReplaceInterceptor = (details) =>
+      String(details.type) ===
+      String(Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage)
+        ? {
+            message: "Error infobar rejected.",
+            name: "NotificationReplaceError",
+          }
+        : null;
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await expect(
+      notificationService.showTransientNotification({
+        intent: "error",
+        message: "Selection state could not be read from Outlook.",
+      })
+    ).resolves.toBe("outlook");
+
+    expect(mailboxItem.notificationMessages.replaceAsync).toHaveBeenCalledTimes(
+      2
+    );
+    expect(mailboxItem.lastNotificationDetails).toMatchObject({
+      icon: "Icon.16x16",
+      message: "Selection state could not be read from Outlook.",
+      type: Office.MailboxEnums.ItemNotificationMessageType
+        .InformationalMessage,
     });
   });
 
@@ -151,7 +180,10 @@ describe("compose notification service", () => {
 
   it("falls back to a pane-local transient notification when Outlook replaceAsync fails", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
-    mailboxItem.failNextNotificationReplace = true;
+    mailboxItem.notificationReplaceInterceptor = () => ({
+      message: "Notification replace failed.",
+      name: "NotificationReplaceError",
+    });
     const notificationService = createComposeNotificationService(mailboxItem);
 
     await expect(

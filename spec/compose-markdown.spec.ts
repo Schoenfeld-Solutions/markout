@@ -54,6 +54,21 @@ describe("compose markdown service", () => {
     expect(mailboxItem.body.lastSelectedHtml).toContain("Insert me");
   });
 
+  it("still inserts at the body when the host reports a stale subject source without an active selection", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.selectionSource = "subject";
+    mailboxItem.selectionText = "";
+    mailboxItem.selectionHtml = "";
+    installOfficeEnvironment({ mailboxItem });
+
+    const composeMarkdownService = createComposeMarkdownService();
+
+    await expect(
+      composeMarkdownService.insertRenderedMarkdown("## Insert me")
+    ).resolves.toBe("inserted");
+    expect(mailboxItem.body.lastSelectedHtml).toContain("Insert me");
+  });
+
   it("renders a fragment preview with sanitized scoped styles", async () => {
     installOfficeEnvironment({
       mailboxItem: new FakeMailboxItem("<div>Original</div>"),
@@ -90,6 +105,19 @@ describe("compose markdown service", () => {
     await expect(composeMarkdownService.renderSelection()).rejects.toThrow(
       SUBJECT_SELECTION_UNSUPPORTED_MESSAGE
     );
+  });
+
+  it("still blocks fragment insertion when the host reports a subject selection", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.selectionSource = "subject";
+    mailboxItem.selectionText = "Subject selection";
+    installOfficeEnvironment({ mailboxItem });
+
+    const composeMarkdownService = createComposeMarkdownService();
+
+    await expect(
+      composeMarkdownService.insertRenderedMarkdown("## Insert me")
+    ).rejects.toThrow(SUBJECT_SELECTION_UNSUPPORTED_MESSAGE);
   });
 
   it("blocks fragment work when the entire draft was already rendered", async () => {

@@ -266,6 +266,9 @@ export class FakeMailboxItem {
   ) => void | Promise<void>)[] = [];
   public lastNotificationDetails: Office.NotificationMessageDetails | null =
     null;
+  public notificationReplaceInterceptor:
+    | ((details: Office.NotificationMessageDetails) => OfficeErrorLike | null)
+    | null = null;
   public nextHtmlSelectionError: OfficeErrorLike | null = null;
   public nextTextSelectionError: OfficeErrorLike | null = null;
   public selectionHtml = "";
@@ -277,6 +280,16 @@ export class FakeMailboxItem {
   public failNextNotificationReplace = false;
   public throwOnNotificationReplace = false;
   public readonly notificationMessages = {
+    addAsync: jest.fn(
+      (
+        _key: string,
+        details: Office.NotificationMessageDetails,
+        callback?: (result: Office.AsyncResult<void>) => void
+      ) => {
+        this.lastNotificationDetails = details;
+        callback?.(succeededAsyncResult<void>(undefined));
+      }
+    ),
     removeAsync: jest.fn(
       (_key: string, callback?: (result: Office.AsyncResult<void>) => void) => {
         if (this.failNextNotificationRemove) {
@@ -302,6 +315,12 @@ export class FakeMailboxItem {
       ) => {
         if (this.throwOnNotificationReplace) {
           throw new Error("Notification replace failed.");
+        }
+
+        const replaceError = this.notificationReplaceInterceptor?.(details);
+        if (replaceError !== null && replaceError !== undefined) {
+          callback?.(failedAsyncResult<void>(replaceError));
+          return;
         }
 
         if (this.failNextNotificationReplace) {
