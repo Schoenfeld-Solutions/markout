@@ -21,11 +21,11 @@ import {
 } from "../../lib/config";
 import { DefaultHtmlSanitizer } from "../../lib/html-sanitizer";
 import { createItemRenderer, type RenderItemResult } from "../../lib/item";
-import { createLazyMarkdownRenderer } from "../../lib/lazy-markdown-renderer";
 import type {
   RenderState,
   RenderStateStore,
 } from "../../lib/render-state-store";
+import { createMarkdownRenderer } from "../../lib/renderer";
 import { TaskpaneApp, type TaskpaneServices } from "../app";
 
 interface MockSettingsSnapshot {
@@ -67,6 +67,20 @@ declare global {
 }
 
 const INITIAL_BODY_HTML = "<p>Mock draft body</p>";
+const INITIAL_MARKDOWN_INPUT = `# Preview heading
+
+Paragraph with [a link](https://example.com) and \`inline code\`.
+
+> Blockquote content
+
+| Column | Value |
+| --- | --- |
+| Alpha | Beta |
+
+\`\`\`ts
+const preview = "theme-aware";
+\`\`\`
+`;
 
 function createInitialSelection(): ComposeSelection {
   return {
@@ -216,16 +230,20 @@ class InMemoryRenderStateStore implements RenderStateStore {
 
   public setPendingRenderState(originalHtml: string): Promise<void> {
     this.renderState = {
+      channelId: "local",
       originalHtml,
       phase: "pending",
+      storedAt: new Date().toISOString(),
     };
     return Promise.resolve();
   }
 
   public setRenderedRenderState(originalHtml: string): Promise<void> {
     this.renderState = {
+      channelId: "local",
       originalHtml,
       phase: "rendered",
+      storedAt: new Date().toISOString(),
     };
     return Promise.resolve();
   }
@@ -340,7 +358,7 @@ function mountMockTaskpane(): void {
   const state = createMockSnapshot(settingsStore);
   const bodyAccessor = new MockBodyAccessor(state);
   const htmlSanitizer = new DefaultHtmlSanitizer();
-  const markdownRenderer = createLazyMarkdownRenderer();
+  const markdownRenderer = createMarkdownRenderer();
   const notificationService = new MockNotificationService(state);
   const composeMarkdown = createComposeMarkdownService({
     bodyAccessor,
@@ -366,6 +384,7 @@ function mountMockTaskpane(): void {
 
   createRoot(rootElement).render(
     <TaskpaneApp
+      initialMarkdownInput={INITIAL_MARKDOWN_INPUT}
       locale="en-US"
       notificationService={notificationService}
       services={services}

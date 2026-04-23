@@ -5,20 +5,45 @@ async function handleSendEvent(
   event: Office.AddinCommands.Event
 ): Promise<void> {
   try {
-    const { createOfficeSettingsStore } = await import(
-      /* webpackChunkName: "launchevent-settings" */ "../lib/config"
+    const [
+      { createOfficeBodyAccessor },
+      { createOfficeSettingsStore },
+      { DefaultHtmlSanitizer },
+      { createItemRenderer },
+      { createLazyMarkdownRenderer },
+      { createOfficeRenderStateStore },
+      { resolveRuntimeChannelConfig },
+    ] = await Promise.all([
+      import("../lib/body-accessor"),
+      import("../lib/config"),
+      import("../lib/html-sanitizer"),
+      import("../lib/item"),
+      import("../lib/lazy-markdown-renderer"),
+      import("../lib/render-state-store"),
+      import("../lib/runtime"),
+    ]);
+    const runtimeChannelConfig = resolveRuntimeChannelConfig();
+    const settingsStore = createOfficeSettingsStore(
+      undefined,
+      runtimeChannelConfig
     );
-    const settingsStore = createOfficeSettingsStore();
 
     if (!settingsStore.getAutoRender()) {
       event.completed({ allowEvent: true });
       return;
     }
 
-    const { ensureRendered } = await import(
-      /* webpackChunkName: "launchevent-render" */ "../lib/item"
-    );
-    await ensureRendered();
+    const itemRenderer = createItemRenderer({
+      bodyAccessor: createOfficeBodyAccessor(),
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: createLazyMarkdownRenderer(),
+      renderStateStore: createOfficeRenderStateStore(
+        undefined,
+        runtimeChannelConfig
+      ),
+      settingsStore,
+    });
+    await itemRenderer.ensureRendered();
     event.completed({ allowEvent: true });
   } catch (error) {
     console.error("MarkOut auto-render failed before send.", error);

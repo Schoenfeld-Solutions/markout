@@ -1,3 +1,5 @@
+import { MarkOutError } from "./runtime";
+
 export type SelectionSource = "body" | "subject";
 
 export interface ComposeSelection {
@@ -107,10 +109,10 @@ class OfficeBodyAccessor implements BodyAccessor {
     const bodyType = await this.getBodyType();
 
     if (bodyType !== Office.CoercionType.Html) {
-      const error = new Error(
+      const error = new MarkOutError(
+        "unsupported-body-type",
         "MarkOut can only insert rendered content into an HTML compose body."
       );
-      error.name = "UnsupportedBodyType";
       throw error;
     }
 
@@ -192,7 +194,10 @@ function getCurrentMailboxItem(): MailboxItemLike {
   const mailboxItem = Office.context.mailbox.item;
 
   if (mailboxItem === undefined) {
-    throw new Error("MarkOut requires an active Outlook compose item.");
+    throw new MarkOutError(
+      "office-compose-item-missing",
+      "MarkOut requires an active Outlook compose item."
+    );
   }
 
   if (
@@ -200,7 +205,8 @@ function getCurrentMailboxItem(): MailboxItemLike {
     typeof mailboxItem.body.setSelectedDataAsync !== "function" ||
     typeof mailboxItem.body.getTypeAsync !== "function"
   ) {
-    throw new Error(
+    throw new MarkOutError(
+      "office-selection-api-unavailable",
       "MarkOut requires an Outlook compose item with body selection APIs."
     );
   }

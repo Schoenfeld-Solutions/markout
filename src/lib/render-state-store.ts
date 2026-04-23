@@ -1,5 +1,10 @@
-const ORIGINAL_HTML_KEY = "markout.originalHtml";
-const PERSISTENT_RENDER_SOURCE_KEY_PREFIX = "markout.renderSource.";
+import {
+  MarkOutError,
+  getChannelScopedKey,
+  resolveRuntimeChannelConfig,
+  type ChannelId,
+  type RuntimeChannelConfig,
+} from "./runtime";
 
 interface CustomPropertiesLike {
   get(name: string): string | undefined;
@@ -31,17 +36,13 @@ interface MailboxItemWithCustomPropertiesLike {
   sessionData?: SessionDataLike;
 }
 
-interface PersistentStorageLike {
-  getItem(name: string): string | null;
-  removeItem(name: string): void;
-  setItem(name: string, value: string): void;
-}
-
 export type RenderStatePhase = "pending" | "rendered";
 
 export interface RenderState {
+  channelId: ChannelId;
   originalHtml: string;
   phase: RenderStatePhase;
+  storedAt: string;
 }
 
 export interface RenderStateStore {
@@ -52,26 +53,37 @@ export interface RenderStateStore {
 }
 
 interface LegacyRenderStatePayload {
+  channelId?: unknown;
   html?: unknown;
   originalHtml?: unknown;
   phase?: unknown;
-  originalHtmlStorage?: unknown;
-  originalHtmlStorageKey?: unknown;
+  schemaVersion?: unknown;
+  storedAt?: unknown;
+}
+
+interface StoredRenderStatePayload {
+  channelId: ChannelId;
+  originalHtml: string;
+  phase: RenderStatePhase;
+  schemaVersion: 2;
+  storedAt: string;
 }
 
 class OfficeRenderStateStore implements RenderStateStore {
   public constructor(
     private readonly mailboxItem: MailboxItemWithCustomPropertiesLike,
-    private readonly persistentStorage: PersistentStorageLike | undefined
+    private readonly runtimeChannelConfig: RuntimeChannelConfig
   ) {}
 
   public async clearRenderState(): Promise<void> {
-    const persistentStorageKey = await this.getPersistentStorageKey();
     const customProperties = await this.loadCustomProperties();
-    customProperties.remove(ORIGINAL_HTML_KEY);
+
+    for (const key of this.getStorageKeys()) {
+      customProperties.remove(key);
+    }
+
     await this.saveCustomProperties(customProperties);
     await this.clearSessionState();
-    this.clearPersistentRenderSource(persistentStorageKey);
   }
 
   public async getRenderState(): Promise<RenderState | null> {
@@ -80,16 +92,28 @@ class OfficeRenderStateStore implements RenderStateStore {
 
   public async setPendingRenderState(originalHtml: string): Promise<void> {
     await this.saveRenderState({
+      channelId: this.runtimeChannelConfig.channelId,
       originalHtml,
       phase: "pending",
+      storedAt: new Date().toISOString(),
     });
   }
 
   public async setRenderedRenderState(originalHtml: string): Promise<void> {
     await this.saveRenderState({
+      channelId: this.runtimeChannelConfig.channelId,
       originalHtml,
       phase: "rendered",
+      storedAt: new Date().toISOString(),
     });
+  }
+
+  private getPrimaryStorageKey(): string {
+    return getChannelScopedKey(this.runtimeChannelConfig, "originalHtml");
+  }
+
+  private getStorageKeys(): string[] {
+    return [this.getPrimaryStorageKey(), "markout.originalHtml"];
   }
 
   private async loadCustomProperties(): Promise<CustomPropertiesLike> {
@@ -121,67 +145,30 @@ class OfficeRenderStateStore implements RenderStateStore {
   }
 
   private async saveRenderState(renderState: RenderState): Promise<void> {
-    const currentPersistentStorageKey = await this.getPersistentStorageKey();
-
-    if (this.persistentStorage !== undefined) {
-      const persistentStorageKey =
-        currentPersistentStorageKey ?? createPersistentStorageKey();
-
-      try {
-        this.savePersistentRenderSource(
-          persistentStorageKey,
-          renderState.originalHtml
-        );
-      } catch {
-        await this.saveStoredRenderState(JSON.stringify(renderState));
-        return;
-      }
-
-      try {
-        await this.saveStoredRenderState(
-          JSON.stringify({
-            originalHtmlStorage: "local",
-            originalHtmlStorageKey: persistentStorageKey,
-            phase: renderState.phase,
-          } satisfies LegacyRenderStatePayload)
-        );
-      } catch (error) {
-        if (currentPersistentStorageKey !== persistentStorageKey) {
-          this.clearPersistentRenderSource(persistentStorageKey);
-        }
-
-        throw error;
-      }
-
-      if (
-        currentPersistentStorageKey !== undefined &&
-        currentPersistentStorageKey !== persistentStorageKey
-      ) {
-        this.clearPersistentRenderSource(currentPersistentStorageKey);
-      }
-
-      return;
-    }
-
-    await this.saveStoredRenderState(JSON.stringify(renderState));
+    await this.saveStoredRenderState(
+      JSON.stringify(toStoredPayload(renderState))
+    );
   }
 
   private async saveStoredRenderState(
     serializedRenderState: string
   ): Promise<void> {
+    const customProperties = await this.loadCustomProperties();
+
     try {
-      const customProperties = await this.loadCustomProperties();
-      customProperties.set(ORIGINAL_HTML_KEY, serializedRenderState);
+      customProperties.set(this.getPrimaryStorageKey(), serializedRenderState);
+      customProperties.remove("markout.originalHtml");
       await this.saveCustomProperties(customProperties);
       await this.clearSessionState();
+      return;
     } catch (error) {
-      if (!supportsSessionData(this.mailboxItem) || !isCapacityError(error)) {
+      if (!isCapacityError(error) || !supportsSessionData(this.mailboxItem)) {
         throw error;
       }
-
-      await this.saveSessionState(serializedRenderState);
-      await this.clearCustomPropertyStateQuietly();
     }
+
+    await this.saveSessionState(serializedRenderState);
+    await this.clearCustomPropertyStateQuietly();
   }
 
   private async loadStoredRenderState(): Promise<string | undefined> {
@@ -192,13 +179,26 @@ class OfficeRenderStateStore implements RenderStateStore {
     }
 
     const customProperties = await this.loadCustomProperties();
-    return customProperties.get(ORIGINAL_HTML_KEY);
+
+    for (const key of this.getStorageKeys()) {
+      const storedValue = customProperties.get(key);
+
+      if (storedValue !== undefined) {
+        return storedValue;
+      }
+    }
+
+    return undefined;
   }
 
   private async clearCustomPropertyStateQuietly(): Promise<void> {
     try {
       const customProperties = await this.loadCustomProperties();
-      customProperties.remove(ORIGINAL_HTML_KEY);
+
+      for (const key of this.getStorageKeys()) {
+        customProperties.remove(key);
+      }
+
       await this.saveCustomProperties(customProperties);
     } catch {
       // Ignore cleanup failures after successfully saving a session-scoped state.
@@ -212,21 +212,23 @@ class OfficeRenderStateStore implements RenderStateStore {
       return;
     }
 
-    await new Promise<void>((resolve, reject) => {
-      sessionData.removeAsync(ORIGINAL_HTML_KEY, (result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          if (isMissingSessionStateError(result.error)) {
-            resolve();
+    for (const key of this.getStorageKeys()) {
+      await new Promise<void>((resolve, reject) => {
+        sessionData.removeAsync(key, (result) => {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            if (isMissingSessionStateError(result.error)) {
+              resolve();
+              return;
+            }
+
+            reject(toOfficeError(result.error));
             return;
           }
 
-          reject(toOfficeError(result.error));
-          return;
-        }
-
-        resolve();
+          resolve();
+        });
       });
-    });
+    }
   }
 
   private async loadSessionState(): Promise<string | undefined> {
@@ -236,56 +238,61 @@ class OfficeRenderStateStore implements RenderStateStore {
       return undefined;
     }
 
-    return new Promise<string | undefined>((resolve, reject) => {
-      sessionData.getAsync(ORIGINAL_HTML_KEY, (result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          if (isMissingSessionStateError(result.error)) {
-            resolve(undefined);
-            return;
-          }
+    for (const key of this.getStorageKeys()) {
+      const storedValue = await new Promise<string | undefined>(
+        (resolve, reject) => {
+          sessionData.getAsync(key, (result) => {
+            if (result.status === Office.AsyncResultStatus.Failed) {
+              if (isMissingSessionStateError(result.error)) {
+                resolve(undefined);
+                return;
+              }
 
-          reject(toOfficeError(result.error));
-          return;
+              reject(toOfficeError(result.error));
+              return;
+            }
+
+            resolve(result.value);
+          });
         }
+      );
 
-        resolve(result.value);
-      });
-    });
+      if (storedValue !== undefined) {
+        return storedValue;
+      }
+    }
+
+    return undefined;
   }
 
   private async saveSessionState(renderState: string): Promise<void> {
     const sessionData = this.mailboxItem.sessionData;
 
     if (sessionData === undefined) {
-      throw new Error("MarkOut couldn't persist large render state data.");
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      sessionData.setAsync(ORIGINAL_HTML_KEY, renderState, (result) => {
-        if (result.status === Office.AsyncResultStatus.Failed) {
-          reject(toOfficeError(result.error));
-          return;
-        }
-
-        resolve();
-      });
-    });
-  }
-
-  private async getPersistentStorageKey(): Promise<string | undefined> {
-    const storedRenderState = await this.loadStoredRenderState();
-
-    if (storedRenderState === undefined || storedRenderState === "false") {
-      return undefined;
+      throw createRestoreStateTooLargeError();
     }
 
     try {
-      const parsedValue = JSON.parse(
-        storedRenderState
-      ) as LegacyRenderStatePayload;
-      return getPersistentStorageKeyFromPayload(parsedValue);
-    } catch {
-      return undefined;
+      await new Promise<void>((resolve, reject) => {
+        sessionData.setAsync(
+          this.getPrimaryStorageKey(),
+          renderState,
+          (result) => {
+            if (result.status === Office.AsyncResultStatus.Failed) {
+              reject(toOfficeError(result.error));
+              return;
+            }
+
+            resolve();
+          }
+        );
+      });
+    } catch (error) {
+      if (isCapacityError(error)) {
+        throw createRestoreStateTooLargeError(error);
+      }
+
+      throw error;
     }
   }
 
@@ -298,96 +305,96 @@ class OfficeRenderStateStore implements RenderStateStore {
 
     try {
       const parsedValue = JSON.parse(storedValue) as LegacyRenderStatePayload;
-      return this.normalizeParsedRenderState(parsedValue);
+      return normalizeParsedRenderState(
+        parsedValue,
+        this.runtimeChannelConfig.channelId
+      );
     } catch {
       return {
+        channelId: this.runtimeChannelConfig.channelId,
         originalHtml: storedValue,
         phase: "rendered",
+        storedAt: new Date(0).toISOString(),
       };
     }
   }
+}
 
-  private normalizeParsedRenderState(
-    parsedValue: LegacyRenderStatePayload
-  ): RenderState | null {
-    if (typeof parsedValue.html === "string") {
-      return {
-        originalHtml: parsedValue.html,
-        phase: "rendered",
-      };
-    }
+function normalizeParsedRenderState(
+  parsedValue: LegacyRenderStatePayload,
+  expectedChannelId: ChannelId
+): RenderState | null {
+  if (typeof parsedValue.html === "string") {
+    return {
+      channelId: expectedChannelId,
+      originalHtml: parsedValue.html,
+      phase: "rendered",
+      storedAt: new Date(0).toISOString(),
+    };
+  }
 
-    if (
-      typeof parsedValue.originalHtml === "string" &&
-      (parsedValue.phase === "pending" || parsedValue.phase === "rendered")
-    ) {
-      return {
-        originalHtml: parsedValue.originalHtml,
-        phase: parsedValue.phase,
-      };
-    }
-
-    const persistentStorageKey =
-      getPersistentStorageKeyFromPayload(parsedValue);
-
-    if (
-      persistentStorageKey !== undefined &&
-      (parsedValue.phase === "pending" || parsedValue.phase === "rendered")
-    ) {
-      const persistentRenderSource =
-        this.persistentStorage?.getItem(persistentStorageKey);
-
-      if (
-        persistentRenderSource === null ||
-        persistentRenderSource === undefined
-      ) {
-        throw new Error(
-          "MarkOut couldn't recover the stored draft source for this compose session."
-        );
-      }
-
-      return {
-        originalHtml: persistentRenderSource,
-        phase: parsedValue.phase,
-      };
-    }
-
+  if (
+    typeof parsedValue.originalHtml !== "string" ||
+    (parsedValue.phase !== "pending" && parsedValue.phase !== "rendered")
+  ) {
     return null;
   }
 
-  private clearPersistentRenderSource(
-    persistentStorageKey: string | undefined
-  ): void {
-    if (
-      this.persistentStorage === undefined ||
-      persistentStorageKey === undefined
-    ) {
-      return;
-    }
+  const channelId =
+    parsedValue.channelId === undefined
+      ? expectedChannelId
+      : normalizeChannelId(parsedValue.channelId);
 
-    this.persistentStorage.removeItem(persistentStorageKey);
+  if (channelId === null || channelId !== expectedChannelId) {
+    return null;
   }
 
-  private savePersistentRenderSource(
-    persistentStorageKey: string,
-    originalHtml: string
-  ): void {
-    if (this.persistentStorage === undefined) {
-      return;
-    }
+  return {
+    channelId,
+    originalHtml: parsedValue.originalHtml,
+    phase: parsedValue.phase,
+    storedAt:
+      typeof parsedValue.storedAt === "string"
+        ? parsedValue.storedAt
+        : new Date(0).toISOString(),
+  };
+}
 
-    this.persistentStorage.setItem(persistentStorageKey, originalHtml);
-  }
+function normalizeChannelId(value: unknown): ChannelId | null {
+  return value === "beta" || value === "local" || value === "production"
+    ? value
+    : null;
+}
+
+function toStoredPayload(renderState: RenderState): StoredRenderStatePayload {
+  return {
+    channelId: renderState.channelId,
+    originalHtml: renderState.originalHtml,
+    phase: renderState.phase,
+    schemaVersion: 2,
+    storedAt: renderState.storedAt,
+  };
 }
 
 function getCurrentMailboxItem(): MailboxItemWithCustomPropertiesLike {
   const mailboxItem = Office.context.mailbox.item;
 
   if (mailboxItem === undefined) {
-    throw new Error("MarkOut requires an active Outlook compose item.");
+    throw new MarkOutError(
+      "office-compose-item-missing",
+      "MarkOut requires an active Outlook compose item."
+    );
   }
 
   return mailboxItem;
+}
+
+function createRestoreStateTooLargeError(cause?: unknown): MarkOutError {
+  return new MarkOutError(
+    "restore-state-too-large",
+    "MarkOut couldn't persist the original draft HTML because Outlook's restore-state storage is full for this channel.",
+    { cause }
+  );
 }
 
 function toOfficeError(
@@ -408,7 +415,8 @@ function isCapacityError(error: unknown): boolean {
   return (
     /ArgumentOutOfRange/i.test(error.name) ||
     /customproperties/i.test(error.message) ||
-    /out of the range of valid values/i.test(error.message)
+    /out of the range of valid values/i.test(error.message) ||
+    /quota/i.test(error.message)
   );
 }
 
@@ -429,55 +437,9 @@ function supportsSessionData(
   return mailboxItem.sessionData !== undefined;
 }
 
-function getPersistentRenderStateStorage(): PersistentStorageLike | undefined {
-  try {
-    const persistentStorage = globalThis.localStorage as
-      | Partial<PersistentStorageLike>
-      | undefined;
-
-    if (
-      persistentStorage === undefined ||
-      typeof persistentStorage.getItem !== "function" ||
-      typeof persistentStorage.removeItem !== "function" ||
-      typeof persistentStorage.setItem !== "function"
-    ) {
-      return undefined;
-    }
-
-    return persistentStorage as PersistentStorageLike;
-  } catch {
-    return undefined;
-  }
-}
-
-function createPersistentStorageKey(): string {
-  if (typeof globalThis.crypto.randomUUID === "function") {
-    return `${PERSISTENT_RENDER_SOURCE_KEY_PREFIX}${globalThis.crypto.randomUUID()}`;
-  }
-
-  return `${PERSISTENT_RENDER_SOURCE_KEY_PREFIX}${Date.now().toString(36)}.${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
-}
-
-function getPersistentStorageKeyFromPayload(
-  parsedValue: LegacyRenderStatePayload
-): string | undefined {
-  if (
-    parsedValue.originalHtmlStorage === "local" &&
-    typeof parsedValue.originalHtmlStorageKey === "string"
-  ) {
-    return parsedValue.originalHtmlStorageKey;
-  }
-
-  return undefined;
-}
-
 export function createOfficeRenderStateStore(
   mailboxItem: MailboxItemWithCustomPropertiesLike = getCurrentMailboxItem(),
-  persistentStorage:
-    | PersistentStorageLike
-    | undefined = getPersistentRenderStateStorage()
+  runtimeChannelConfig: RuntimeChannelConfig = resolveRuntimeChannelConfig()
 ): RenderStateStore {
-  return new OfficeRenderStateStore(mailboxItem, persistentStorage);
+  return new OfficeRenderStateStore(mailboxItem, runtimeChannelConfig);
 }

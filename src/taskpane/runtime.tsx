@@ -1,9 +1,20 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { createComposeMarkdownService } from "../lib/compose-markdown";
+import {
+  createComposeMarkdownService,
+  type ComposeMarkdownDependencies,
+} from "../lib/compose-markdown";
 import { createComposeNotificationService } from "../lib/compose-notifications";
-import { createOfficeSettingsStore } from "../lib/config";
-import { renderItem } from "../lib/item";
+import { createOfficeSettingsStore, type SettingsStore } from "../lib/config";
+import { DefaultHtmlSanitizer } from "../lib/html-sanitizer";
+import { createItemRenderer, type RenderDependencies } from "../lib/item";
+import { createLazyMarkdownRenderer } from "../lib/lazy-markdown-renderer";
+import { createOfficeBodyAccessor } from "../lib/body-accessor";
+import { createOfficeRenderStateStore } from "../lib/render-state-store";
+import {
+  resolveRuntimeChannelConfig,
+  type RuntimeChannelConfig,
+} from "../lib/runtime";
 import { TaskpaneApp } from "./app";
 import {
   getStrings,
@@ -131,26 +142,71 @@ export class TaskpaneRuntimeErrorBoundary extends Component<
 
 export function mountTaskpane(rootElement: HTMLElement): void {
   const root = createRoot(rootElement);
-  const settingsStore = createOfficeSettingsStore();
+  const runtimeChannelConfig = resolveRuntimeChannelConfig();
+  const settingsStore = createOfficeSettingsStore(
+    undefined,
+    runtimeChannelConfig
+  );
   const locale = resolveLocale(
     resolveOfficeDisplayLanguage(),
     settingsStore.getLanguagePreference()
   );
   const strings = getStrings(locale);
+  const services = createTaskpaneRuntimeServices(
+    runtimeChannelConfig,
+    settingsStore
+  );
 
-  console.info("[MarkOut] taskpane runtime mounted", { locale });
+  console.info("[MarkOut] taskpane runtime mounted", {
+    channel: runtimeChannelConfig.channelId,
+    locale,
+  });
 
   root.render(
     <TaskpaneRuntimeErrorBoundary strings={strings}>
       <TaskpaneApp
         locale={locale}
-        notificationService={createComposeNotificationService()}
-        services={{
-          composeMarkdown: createComposeMarkdownService(),
-          renderEntireDraft: renderItem,
-        }}
+        notificationService={createComposeNotificationService(
+          undefined,
+          runtimeChannelConfig
+        )}
+        services={services}
         settingsStore={settingsStore}
       />
     </TaskpaneRuntimeErrorBoundary>
   );
+}
+
+function createTaskpaneRuntimeServices(
+  runtimeChannelConfig: RuntimeChannelConfig,
+  settingsStore: SettingsStore
+): {
+  composeMarkdown: ReturnType<typeof createComposeMarkdownService>;
+  renderEntireDraft: () => Promise<"rendered" | "restored">;
+} {
+  const markdownRenderer = createLazyMarkdownRenderer();
+  const bodyAccessor = createOfficeBodyAccessor();
+  const htmlSanitizer = new DefaultHtmlSanitizer();
+  const composeDependencies: ComposeMarkdownDependencies = {
+    bodyAccessor,
+    htmlSanitizer,
+    markdownRenderer,
+    settingsStore,
+  };
+  const renderDependencies: RenderDependencies = {
+    bodyAccessor,
+    htmlSanitizer,
+    markdownRenderer,
+    renderStateStore: createOfficeRenderStateStore(
+      undefined,
+      runtimeChannelConfig
+    ),
+    settingsStore,
+  };
+  const itemRenderer = createItemRenderer(renderDependencies);
+
+  return {
+    composeMarkdown: createComposeMarkdownService(composeDependencies),
+    renderEntireDraft: () => itemRenderer.renderItem(),
+  };
 }

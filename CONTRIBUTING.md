@@ -20,6 +20,8 @@ constraints documented in [README.md](README.md).
 - Use a short-lived feature branch in the form `dev/<topic>`.
 - Treat `main` as the integration branch for the hosted beta/testing channel.
 - Treat `release/production` as the stable production source branch.
+- Production, beta, and local are separate add-ins and must not share browser
+  settings, notification state, or restore-state keys.
 - Keep pull requests focused and behaviorally coherent.
 - Update README and manifests in the same workstream when setup, hosting,
   support URLs, or Outlook behavior changes.
@@ -73,6 +75,7 @@ npm run check
 
 This includes formatting checks, linting, type checking, unit tests, the
 production build, bundle budget checks, and deployable manifest validation.
+`npm run check:repo-contracts` is part of that baseline and must stay green.
 
 Additional checks when relevant:
 
@@ -85,6 +88,13 @@ Additional checks when relevant:
 If the host smoke cannot be run because credentials or Outlook test
 infrastructure are unavailable, call that out explicitly in the PR.
 
+GitHub pull requests also require:
+
+- a Conventional Commit PR title
+- dependency review
+- `npm run test:taskpane-ui`
+- the coverage gate
+
 ## Release channel workflow
 
 - MarkOut intentionally uses a **post-merge preview model**.
@@ -94,11 +104,13 @@ infrastructure are unavailable, call that out explicitly in the PR.
   channel sourced from `main`.
 - `manifest.xml` and `/outlook/` are the stable production channel sourced from
   `release/production`.
-- Bootstrap `release/production` once from the current stable production commit
-  before relying on independent promotions.
 - Normal pushes to `main` must not move production.
 - Production is updated only through the manual
   **Promote Production Channel** workflow by selecting a validated `main` SHA.
+- Release packaging fails if `release/production` is missing.
+- Promotion requires a successful `Build and Publish GitHub Pages` run for the
+  target `main` SHA and approval of the protected `production-promotion`
+  environment.
 - The expected rollout path is:
   1. merge to `main`
   2. verify with `manifest.beta.xml`
@@ -120,3 +132,5 @@ infrastructure are unavailable, call that out explicitly in the PR.
 - Preserve visible credit to the upstream source in README.
 - Do not change the license text unless there is a verified legal reason to do
   so.
+- Keep ADRs and runbooks under `docs/adr/` and `docs/runbooks/` aligned with
+  workflow and manifest changes.

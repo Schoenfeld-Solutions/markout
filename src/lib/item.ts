@@ -14,6 +14,7 @@ import {
   type RenderState,
   type RenderStateStore,
 } from "./render-state-store";
+import { resolveRuntimeChannelConfig } from "./runtime";
 
 export type RenderItemResult = "rendered" | "restored";
 
@@ -88,12 +89,17 @@ async function clearRenderStateQuietly(
 }
 
 function createDefaultDependencies(): RenderDependencies {
+  const runtimeChannelConfig = resolveRuntimeChannelConfig();
+
   return {
     bodyAccessor: createOfficeBodyAccessor(),
     htmlSanitizer: new DefaultHtmlSanitizer(),
     markdownRenderer: createLazyMarkdownRenderer(),
-    renderStateStore: createOfficeRenderStateStore(),
-    settingsStore: createOfficeSettingsStore(),
+    renderStateStore: createOfficeRenderStateStore(
+      undefined,
+      runtimeChannelConfig
+    ),
+    settingsStore: createOfficeSettingsStore(undefined, runtimeChannelConfig),
   };
 }
 

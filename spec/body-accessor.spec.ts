@@ -137,9 +137,10 @@ describe("body accessor", () => {
     await expect(
       bodyAccessor.replaceSelectionWithHtml("<div>Updated</div>")
     ).rejects.toMatchObject({
+      code: "unsupported-body-type",
       message:
         "MarkOut can only insert rendered content into an HTML compose body.",
-      name: "UnsupportedBodyType",
+      name: "MarkOutError",
     });
   });
 
