@@ -59,14 +59,15 @@ async function insertRenderedMarkdownInternal(
   }
 
   const selection = await dependencies.bodyAccessor.getSelection();
-  assertBodySelection(selection.source);
-  assertSelectionIsNotAlreadyRendered(selection.html);
+  assertInsertTarget(selection);
   await assertDraftIsNotFullyRendered(dependencies.bodyAccessor);
 
   const renderedHtml = await renderFragment(markdown, dependencies);
   await dependencies.bodyAccessor.replaceSelectionWithHtml(renderedHtml);
 
-  return selection.hasSelection ? "replaced" : "inserted";
+  return selection.hasSelection && selection.source === "body"
+    ? "replaced"
+    : "inserted";
 }
 
 async function renderPreviewInternal(
@@ -126,6 +127,14 @@ function assertBodySelection(source: "body" | "subject"): void {
   if (source !== "body") {
     throw new Error(SUBJECT_SELECTION_UNSUPPORTED_MESSAGE);
   }
+}
+
+function assertInsertTarget(selection: ComposeSelection): void {
+  if (selection.hasSelection) {
+    assertBodySelection(selection.source);
+  }
+
+  assertSelectionIsNotAlreadyRendered(selection.html);
 }
 
 function assertSelectionIsNotAlreadyRendered(

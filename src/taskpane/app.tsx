@@ -828,7 +828,9 @@ export function TaskpaneApp({
   const showComposeNotification = useEffectEvent(
     async (intent: PanelMessageState["intent"], message: string) => {
       if (notificationService === undefined) {
-        setPanelMessage({ body: message, intent });
+        console.warn(
+          "MarkOut could not show a compose infobar because no notification service is available."
+        );
         return;
       }
 
@@ -838,7 +840,9 @@ export function TaskpaneApp({
       });
 
       if (surface === "pane") {
-        setPanelMessage({ body: message, intent });
+        console.warn(
+          "MarkOut could not show the compose infobar and skipped the sidebar fallback."
+        );
       }
     }
   );
@@ -1337,18 +1341,18 @@ export function TaskpaneApp({
 
     try {
       const loaded = await updateSelectionState();
-      setPanelMessage({
-        body: loaded
+      await showComposeNotification(
+        loaded ? "success" : "error",
+        loaded
           ? localizedStrings.status.selectionInspectionSuccess
-          : localizedStrings.status.selectionInspectionFailed,
-        intent: loaded ? "success" : "error",
-      });
+          : localizedStrings.status.selectionInspectionFailed
+      );
     } catch (error) {
       console.error("MarkOut failed to inspect the current selection.", error);
-      setPanelMessage({
-        body: localizedStrings.status.selectionInspectionFailed,
-        intent: "error",
-      });
+      await showComposeNotification(
+        "error",
+        localizedStrings.status.selectionInspectionFailed
+      );
     } finally {
       setIsInspectingSelection(false);
     }
