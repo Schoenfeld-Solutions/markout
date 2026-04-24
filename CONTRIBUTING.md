@@ -85,7 +85,8 @@ Additional checks when relevant:
 - `npm run check:github-release-governance` when release governance settings,
   production branch rules, Pages policies, or release-bot credentials change
 - `npm run dev` plus manual **Add from File** sideload with `manifest-localhost.xml`
-- `npm run start:desktop` if desktop auto-sideload behavior is the thing being changed
+- manual desktop Outlook sideloading with `manifest-localhost.xml` if desktop
+  compose behavior is the thing being changed
 - manual OWA verification with `manifest.beta.xml` for changes that affect
   Outlook compose flows, task pane behavior, Smart Alerts, selectors, or
   send-time rendering
