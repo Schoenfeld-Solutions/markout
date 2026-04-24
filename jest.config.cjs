@@ -21,6 +21,12 @@ module.exports = {
       lines: 93,
       statements: 93,
     },
+    "./src/lib/html-sanitizer.ts": {
+      branches: 88,
+      functions: 94,
+      lines: 94,
+      statements: 94,
+    },
     "./src/lib/render-state-store.ts": {
       branches: 73,
       functions: 100,
@@ -39,11 +45,35 @@ module.exports = {
       lines: 70,
       statements: 70,
     },
+    "./src/taskpane/controllers.ts": {
+      branches: 20,
+      functions: 52,
+      lines: 47,
+      statements: 47,
+    },
+    "./src/taskpane/editor.tsx": {
+      branches: 13,
+      functions: 27,
+      lines: 29,
+      statements: 29,
+    },
     "./src/taskpane/preferences.ts": {
       branches: 100,
       functions: 100,
       lines: 100,
       statements: 100,
+    },
+    "./src/taskpane/runtime.tsx": {
+      branches: 75,
+      functions: 50,
+      lines: 57,
+      statements: 57,
+    },
+    "./src/taskpane/taskpane-app.tsx": {
+      branches: 20,
+      functions: 15,
+      lines: 28,
+      statements: 27,
     },
   },
   maxWorkers: 1,
