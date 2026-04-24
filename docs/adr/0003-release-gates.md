@@ -15,8 +15,8 @@ fast-forward viability.
 
 MarkOut now treats release and promotion as fail-closed workflows.
 
-- Pull requests into `main` must pass repo contracts, build/test gates,
-  dependency review, `test:taskpane-ui`, and the coverage gate.
+- Pull requests into `main` must pass repo contracts, build/test/coverage gates
+  through `check:ci`, dependency review, and `test:taskpane-ui`.
 - The release workflow refuses to publish if `origin/release/production` does
   not exist.
 - Promotion requires a specific `main` SHA with successful beta deployment

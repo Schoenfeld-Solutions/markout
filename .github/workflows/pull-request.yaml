@@ -60,11 +60,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run repository and build gates
-        run: npm run check
+      - name: Run repository, build, and coverage gates
+        run: npm run check:ci
 
       - name: Run taskpane UI gate
         run: npm run test:taskpane-ui
-
-      - name: Run coverage gate
-        run: npm run test:coverage
