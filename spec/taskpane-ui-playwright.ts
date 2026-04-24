@@ -22,7 +22,7 @@ interface MockSnapshot {
   bodyHtml: string;
 }
 
-const DEFAULT_BASE_URL = "https://localhost:3000/taskpane-mock.html";
+const DEFAULT_BASE_URL = "http://localhost:3000/taskpane-mock.html";
 const DEFAULT_OUTPUT_DIRECTORY = path.join(
   process.cwd(),
   "output",

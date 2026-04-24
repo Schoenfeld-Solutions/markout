@@ -120,6 +120,14 @@ Then sideload the add-in manually in Outlook with **Add from File** and select `
 On macOS you may be prompted to trust the local developer CA certificate before Outlook or your browser
 will trust `https://localhost:3000`.
 
+`npm run dev` requires local TLS material because Outlook sideloading requires
+HTTPS. Set `MARKOUT_DEV_TLS_CERT_PATH` and `MARKOUT_DEV_TLS_KEY_PATH`, or keep
+trusted files at the legacy default paths
+`~/.office-addin-dev-certs/localhost.crt` and
+`~/.office-addin-dev-certs/localhost.key`. The repository no longer generates or
+trusts certificates for you; use your local OS tooling or an external tool such
+as `mkcert` if you need to create a new trusted localhost certificate.
+
 For Outlook desktop testing, keep `npm run dev` running and sideload
 `manifest-localhost.xml` manually with **Add from File**. The repository does
 not carry the deprecated Office auto-debugging CLI because it adds a large
@@ -174,9 +182,9 @@ toolchain.
 `npm run validate:manifest:localhost` is available for local manifest checks, but `manifest-localhost.xml`
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
 
-`npm run test:taskpane-ui` starts a local, test-only taskpane mock and drives it
-with Playwright so sidebar layout, preview theming, and generated fragment HTML
-can be verified without Outlook.
+`npm run test:taskpane-ui` starts a local, test-only taskpane mock over HTTP and
+drives it with Playwright so sidebar layout, preview theming, and generated
+fragment HTML can be verified without Outlook or local TLS certificates.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest contract validation.

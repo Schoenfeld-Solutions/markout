@@ -1,17 +1,47 @@
-const devCerts = require("office-addin-dev-certs");
+const fs = require("fs");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const os = require("os");
 const path = require("path");
 const webpack = require("webpack");
+
+function readHttpsServerOptions() {
+  const defaultCertificateDirectory = path.join(
+    os.homedir(),
+    ".office-addin-dev-certs"
+  );
+  const certificatePath =
+    process.env.MARKOUT_DEV_TLS_CERT_PATH ??
+    path.join(defaultCertificateDirectory, "localhost.crt");
+  const keyPath =
+    process.env.MARKOUT_DEV_TLS_KEY_PATH ??
+    path.join(defaultCertificateDirectory, "localhost.key");
+
+  if (!fs.existsSync(certificatePath) || !fs.existsSync(keyPath)) {
+    throw new Error(
+      "Local HTTPS requires MARKOUT_DEV_TLS_CERT_PATH and MARKOUT_DEV_TLS_KEY_PATH, or existing ~/.office-addin-dev-certs/localhost.crt and localhost.key files."
+    );
+  }
+
+  return {
+    cert: fs.readFileSync(certificatePath),
+    key: fs.readFileSync(keyPath),
+  };
+}
 
 module.exports = async (_env, options) => {
   const env = _env ?? {};
   const isProduction = options.mode === "production";
   const includeTaskpaneMock =
     env.taskpaneMock === true || env.taskpaneMock === "true";
-  const httpsOptions =
-    !isProduction && options.https === undefined
-      ? await devCerts.getHttpsServerOptions()
-      : options.https;
+  const useHttpDevServer =
+    env.taskpaneHttps === false || env.taskpaneHttps === "false";
+  const devServerServer =
+    !isProduction && !useHttpDevServer
+      ? {
+          type: "https",
+          options: readHttpsServerOptions(),
+        }
+      : "http";
 
   const entry = {
     commands: "./src/commands/commands.ts",
@@ -119,10 +149,7 @@ module.exports = async (_env, options) => {
         "Access-Control-Allow-Origin": "*",
       },
       port: process.env.npm_package_config_dev_server_port || 3000,
-      server: {
-        type: "https",
-        options: httpsOptions,
-      },
+      server: devServerServer,
     },
   };
 };
