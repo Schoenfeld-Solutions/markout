@@ -1,3 +1,4 @@
+import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 import path from "node:path";
@@ -15,7 +16,7 @@ async function run(): Promise<void> {
   const port = await resolveTaskpaneUiPort();
   const baseUrl =
     process.env.MARKOUT_TASKPANE_UI_URL ??
-    `https://localhost:${port}/taskpane-mock.html`;
+    `http://localhost:${port}/taskpane-mock.html`;
   const timeoutMs = Number.parseInt(
     process.env.MARKOUT_TASKPANE_UI_TIMEOUT_MS ?? "",
     10
@@ -53,6 +54,8 @@ function startWebpackDevServer(port: number): ChildProcess {
       "development",
       "--env",
       "taskpaneMock=true",
+      "--env",
+      "taskpaneHttps=false",
       "--port",
       String(port),
     ],
@@ -99,14 +102,17 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
 
 async function pingUrl(url: string): Promise<boolean> {
   return new Promise<boolean>((resolve, reject) => {
-    const request = https.get(
-      url,
-      { rejectUnauthorized: false },
-      (response) => {
-        response.resume();
-        resolve((response.statusCode ?? 500) < 500);
-      }
-    );
+    const parsedUrl = new URL(url);
+    const request =
+      parsedUrl.protocol === "https:"
+        ? https.get(url, { rejectUnauthorized: false }, (response) => {
+            response.resume();
+            resolve((response.statusCode ?? 500) < 500);
+          })
+        : http.get(url, (response) => {
+            response.resume();
+            resolve((response.statusCode ?? 500) < 500);
+          });
 
     request.on("error", reject);
   });
