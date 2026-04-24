@@ -1,11 +1,6 @@
-import { JSDOM } from "jsdom";
+/** @jest-environment jsdom */
 import { cleanse } from "../src/lib/cleanser";
 import { readFile } from "./helpers";
-
-const runtime = globalThis as typeof globalThis & {
-  DOMParser: typeof DOMParser;
-};
-runtime.DOMParser = new JSDOM().window.DOMParser;
 
 const tests: {
   inputFile: string;

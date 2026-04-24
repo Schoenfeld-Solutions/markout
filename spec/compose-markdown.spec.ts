@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 import {
   EMPTY_SELECTION_MESSAGE,
   FULL_DRAFT_ALREADY_RENDERED_MESSAGE,

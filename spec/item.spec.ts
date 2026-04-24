@@ -1,3 +1,4 @@
+/** @jest-environment jsdom */
 import type { BodyAccessor } from "../src/lib/body-accessor";
 import { DefaultHtmlSanitizer } from "../src/lib/html-sanitizer";
 import {

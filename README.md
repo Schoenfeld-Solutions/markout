@@ -103,8 +103,9 @@ when the user enables that option.
 
 MarkOut currently validates against Node 25 in CI and allows the next Node major without reopening
 the repo policy immediately.
-`jsdom` stays on the latest green 21.x line because newer majors break the current Jest stack,
-and `markdown-it-emoji` stays on 2.x because v3 changes the plugin shape used by the renderer.
+DOM-dependent tests use `jest-environment-jsdom` instead of a direct `jsdom`
+dependency, and `markdown-it-emoji` stays on 2.x because v3 changes the plugin
+shape used by the renderer.
 
 ### Setup
 

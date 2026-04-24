@@ -1,6 +1,5 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import type { JSDOM as JSDOMType } from "jsdom";
 import { TextDecoder, TextEncoder } from "util";
 
 interface OfficeErrorLike {
@@ -13,7 +12,6 @@ interface ReadyInfo {
 }
 
 const runtime = globalThis as typeof globalThis & {
-  DOMParser?: typeof DOMParser;
   Office?: typeof Office;
   TextDecoder?: typeof TextDecoder;
   TextEncoder?: typeof TextEncoder;
@@ -23,9 +21,13 @@ runtime.TextDecoder = TextDecoder;
 runtime.TextEncoder = TextEncoder;
 
 export function installDomParser(): void {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { JSDOM } = require("jsdom") as { JSDOM: typeof JSDOMType };
-  runtime.DOMParser = new JSDOM().window.DOMParser;
+  const domRuntime = globalThis as { DOMParser?: unknown };
+
+  if (typeof domRuntime.DOMParser !== "function") {
+    throw new Error(
+      "DOMParser is unavailable. Add the @jest-environment jsdom pragma to DOM-dependent specs."
+    );
+  }
 }
 
 export function readFile(name: string, stripNewlines = false): string {
