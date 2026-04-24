@@ -121,13 +121,15 @@ jobs:
             --output-root ./out
 
       - name: Generate SBOM
-        run: npm sbom --sbom-format cyclonedx --omit dev > ./out/sbom.cdx.json
+        run: |
+          npm --prefix ./beta-source sbom --sbom-format cyclonedx --omit dev > ./out/sbom-beta.cdx.json
+          npm --prefix ./production-source sbom --sbom-format cyclonedx --omit dev > ./out/sbom-production.cdx.json
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v7
         with:
           name: site-sbom
-          path: ./out/sbom.cdx.json
+          path: ./out/sbom-*.cdx.json
 
       - name: Attest GitHub Pages artifact provenance
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
