@@ -29,7 +29,7 @@
     "check:pr-title": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/check-conventional-commit.ts",
     "check:repo-contracts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/check-repo-contracts.ts",
     "dev": "npm run dev-server",
-    "dev-server": "webpack serve --mode development",
+    "dev-server": "tsx scripts/run-local-dev-server.ts --https",
     "format": "prettier --cache --write \"CONTRIBUTING.md\" \"README.md\" \"docs/**/*.md\" \".github/**/*.{yml,yaml}\" \"eslint.config.cjs\" \"jest.config.cjs\" \"package.json\" \"scripts/**/*.ts\" \"site/**/*.html\" \"spec/**/*.{ts,tsx}\" \"src/**/*.{ts,tsx,html,css}\" \"tsconfig.json\" \"webpack.config.js\"",
     "format:check": "prettier --cache --check \"CONTRIBUTING.md\" \"README.md\" \"docs/**/*.md\" \".github/**/*.{yml,yaml}\" \"eslint.config.cjs\" \"jest.config.cjs\" \"package.json\" \"scripts/**/*.ts\" \"site/**/*.html\" \"spec/**/*.{ts,tsx}\" \"src/**/*.{ts,tsx,html,css}\" \"tsconfig.json\" \"webpack.config.js\"",
     "lint": "eslint .",
@@ -89,8 +89,7 @@
     "tsx": "^4.20.6",
     "typescript": "^6.0.3",
     "webpack": "^5.106.2",
-    "webpack-cli": "^7.0.2",
-    "webpack-dev-server": "^5.2.3"
+    "webpack-cli": "^7.0.2"
   },
   "prettier": {
     "singleQuote": false,

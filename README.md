@@ -113,9 +113,12 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` starts the local HTTPS webpack dev server for `manifest-localhost.xml`.
+`npm run dev` starts the repo-native local development server for
+`manifest-localhost.xml`. It runs webpack in watch mode and serves the generated
+`dist/` assets over HTTPS without `webpack-dev-server`.
 `npm run start` is kept as a convenience alias to the same local dev server.
-Then sideload the add-in manually in Outlook with **Add from File** and select `manifest-localhost.xml`.
+Then sideload the add-in manually in Outlook with **Add from File** and select
+`manifest-localhost.xml`.
 
 On macOS you may be prompted to trust the local developer CA certificate before Outlook or your browser
 will trust `https://localhost:3000`.
@@ -182,9 +185,10 @@ toolchain.
 `npm run validate:manifest:localhost` is available for local manifest checks, but `manifest-localhost.xml`
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
 
-`npm run test:taskpane-ui` starts a local, test-only taskpane mock over HTTP and
-drives it with Playwright so sidebar layout, preview theming, and generated
-fragment HTML can be verified without Outlook or local TLS certificates.
+`npm run test:taskpane-ui` starts the same local server in HTTP mode with a
+test-only taskpane mock and drives it with Playwright so sidebar layout, preview
+theming, and generated fragment HTML can be verified without Outlook or local
+TLS certificates.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest contract validation.
