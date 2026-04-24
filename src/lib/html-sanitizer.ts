@@ -99,6 +99,8 @@ const SAFE_STYLE_PROPERTIES = new Set([
 ]);
 const SAFE_STYLE_VALUE = /^[#(),.%!'"/+:\w\s-]+$/;
 const SAFE_CLASS_NAME = /^[A-Za-z0-9_\- ]+$/;
+const SAFE_DATA_IMAGE_URL =
+  /^data:image\/(?:gif|jpe?g|png|webp);base64,[a-z0-9+/=]+$/i;
 const SAFE_LANG_VALUE = /^[A-Za-z0-9-]+$/;
 const SAFE_NUMERIC_VALUE = /^\d{1,4}$/;
 const SAFE_RELATIVE_URL = /^(#|\/|\.\/|\.\.\/)/;
@@ -359,10 +361,7 @@ function sanitizeUrl(value: string, allowDataImage: boolean): string | null {
     return value;
   }
 
-  if (
-    allowDataImage &&
-    /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+$/i.test(value)
-  ) {
+  if (allowDataImage && SAFE_DATA_IMAGE_URL.test(value)) {
     return value;
   }
 
