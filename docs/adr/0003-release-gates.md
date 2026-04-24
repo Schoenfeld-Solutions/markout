@@ -19,15 +19,24 @@ MarkOut now treats release and promotion as fail-closed workflows.
   dependency review, `test:taskpane-ui`, and the coverage gate.
 - The release workflow refuses to publish if `origin/release/production` does
   not exist.
-- Push releases require host smoke prerequisites up front and execute the host
-  smoke after deployment.
 - Promotion requires a specific `main` SHA with successful beta deployment
-  evidence and runs behind the protected `production-promotion` environment.
+  evidence, explicit manual OWA beta verification input, and the protected
+  `production-promotion` environment approval.
+- Production branch updates use a dedicated `markout-release-bot` GitHub App
+  token when repository rules cannot safely distinguish approved automation from
+  human pushes through GitHub-native branch protection alone. The app has no
+  server, no scheduler, no external runtime, and only repository-scoped
+  `Contents: write` access.
+- A scheduled GitHub settings audit verifies release branches, Pages branch
+  policies, promotion environment reviewers, release bot credentials, and the
+  `release/production` ruleset.
 
 ## Consequences
 
 - Production cannot advance accidentally from a normal `main` push.
-- Missing host-smoke credentials or channel drift are release blockers by
-  design, not advisory warnings.
-- Repository settings still need a GitHub branch/ruleset configuration so only
-  the promotion workflow can update `release/production`.
+- OWA testing remains human-confirmed. GitHub Actions does not store permanent
+  Outlook Web test credentials or run scheduled OWA smoke tests.
+- Repository settings must keep the `release/production` ruleset aligned with
+  the release bot. Drift is an operational failure, not a documentation issue.
+- The release bot private key is a security-sensitive credential and must be
+  rotated if it is exposed.

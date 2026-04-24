@@ -21,11 +21,14 @@ Verify the hosted beta channel that is published from `main`.
    - render entire draft
    - insert rendered Markdown
    - toggle auto-render in settings
-5. Confirm the release workflow host smoke passed for the same SHA.
-6. Record the verified SHA for production promotion.
+5. Confirm no browser settings, notification state, or restore-state behavior
+   leaked from production or local add-ins.
+6. Record the verified SHA, verifier, date, and checked flows for the
+   `beta_verification_notes` promotion input.
 
 ## Abort criteria
 
 - The beta taskpane loads from the wrong URL or wrong add-in ID.
 - Auto-render notifications or restore-state behavior leak from another channel.
-- The release workflow or host smoke is not green for the target SHA.
+- The release workflow is not green for the target SHA.
+- The verifier cannot confirm the required OWA flows manually.

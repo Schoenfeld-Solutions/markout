@@ -46,6 +46,15 @@ const EXPECTED_RELEASE_POLICY_SNIPPETS = [
       "No browser settings or restore-state keys are shared across production, beta, and local add-ins.",
   },
   {
+    file: "README.md",
+    snippet: "OWA verification is deliberately human-confirmed.",
+  },
+  {
+    file: "README.md",
+    snippet:
+      "The scheduled **GitHub Settings Audit** workflow checks branch, environment, Pages policy, release-bot, and production ruleset drift.",
+  },
+  {
     file: "CONTRIBUTING.md",
     snippet:
       "`manifest.beta.xml` and `/outlook-beta/` are the post-merge preview/testing channel sourced from `main`.",
@@ -54,6 +63,16 @@ const EXPECTED_RELEASE_POLICY_SNIPPETS = [
     file: "CONTRIBUTING.md",
     snippet:
       "`manifest.xml` and `/outlook/` are the stable production channel sourced from `release/production`.",
+  },
+  {
+    file: "CONTRIBUTING.md",
+    snippet:
+      "The `Promote Production Channel` workflow must push `release/production` with the release bot token once the automation-only ruleset is active.",
+  },
+  {
+    file: "CONTRIBUTING.md",
+    snippet:
+      "Do not turn OWA checks into scheduled GitHub Actions or release CI gates.",
   },
 ];
 
@@ -64,20 +83,32 @@ const EXPECTED_WORKFLOW_SNIPPETS = [
       "Missing origin/release/production. Refusing to publish GitHub Pages without an explicit production source branch.",
   },
   {
-    file: ".github/workflows/release.yaml",
-    snippet: "MARKOUT_HOST_SMOKE_STORAGE_STATE_JSON is required.",
-  },
-  {
-    file: ".github/workflows/release.yaml",
-    snippet: "MARKOUT_HOST_SMOKE_RECIPIENT is required.",
-  },
-  {
     file: ".github/workflows/promote-production.yaml",
     snippet: "production-promotion",
   },
   {
     file: ".github/workflows/promote-production.yaml",
     snippet: "Build and Publish GitHub Pages",
+  },
+  {
+    file: ".github/workflows/promote-production.yaml",
+    snippet: "MARKOUT_RELEASE_BOT_APP_ID",
+  },
+  {
+    file: ".github/workflows/promote-production.yaml",
+    snippet: "beta_verification_confirmed",
+  },
+  {
+    file: ".github/workflows/github-settings-audit.yaml",
+    snippet: "npm run check:github-release-governance",
+  },
+  {
+    file: "docs/runbooks/10-10-continuation.md",
+    snippet: "Resume entry point",
+  },
+  {
+    file: "docs/runbooks/release-bot-bootstrap.md",
+    snippet: "markout-release-bot",
   },
 ];
 
