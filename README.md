@@ -176,6 +176,7 @@ npm run check:bundle
 npm run validate:manifest
 npm run check:github-release-governance
 npm run check
+npm run check:ci
 ```
 
 `npm run validate:manifest` performs offline repo-native contract checks for the
@@ -193,13 +194,18 @@ TLS certificates.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest contract validation.
+`npm run check:ci` is the pull request gate variant. It keeps the same
+formatting, linting, type, build, bundle, manifest, and repo-contract checks,
+but runs the coverage test pass instead of a separate unit-test pass so GitHub
+Actions does not execute Jest twice.
 
 `npm run check:repo-contracts` enforces manifest/version/channel invariants and
 release-policy documentation drift.
 `npm run check:github-release-governance` audits the GitHub settings required
 for production promotion when a settings-read token is available.
 Pull requests also require a Conventional Commit PR title, dependency review,
-`npm run test:taskpane-ui`, and the coverage gate in GitHub Actions.
+`npm run test:taskpane-ui`, and the coverage-backed `npm run check:ci` gate in
+GitHub Actions.
 
 ## Release channels
 

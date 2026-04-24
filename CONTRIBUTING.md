@@ -80,6 +80,8 @@ production build, bundle budget checks, and offline deployable manifest contract
 validation. The deployable manifest check is repo-native and does not depend on
 the deprecated Office validation toolchain.
 `npm run check:repo-contracts` is part of that baseline and must stay green.
+GitHub pull request CI uses `npm run check:ci`, which preserves those checks but
+runs the coverage test pass instead of a second plain unit-test pass.
 
 Additional checks when relevant:
 
@@ -104,7 +106,7 @@ GitHub pull requests also require:
 - a Conventional Commit PR title
 - dependency review
 - `npm run test:taskpane-ui`
-- the coverage gate
+- the coverage-backed `npm run check:ci` gate
 
 ## Release channel workflow
 
