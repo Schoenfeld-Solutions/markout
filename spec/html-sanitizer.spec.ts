@@ -1,10 +1,5 @@
-import { JSDOM } from "jsdom";
+/** @jest-environment jsdom */
 import { DefaultHtmlSanitizer } from "../src/lib/html-sanitizer";
-
-const runtime = globalThis as typeof globalThis & {
-  DOMParser: typeof DOMParser;
-};
-runtime.DOMParser = new JSDOM().window.DOMParser;
 
 describe("html sanitizer", () => {
   it("removes active content and unsafe URLs", () => {

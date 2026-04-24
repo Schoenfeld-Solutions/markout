@@ -11,8 +11,10 @@ constraints documented in [README.md](README.md).
 - The validated CI baseline is Node 25.
 - Before changing dependencies, treat `package.json` as the source of truth and
   keep `package-lock.json` synchronized.
-- `jsdom`, `@types/jsdom`, and `markdown-it-emoji` are intentionally pinned below
-  `latest` because newer majors are not green in this repo today.
+- DOM-dependent tests use `jest-environment-jsdom` instead of a direct `jsdom`
+  dependency.
+- `markdown-it-emoji` is intentionally pinned below `latest` because newer
+  majors are not green in this repo today.
 
 ## Branches and pull requests
 
