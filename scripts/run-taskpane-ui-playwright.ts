@@ -21,7 +21,7 @@ async function run(): Promise<void> {
     process.env.MARKOUT_TASKPANE_UI_TIMEOUT_MS ?? "",
     10
   );
-  const webpackProcess = startWebpackDevServer(port);
+  const serverProcess = startLocalDevServer(port);
 
   try {
     console.log(`MarkOut taskpane UI harness starting at ${baseUrl}`);
@@ -32,30 +32,24 @@ async function run(): Promise<void> {
     await runTaskpaneUiPlaywright({ baseUrl });
     console.log("MarkOut taskpane UI harness passed.");
   } finally {
-    await stopProcess(webpackProcess);
+    await stopProcess(serverProcess);
   }
 }
 
-function startWebpackDevServer(port: number): ChildProcess {
-  const webpackBin = path.join(
+function startLocalDevServer(port: number): ChildProcess {
+  const tsxBin = path.join(
     process.cwd(),
     "node_modules",
-    "webpack",
-    "bin",
-    "webpack.js"
+    ".bin",
+    process.platform === "win32" ? "tsx.cmd" : "tsx"
   );
 
   return spawn(
-    process.execPath,
+    tsxBin,
     [
-      webpackBin,
-      "serve",
-      "--mode",
-      "development",
-      "--env",
-      "taskpaneMock=true",
-      "--env",
-      "taskpaneHttps=false",
+      "scripts/run-local-dev-server.ts",
+      "--http",
+      "--taskpane-mock",
       "--port",
       String(port),
     ],
@@ -107,11 +101,11 @@ async function pingUrl(url: string): Promise<boolean> {
       parsedUrl.protocol === "https:"
         ? https.get(url, { rejectUnauthorized: false }, (response) => {
             response.resume();
-            resolve((response.statusCode ?? 500) < 500);
+            resolve((response.statusCode ?? 500) < 400);
           })
         : http.get(url, (response) => {
             response.resume();
-            resolve((response.statusCode ?? 500) < 500);
+            resolve((response.statusCode ?? 500) < 400);
           });
 
     request.on("error", reject);
