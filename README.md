@@ -162,6 +162,11 @@ npm run check:github-release-governance
 npm run check
 ```
 
+`npm run validate:manifest` performs offline repo-native contract checks for the
+deployable production and beta manifests. It enforces the expected add-in IDs,
+versions, channel URLs, HTTPS-only hosted URLs, Smart Alerts entry points, and
+icon/support URL invariants without calling the deprecated Office validation
+toolchain.
 `npm run validate:manifest:localhost` is available for local manifest checks, but `manifest-localhost.xml`
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
 
@@ -170,7 +175,7 @@ with Playwright so sidebar layout, preview theming, and generated fragment HTML
 can be verified without Outlook.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
-the production build, bundle budget checks, and deployable manifest validation.
+the production build, bundle budget checks, and deployable manifest contract validation.
 
 `npm run check:repo-contracts` enforces manifest/version/channel invariants and
 release-policy documentation drift.

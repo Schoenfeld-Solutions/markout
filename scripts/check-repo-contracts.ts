@@ -1,9 +1,10 @@
 import { readFile } from "fs/promises";
 import path from "path";
+import { pathToFileURL } from "url";
 
-type ChannelId = "beta" | "local" | "production";
+export type ChannelId = "beta" | "local" | "production";
 
-interface RuntimeChannelConfigSnapshot {
+export interface RuntimeChannelConfigSnapshot {
   addInId: string;
   appBaseUrl: string;
   channelId: ChannelId;
@@ -14,12 +15,16 @@ interface RuntimeChannelConfigSnapshot {
   taskpaneUrl: string;
 }
 
-interface ManifestSnapshot {
+export interface ManifestSnapshot {
   appDomains: string[];
   displayName: string;
+  highResolutionIconUrl: string;
+  iconUrl: string;
   id: string;
   path: string;
   sourceLocation: string;
+  supportUrl: string;
+  text: string;
   urls: Record<string, string>;
   version: string;
 }
@@ -30,6 +35,10 @@ interface ExpectedManifestContract {
 }
 
 const REPOSITORY_ROOT = process.cwd();
+const DEPLOYABLE_MANIFEST_CHANNELS = new Set<ChannelId>(["beta", "production"]);
+const deployableManifestsOnly = process.argv.includes(
+  "--deployable-manifests-only"
+);
 const EXPECTED_RELEASE_POLICY_SNIPPETS = [
   {
     file: "README.md",
@@ -128,21 +137,22 @@ const EXPECTED_MANIFESTS: Record<ChannelId, ExpectedManifestContract> = {
 };
 
 async function main(): Promise<void> {
-  const [packageJson, readme, contributing] = await Promise.all([
-    readJson<{ version: string }>("package.json"),
-    readText("README.md"),
-    readText("CONTRIBUTING.md"),
-  ]);
+  const packageJson = await readJson<{ version: string }>("package.json");
   const { getAllRuntimeChannelConfigs } = (await import(
-    new URL("../src/lib/runtime.ts", import.meta.url).href
+    pathToFileURL(path.join(REPOSITORY_ROOT, "src/lib/runtime.ts")).href
   )) as {
     getAllRuntimeChannelConfigs: () => RuntimeChannelConfigSnapshot[];
   };
 
   const contractErrors: string[] = [];
   const expectedManifestVersion = `${packageJson.version}.0`;
+  const runtimeChannelConfigs = getAllRuntimeChannelConfigs().filter(
+    (runtimeChannelConfig) =>
+      !deployableManifestsOnly ||
+      DEPLOYABLE_MANIFEST_CHANNELS.has(runtimeChannelConfig.channelId)
+  );
   const manifests = await Promise.all(
-    getAllRuntimeChannelConfigs().map(async (runtimeChannelConfig) => {
+    runtimeChannelConfigs.map(async (runtimeChannelConfig) => {
       const expectedManifest =
         EXPECTED_MANIFESTS[runtimeChannelConfig.channelId];
       return {
@@ -162,6 +172,15 @@ async function main(): Promise<void> {
   } of manifests) {
     uniqueAddInIds.add(snapshot.id);
 
+    checkOfficeMailManifestInvariants(snapshot, contractErrors);
+    if (DEPLOYABLE_MANIFEST_CHANNELS.has(runtimeChannelConfig.channelId)) {
+      checkDeployableManifestInvariants(
+        runtimeChannelConfig,
+        snapshot,
+        contractErrors
+      );
+    }
+
     if (snapshot.displayName !== expectedManifest.displayName) {
       contractErrors.push(
         `${snapshot.path} should use display name \`${expectedManifest.displayName}\`, found \`${snapshot.displayName}\`.`
@@ -171,6 +190,12 @@ async function main(): Promise<void> {
     if (snapshot.id !== runtimeChannelConfig.addInId) {
       contractErrors.push(
         `${snapshot.path} add-in ID does not match src/lib/runtime.ts for channel \`${runtimeChannelConfig.channelId}\`.`
+      );
+    }
+
+    if (snapshot.supportUrl !== runtimeChannelConfig.supportUrl) {
+      contractErrors.push(
+        `${snapshot.path} SupportUrl must match the runtime support URL for channel \`${runtimeChannelConfig.channelId}\`.`
       );
     }
 
@@ -224,8 +249,14 @@ async function main(): Promise<void> {
     contractErrors.push("Each manifest must use a distinct add-in ID.");
   }
 
-  checkSnippetPresence(readme, contributing, contractErrors);
-  await checkWorkflowSnippets(contractErrors);
+  if (!deployableManifestsOnly) {
+    const [readme, contributing] = await Promise.all([
+      readText("README.md"),
+      readText("CONTRIBUTING.md"),
+    ]);
+    checkSnippetPresence(readme, contributing, contractErrors);
+    await checkWorkflowSnippets(contractErrors);
+  }
 
   if (contractErrors.length > 0) {
     console.error("MarkOut repository contract check failed:");
@@ -235,7 +266,125 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log("MarkOut repository contract check passed.");
+  console.log(
+    deployableManifestsOnly
+      ? "MarkOut deployable manifest check passed."
+      : "MarkOut repository contract check passed."
+  );
+}
+
+export function checkOfficeMailManifestInvariants(
+  snapshot: ManifestSnapshot,
+  contractErrors: string[]
+): void {
+  const requiredSnippets = [
+    ["OfficeApp root type", 'xsi:type="MailApp"'],
+    ["Mailbox host", '<Host Name="Mailbox" />'],
+    ["Mailbox 1.12 requirement", '<Set Name="Mailbox" MinVersion="1.12" />'],
+    ["Read/write item permission", "<Permissions>ReadWriteItem</Permissions>"],
+    [
+      "message compose command surface",
+      '<ExtensionPoint xsi:type="MessageComposeCommandSurface">',
+    ],
+    [
+      "appointment organizer command surface",
+      '<ExtensionPoint xsi:type="AppointmentOrganizerCommandSurface">',
+    ],
+    ["LaunchEvent extension point", '<ExtensionPoint xsi:type="LaunchEvent">'],
+    [
+      "message send Smart Alerts handler",
+      '<LaunchEvent Type="OnMessageSend" FunctionName="onMessageSendHandler" SendMode="SoftBlock" />',
+    ],
+    [
+      "appointment send Smart Alerts handler",
+      '<LaunchEvent Type="OnAppointmentSend" FunctionName="onAppointmentSendHandler" SendMode="SoftBlock" />',
+    ],
+  ] as const;
+
+  if (!snapshot.text.trimStart().startsWith('<?xml version="1.0"')) {
+    contractErrors.push(`${snapshot.path} must start with an XML declaration.`);
+  }
+
+  if (!snapshot.text.trimEnd().endsWith("</OfficeApp>")) {
+    contractErrors.push(`${snapshot.path} must end with </OfficeApp>.`);
+  }
+
+  for (const [label, snippet] of requiredSnippets) {
+    if (!snapshot.text.includes(snippet)) {
+      contractErrors.push(`${snapshot.path} is missing ${label}.`);
+    }
+  }
+}
+
+export function checkDeployableManifestInvariants(
+  runtimeChannelConfig: RuntimeChannelConfigSnapshot,
+  snapshot: ManifestSnapshot,
+  contractErrors: string[]
+): void {
+  if (snapshot.text.includes("https://localhost")) {
+    contractErrors.push(
+      `${snapshot.path} is deployable and must not reference localhost.`
+    );
+  }
+
+  if (snapshot.text.includes("channel=local")) {
+    contractErrors.push(
+      `${snapshot.path} is deployable and must not reference the local channel.`
+    );
+  }
+
+  const urlsToValidate = [
+    ["SourceLocation", snapshot.sourceLocation],
+    ["SupportUrl", snapshot.supportUrl],
+    ["IconUrl", snapshot.iconUrl],
+    ["HighResolutionIconUrl", snapshot.highResolutionIconUrl],
+    ...Object.entries(snapshot.urls),
+  ] as const;
+
+  for (const [label, url] of urlsToValidate) {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      contractErrors.push(`${snapshot.path} ${label} must be a valid URL.`);
+      continue;
+    }
+
+    if (parsedUrl.protocol !== "https:") {
+      contractErrors.push(`${snapshot.path} ${label} must use HTTPS.`);
+    }
+  }
+
+  for (const [label, url] of [
+    ["IconUrl", snapshot.iconUrl],
+    ["HighResolutionIconUrl", snapshot.highResolutionIconUrl],
+  ] as const) {
+    if (!url.startsWith("https://raw.githubusercontent.com/")) {
+      contractErrors.push(
+        `${snapshot.path} ${label} must use the raw GitHub icon host so validation works before Pages deploys.`
+      );
+    }
+
+    if (!url.endsWith(".png")) {
+      contractErrors.push(`${snapshot.path} ${label} must reference a PNG.`);
+    }
+  }
+
+  const appBaseUrl = new URL(runtimeChannelConfig.appBaseUrl);
+  for (const [urlId, url] of Object.entries(snapshot.urls)) {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.origin !== appBaseUrl.origin) {
+      contractErrors.push(
+        `${snapshot.path} ${urlId} must use runtime origin \`${appBaseUrl.origin}\`.`
+      );
+    }
+
+    if (!parsedUrl.pathname.startsWith(`${appBaseUrl.pathname}/`)) {
+      contractErrors.push(
+        `${snapshot.path} ${urlId} must stay under \`${appBaseUrl.pathname}/\`.`
+      );
+    }
+  }
 }
 
 function checkSnippetPresence(
@@ -305,6 +454,16 @@ async function readManifest(relativePath: string): Promise<ManifestSnapshot> {
       /<DisplayName DefaultValue="([^"]+)"/u,
       `${relativePath} DisplayName`
     ),
+    highResolutionIconUrl: readRequiredMatch(
+      manifestText,
+      /<HighResolutionIconUrl DefaultValue="([^"]+)"/u,
+      `${relativePath} HighResolutionIconUrl`
+    ),
+    iconUrl: readRequiredMatch(
+      manifestText,
+      /<IconUrl DefaultValue="([^"]+)"/u,
+      `${relativePath} IconUrl`
+    ),
     id: readRequiredMatch(
       manifestText,
       /<Id>([^<]+)<\/Id>/u,
@@ -316,6 +475,12 @@ async function readManifest(relativePath: string): Promise<ManifestSnapshot> {
       /<SourceLocation DefaultValue="([^"]+)"/u,
       `${relativePath} SourceLocation`
     ),
+    supportUrl: readRequiredMatch(
+      manifestText,
+      /<SupportUrl DefaultValue="([^"]+)"/u,
+      `${relativePath} SupportUrl`
+    ),
+    text: manifestText,
     urls,
     version: readRequiredMatch(
       manifestText,
@@ -350,7 +515,12 @@ async function readText(relativePath: string): Promise<string> {
   return readFile(path.join(REPOSITORY_ROOT, relativePath), "utf8");
 }
 
-void main().catch((error: unknown) => {
-  console.error("MarkOut repository contract check crashed.", error);
-  process.exit(1);
-});
+const isDirectExecution =
+  process.argv[1]?.endsWith("check-repo-contracts.ts") ?? false;
+
+if (isDirectExecution) {
+  void main().catch((error: unknown) => {
+    console.error("MarkOut repository contract check crashed.", error);
+    process.exitCode = 1;
+  });
+}

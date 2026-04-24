@@ -74,7 +74,9 @@ npm run check
 ```
 
 This includes formatting checks, linting, type checking, unit tests, the
-production build, bundle budget checks, and deployable manifest validation.
+production build, bundle budget checks, and offline deployable manifest contract
+validation. The deployable manifest check is repo-native and does not depend on
+the deprecated Office validation toolchain.
 `npm run check:repo-contracts` is part of that baseline and must stay green.
 
 Additional checks when relevant:
