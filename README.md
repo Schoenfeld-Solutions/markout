@@ -120,7 +120,11 @@ Then sideload the add-in manually in Outlook with **Add from File** and select `
 On macOS you may be prompted to trust the local developer CA certificate before Outlook or your browser
 will trust `https://localhost:3000`.
 
-Use `npm run start:desktop` if you want to target the Outlook desktop client instead.
+For Outlook desktop testing, keep `npm run dev` running and sideload
+`manifest-localhost.xml` manually with **Add from File**. The repository does
+not carry the deprecated Office auto-debugging CLI because it adds a large
+transitive maintenance and audit surface for a workflow that is easy to perform
+manually.
 
 For hosted builds, download one of the published manifests first and then use **Add from File**:
 
