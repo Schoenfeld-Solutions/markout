@@ -80,13 +80,16 @@ production build, bundle budget checks, and deployable manifest validation.
 Additional checks when relevant:
 
 - `npm run validate:manifest:localhost` for local manifest work
+- `npm run check:github-release-governance` when release governance settings,
+  production branch rules, Pages policies, or release-bot credentials change
 - `npm run dev` plus manual **Add from File** sideload with `manifest-localhost.xml`
 - `npm run start:desktop` if desktop auto-sideload behavior is the thing being changed
-- `npm run test:host-smoke` for changes that affect Outlook compose flows, task
-  pane behavior, Smart Alerts, selectors, or send-time rendering
+- manual OWA verification with `manifest.beta.xml` for changes that affect
+  Outlook compose flows, task pane behavior, Smart Alerts, selectors, or
+  send-time rendering
 
-If the host smoke cannot be run because credentials or Outlook test
-infrastructure are unavailable, call that out explicitly in the PR.
+`npm run test:host-smoke` is reserved for human-initiated diagnostics. Do not
+turn OWA checks into scheduled GitHub Actions or release CI gates.
 
 GitHub pull requests also require:
 
@@ -107,10 +110,21 @@ GitHub pull requests also require:
 - Normal pushes to `main` must not move production.
 - Production is updated only through the manual
   **Promote Production Channel** workflow by selecting a validated `main` SHA.
+- `release/production` must be protected as automation-only. If GitHub-native
+  rules cannot block human pushes while allowing the approved promotion path,
+  use the repository-scoped `markout-release-bot` GitHub App documented in
+  `docs/runbooks/release-bot-bootstrap.md`.
+- The `Promote Production Channel` workflow must push `release/production` with
+  the release bot token once the automation-only ruleset is active.
 - Release packaging fails if `release/production` is missing.
 - Promotion requires a successful `Build and Publish GitHub Pages` run for the
   target `main` SHA and approval of the protected `production-promotion`
   environment.
+- Promotion also requires explicit human confirmation that the exact target SHA
+  was verified in OWA through `manifest.beta.xml`.
+- The scheduled `GitHub Settings Audit` workflow is an operating check. Treat
+  red runs as release blockers until branch policies, environments, release-bot
+  credentials, or rulesets are corrected.
 - The expected rollout path is:
   1. merge to `main`
   2. verify with `manifest.beta.xml`

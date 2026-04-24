@@ -158,6 +158,7 @@ npm run test:taskpane-ui
 npm run build
 npm run check:bundle
 npm run validate:manifest
+npm run check:github-release-governance
 npm run check
 ```
 
@@ -173,6 +174,8 @@ the production build, bundle budget checks, and deployable manifest validation.
 
 `npm run check:repo-contracts` enforces manifest/version/channel invariants and
 release-policy documentation drift.
+`npm run check:github-release-governance` audits the GitHub settings required
+for production promotion when a settings-read token is available.
 Pull requests also require a Conventional Commit PR title, dependency review,
 `npm run test:taskpane-ui`, and the coverage gate in GitHub Actions.
 
@@ -191,7 +194,13 @@ MarkOut follows a deliberate **post-merge preview model** on GitHub Pages.
   **Promote Production Channel** workflow by choosing a validated `main` commit.
 - Release packaging hard-fails if `release/production` is missing.
 - Promotion requires a successful beta release run for the exact `main` SHA and
-  approval of the protected `production-promotion` environment.
+  explicit manual OWA beta verification for that SHA.
+- `release/production` is intended to be automation-only. If GitHub-native
+  rules cannot block human pushes while preserving promotion automation, the
+  `markout-release-bot` GitHub App is used with repository-only
+  `Contents: write` access and no external runtime.
+- The scheduled **GitHub Settings Audit** workflow checks branch, environment,
+  Pages policy, release-bot, and production ruleset drift.
 
 The expected testing flow is therefore:
 
@@ -206,7 +215,9 @@ Architecture decisions and operating procedures for this flow live in:
 - [`docs/adr/0001-channel-isolation.md`](docs/adr/0001-channel-isolation.md)
 - [`docs/adr/0002-taskpane-boundaries.md`](docs/adr/0002-taskpane-boundaries.md)
 - [`docs/adr/0003-release-gates.md`](docs/adr/0003-release-gates.md)
+- [`docs/runbooks/10-10-continuation.md`](docs/runbooks/10-10-continuation.md)
 - [`docs/runbooks/beta-verification.md`](docs/runbooks/beta-verification.md)
+- [`docs/runbooks/release-bot-bootstrap.md`](docs/runbooks/release-bot-bootstrap.md)
 - [`docs/runbooks/production-promotion.md`](docs/runbooks/production-promotion.md)
 - [`docs/runbooks/rollback.md`](docs/runbooks/rollback.md)
 - [`docs/runbooks/host-smoke-failures.md`](docs/runbooks/host-smoke-failures.md)
@@ -220,10 +231,15 @@ Architecture decisions and operating procedures for this flow live in:
   if you want grouped security PRs to be created here.
 - Contributor workflow, commit rules, and required local gates are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Outlook host smoke
+## Manual OWA verification
 
-MarkOut includes an env-guarded Outlook on the web smoke script at
-`npm run test:host-smoke`. The smoke is intentionally separate from the normal unit suite because it requires:
+OWA verification is deliberately human-confirmed. GitHub Actions must not store
+Outlook Web storage-state JSON, scheduled OWA test credentials, or a permanent
+test mailbox secret.
+
+MarkOut keeps an env-guarded Outlook on the web smoke script at
+`npm run test:host-smoke` for human-initiated diagnostics only. It is not a
+release CI gate. The script requires:
 
 - a browser executable such as Chrome or Chromium
 - a Playwright storage state JSON file for an already authenticated Outlook test account
@@ -235,10 +251,10 @@ Required environment variables:
 - `MARKOUT_HOST_SMOKE_STORAGE_STATE`
 - `MARKOUT_HOST_SMOKE_RECIPIENT`
 
-In GitHub Actions, hosted release pushes fail early if the repository is missing
-the required host-smoke storage state or recipient configuration.
-The beta release must pass host smoke before a SHA is eligible for production
-promotion, and production runs host smoke again after deployment.
+Production promotion requires a human to confirm beta verification in OWA for
+the exact `main` SHA being promoted. The `production-promotion` environment
+approval and the `beta_verification_confirmed` workflow input are the durable
+promotion evidence.
 
 Common optional overrides:
 

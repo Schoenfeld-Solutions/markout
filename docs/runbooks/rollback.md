@@ -7,7 +7,7 @@ Restore the stable production channel to the previously known-good
 
 ## Trigger conditions
 
-- Production host smoke fails after promotion.
+- Manual production OWA verification fails after promotion.
 - Outlook host compatibility regresses on the production channel.
 - A manifest/runtime mismatch breaks the installed production add-in.
 
@@ -17,7 +17,7 @@ Restore the stable production channel to the previously known-good
    promotion or release run.
 2. Re-run the `Promote Production Channel` workflow with that known-good SHA.
 3. Wait for the production release workflow to rebuild GitHub Pages.
-4. Confirm the post-deploy host smoke is green again.
+4. Confirm the production channel manually in OWA with `manifest.xml`.
 5. Document the incident and the failing promoted SHA in the pull request or
    incident notes.
 
@@ -25,4 +25,4 @@ Restore the stable production channel to the previously known-good
 
 - Do not force-push arbitrary history onto `release/production`.
 - Do not roll back only the manifest or only the hosted runtime files.
-- Do not skip the production host smoke after rollback.
+- Do not skip manual production OWA verification after rollback.

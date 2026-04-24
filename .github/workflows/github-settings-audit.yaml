@@ -1,0 +1,34 @@
+name: GitHub Settings Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-settings-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6.3.0
+        with:
+          node-version: 25.x
+
+      - name: Audit release governance settings
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MARKOUT_GITHUB_TOKEN: ${{ secrets.MARKOUT_GITHUB_SETTINGS_AUDIT_TOKEN }}
+          MARKOUT_RELEASE_BOT_APP_ID: ${{ secrets.MARKOUT_RELEASE_BOT_APP_ID }}
+          MARKOUT_RELEASE_BOT_PRIVATE_KEY: ${{ secrets.MARKOUT_RELEASE_BOT_PRIVATE_KEY }}
+          MARKOUT_REQUIRE_RELEASE_BOT: "true"
+        run: npm run check:github-release-governance
