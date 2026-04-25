@@ -25,7 +25,10 @@ import type {
   RenderState,
   RenderStateStore,
 } from "../../lib/render-state-store";
-import { createMarkdownRenderer } from "../../lib/renderer";
+import {
+  createMarkdownRenderer,
+  type MarkdownRenderer,
+} from "../../lib/renderer";
 import { TaskpaneApp, type TaskpaneServices } from "../app";
 
 interface MockSettingsSnapshot {
@@ -81,6 +84,44 @@ Paragraph with [a link](https://example.com) and \`inline code\`.
 const preview = "theme-aware";
 \`\`\`
 `;
+
+function readPreviewDelayMs(): number {
+  const rawValue = new URLSearchParams(window.location.search).get(
+    "previewDelayMs"
+  );
+
+  if (rawValue === null) {
+    return 0;
+  }
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function createMockMarkdownRenderer(): MarkdownRenderer {
+  const renderer = createMarkdownRenderer();
+  const previewDelayMs = readPreviewDelayMs();
+
+  if (previewDelayMs === 0) {
+    return renderer;
+  }
+
+  return {
+    render: async (options) => {
+      if (options.mode === "fragment") {
+        await delay(previewDelayMs);
+      }
+
+      return renderer.render(options);
+    },
+  };
+}
 
 function createInitialSelection(): ComposeSelection {
   return {
@@ -358,7 +399,7 @@ function mountMockTaskpane(): void {
   const state = createMockSnapshot(settingsStore);
   const bodyAccessor = new MockBodyAccessor(state);
   const htmlSanitizer = new DefaultHtmlSanitizer();
-  const markdownRenderer = createMarkdownRenderer();
+  const markdownRenderer = createMockMarkdownRenderer();
   const notificationService = new MockNotificationService(state);
   const composeMarkdown = createComposeMarkdownService({
     bodyAccessor,

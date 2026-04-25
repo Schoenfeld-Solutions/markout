@@ -13,27 +13,71 @@ void run().catch((error: unknown) => {
 });
 
 async function run(): Promise<void> {
+  const commandLineOptions = parseCommandLineOptions(process.argv.slice(2));
   const port = await resolveTaskpaneUiPort();
+  const defaultOrigin = `http://localhost:${port}`;
   const baseUrl =
     process.env.MARKOUT_TASKPANE_UI_URL ??
-    `http://localhost:${port}/taskpane-mock.html`;
+    `${defaultOrigin}/taskpane-mock.html`;
+  const owaHostUrl =
+    process.env.MARKOUT_TASKPANE_UI_OWA_HOST_URL ??
+    `${defaultOrigin}/owa-taskpane-host.html`;
   const timeoutMs = Number.parseInt(
     process.env.MARKOUT_TASKPANE_UI_TIMEOUT_MS ?? "",
     10
   );
+  const headless = resolveHeadlessMode(commandLineOptions.headed);
   const serverProcess = startLocalDevServer(port);
 
   try {
     console.log(`MarkOut taskpane UI harness starting at ${baseUrl}`);
+    console.log(`MarkOut OWA-like taskpane host starting at ${owaHostUrl}`);
     await waitForUrl(
       baseUrl,
       Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_TIMEOUT_MS
     );
-    await runTaskpaneUiPlaywright({ baseUrl });
+    await waitForUrl(
+      owaHostUrl,
+      Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_TIMEOUT_MS
+    );
+    await runTaskpaneUiPlaywright({ baseUrl, headless, owaHostUrl });
     console.log("MarkOut taskpane UI harness passed.");
   } finally {
     await stopProcess(serverProcess);
   }
+}
+
+interface CommandLineOptions {
+  headed: boolean;
+}
+
+function parseCommandLineOptions(args: string[]): CommandLineOptions {
+  let headed = false;
+
+  for (const argument of args) {
+    if (argument === "--headed") {
+      headed = true;
+      continue;
+    }
+
+    throw new Error(`Unknown taskpane UI harness argument: ${argument}`);
+  }
+
+  return { headed };
+}
+
+function resolveHeadlessMode(isHeadedRequested: boolean): boolean {
+  if (isHeadedRequested) {
+    return false;
+  }
+
+  const configuredValue = process.env.MARKOUT_TASKPANE_UI_HEADLESS;
+
+  if (configuredValue === undefined || configuredValue.trim() === "") {
+    return true;
+  }
+
+  return !["0", "false", "no"].includes(configuredValue.toLowerCase());
 }
 
 function startLocalDevServer(port: number): ChildProcess {

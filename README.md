@@ -192,9 +192,12 @@ toolchain.
 is intentionally not a Marketplace-valid manifest because it targets `https://localhost:3000`.
 
 `npm run test:taskpane-ui` starts the same local server in HTTP mode with a
-test-only taskpane mock and drives it with Playwright so sidebar layout, preview
-theming, and generated fragment HTML can be verified without Outlook or local
-TLS certificates.
+test-only taskpane mock plus a minimal OWA-like drawer host. Playwright verifies
+the isolated taskpane and the host iframe layout so short panels keep the bottom
+toolbar pinned while only the content viewport scrolls. Use
+`npm run test:taskpane-ui:headed` when a visible local browser check is needed;
+it still does not automate Outlook Web or replace mandatory human OWA
+verification.
 
 `npm run check` is the local pre-merge gate. It runs formatting checks, linting, type checking, unit tests,
 the production build, bundle budget checks, and deployable manifest contract validation.

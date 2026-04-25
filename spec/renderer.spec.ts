@@ -4,6 +4,7 @@ import {
   containsMarkOutFullRenderMarker,
   renderMarkdown,
 } from "../src/lib/renderer";
+import { defaultStylesheet } from "../src/lib/config";
 import { installDomParser } from "./helpers";
 
 describe("renderer", () => {
@@ -142,6 +143,34 @@ describe("renderer", () => {
     expect(output).toContain('<li style="margin: 0px;">one</li>');
     expect(output).toContain('<li style="margin: 0px;">two</li>');
     expect(output).toContain('<li style="margin: 0px;">three</li>');
+  });
+
+  it("keeps nested lists visually attached to their parent item", async () => {
+    const output = await renderMarkdown({
+      css: defaultStylesheet,
+      markdown: "- parent\n  - child\n    - grandchild",
+    });
+    const documentFragment = new DOMParser().parseFromString(
+      output,
+      "text/html"
+    );
+    const nestedList = documentFragment.body.querySelector("li > ul");
+
+    expect(nestedList?.getAttribute("style")).toContain(
+      "margin: 0px !important"
+    );
+    expect(nestedList?.getAttribute("style")).toContain("padding-left: 1em");
+  });
+
+  it("keeps blank-line list grouping under markdown-it semantics", async () => {
+    const output = await renderMarkdown({
+      css: "html {}",
+      markdown: "- one\n\n\n- two",
+    });
+
+    expect(output.match(/<ul>/g) ?? []).toHaveLength(1);
+    expect(output).toContain("<p>one</p>");
+    expect(output).toContain("<p>two</p>");
   });
 
   it("detects full-render and fragment markers independently", () => {

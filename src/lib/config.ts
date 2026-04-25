@@ -42,7 +42,7 @@ li p {
 }
 
 ul ul, ul ol, ol ul, ol ol {
-  margin: 0;
+  margin: 0 !important;
   padding-left: 1em;
 }
 
