@@ -1071,6 +1071,13 @@ export function TaskpaneApp({
       data-locale={resolvedLocale}
       data-theme={resolvedColorMode}
       id="taskpane-shell"
+      style={{
+        height: "100%",
+        minHeight: 0,
+        minWidth: 0,
+        overflow: "hidden",
+        width: "100%",
+      }}
       theme={currentTheme}
     >
       <TaskpaneContent>

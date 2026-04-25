@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MarkOut OWA-like Taskpane Host</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        padding: 0;
+        width: 100%;
+      }
+
+      body {
+        background: #f5f5f5;
+        color: #f5f5f5;
+        font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      .owa-shell {
+        background:
+          linear-gradient(90deg, rgba(0, 0, 0, 0.08), transparent 28%), #f5f5f5;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        width: 100%;
+      }
+
+      .owa-main {
+        min-height: 0;
+        min-width: 0;
+      }
+
+      .owa-drawer {
+        background: #242424;
+        border-left: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: -6px 0 22px rgba(0, 0, 0, 0.24);
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        width: 320px;
+      }
+
+      .owa-drawer-header {
+        align-items: center;
+        background: #3c3c3c;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        display: grid;
+        gap: 12px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        min-width: 0;
+        padding: 26px 18px;
+      }
+
+      .owa-logo {
+        align-items: center;
+        background: #0f0f0f;
+        border: 3px solid #f5f5f5;
+        border-radius: 8px;
+        display: grid;
+        font-size: 30px;
+        font-weight: 700;
+        height: 54px;
+        justify-content: center;
+        line-height: 1;
+        width: 54px;
+      }
+
+      .owa-title {
+        font-size: 34px;
+        font-weight: 300;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .owa-close {
+        align-items: center;
+        background: transparent;
+        border: 0;
+        color: currentColor;
+        display: grid;
+        font: inherit;
+        font-size: 42px;
+        height: 44px;
+        justify-content: center;
+        line-height: 1;
+        padding: 0;
+        width: 44px;
+      }
+
+      .owa-drawer-body {
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .owa-frame-host {
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        width: 100%;
+      }
+
+      .addin-iframe {
+        background: #f5f5f5;
+        border: 0;
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="owa-shell" data-testid="owa-shell">
+      <main class="owa-main" aria-hidden="true"></main>
+      <aside
+        aria-labelledby="owa-drawer-title"
+        aria-modal="false"
+        class="owa-drawer"
+        data-app-section="DrawerPane"
+        data-testid="owa-drawer"
+        role="complementary"
+      >
+        <header class="owa-drawer-header">
+          <div aria-hidden="true" class="owa-logo">M</div>
+          <div class="owa-title" id="owa-drawer-title">MarkOut (Beta)</div>
+          <button
+            aria-label="Close add-in pane"
+            class="owa-close"
+            type="button"
+          >
+            &times;
+          </button>
+        </header>
+        <div class="owa-drawer-body" data-testid="owa-drawer-body">
+          <div class="owa-frame-host" data-testid="owa-frame-host">
+            <iframe
+              allow="local-network-access"
+              allowfullscreen
+              class="addin-iframe"
+              data-testid="owa-taskpane-frame"
+              frameborder="0"
+              id="owa-taskpane-frame"
+              sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-storage-access-by-user-activation"
+              title="Office Add-in MarkOut (Beta)"
+            ></iframe>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <script>
+      const taskpaneFrame = document.getElementById("owa-taskpane-frame");
+      const taskpaneUrl = new URL("./taskpane-mock.html", window.location.href);
+      const hostParameters = new URLSearchParams(window.location.search);
+
+      for (const [key, value] of hostParameters.entries()) {
+        taskpaneUrl.searchParams.set(key, value);
+      }
+
+      taskpaneFrame.src = taskpaneUrl.toString();
+    </script>
+  </body>
+</html>

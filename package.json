@@ -40,6 +40,7 @@
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
     "test:taskpane-ui": "tsx scripts/run-taskpane-ui-playwright.ts",
+    "test:taskpane-ui:headed": "tsx scripts/run-taskpane-ui-playwright.ts --headed",
     "test:host-smoke": "tsx spec/outlook-host-smoke.ts",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit",

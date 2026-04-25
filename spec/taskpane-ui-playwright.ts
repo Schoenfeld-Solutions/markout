@@ -2,12 +2,20 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { chromium, type Browser, type Page } from "playwright-core";
+import {
+  chromium,
+  type Browser,
+  type Frame,
+  type LaunchOptions,
+  type Page,
+} from "playwright-core";
 
 interface TaskpaneUiConfig {
   baseUrl: string;
   browserExecutable: string;
+  headless: boolean;
   outputDirectory: string;
+  owaHostUrl: string;
   timeoutMs: number;
 }
 
@@ -22,7 +30,19 @@ interface MockSnapshot {
   bodyHtml: string;
 }
 
+interface OwaHostPage {
+  page: Page;
+  taskpane: Frame;
+}
+
+interface ToolbarLayoutOptions {
+  expectScrollableContent: boolean;
+}
+
+type TaskpaneSurface = Frame | Page;
+
 const DEFAULT_BASE_URL = "http://localhost:3000/taskpane-mock.html";
+const DEFAULT_OWA_HOST_URL = "http://localhost:3000/owa-taskpane-host.html";
 const DEFAULT_OUTPUT_DIRECTORY = path.join(
   process.cwd(),
   "output",
@@ -57,6 +77,14 @@ Typing should keep the toolbar usable while the preview settles.
 - second
   - nested
 `;
+const LONG_DRAWER_MARKDOWN_SAMPLE = `# Long drawer content
+
+${Array.from(
+  { length: 24 },
+  (_value, index) =>
+    `- Drawer line ${String(index + 1).padStart(2, "0")} keeps the content viewport scrollable.`
+).join("\n")}
+`;
 const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
@@ -66,16 +94,24 @@ export async function runTaskpaneUiPlaywright(
     baseUrl: partialConfig.baseUrl ?? DEFAULT_BASE_URL,
     browserExecutable:
       partialConfig.browserExecutable ?? findBrowserExecutable(),
+    headless: partialConfig.headless ?? true,
+    owaHostUrl: partialConfig.owaHostUrl ?? DEFAULT_OWA_HOST_URL,
     outputDirectory: partialConfig.outputDirectory ?? DEFAULT_OUTPUT_DIRECTORY,
     timeoutMs: partialConfig.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   };
 
   await mkdir(config.outputDirectory, { recursive: true });
 
-  const browser = await chromium.launch({
+  const launchOptions: LaunchOptions = {
     executablePath: config.browserExecutable,
-    headless: true,
-  });
+    headless: config.headless,
+  };
+
+  if (!config.headless) {
+    launchOptions.slowMo = 50;
+  }
+
+  const browser = await chromium.launch(launchOptions);
 
   try {
     console.log("Verifying theme mode control in the local taskpane harness.");
@@ -115,6 +151,9 @@ export async function runTaskpaneUiPlaywright(
 
     console.log("Verifying rapid input and toolbar interaction regressions.");
     await verifyRapidInputAndToolbarScenario(browser, config);
+
+    console.log("Verifying OWA-like drawer host layout regressions.");
+    await verifyOwaLikeDrawerHostScenario(browser, config);
   } finally {
     await browser.close();
   }
@@ -172,6 +211,46 @@ async function openMockPage(
   return page;
 }
 
+async function openOwaHostPage(
+  browser: Browser,
+  config: TaskpaneUiConfig,
+  scenario: PreviewScenario,
+  queryParams: Record<string, string> = {}
+): Promise<OwaHostPage> {
+  const context = await browser.newContext({
+    colorScheme: scenario.colorScheme,
+    ignoreHTTPSErrors: true,
+    viewport: {
+      height: scenario.height,
+      width: scenario.width,
+    },
+  });
+  const page = await context.newPage();
+
+  await page.goto(buildPageUrl(config.owaHostUrl, queryParams), {
+    timeout: config.timeoutMs,
+    waitUntil: "domcontentloaded",
+  });
+
+  const frameLocator = page.locator('[data-testid="owa-taskpane-frame"]');
+  await frameLocator.waitFor({ state: "visible", timeout: config.timeoutMs });
+
+  const frameHandle = await frameLocator.elementHandle({
+    timeout: config.timeoutMs,
+  });
+  const taskpane = await frameHandle?.contentFrame();
+
+  if (taskpane === null || taskpane === undefined) {
+    throw new Error("OWA-like taskpane iframe did not expose a frame.");
+  }
+
+  await taskpane
+    .locator("#taskpane-shell")
+    .waitFor({ timeout: config.timeoutMs });
+
+  return { page, taskpane };
+}
+
 function buildPageUrl(
   baseUrl: string,
   queryParams: Record<string, string>
@@ -185,15 +264,15 @@ function buildPageUrl(
   return pageUrl.toString();
 }
 
-async function openInsertPanel(page: Page): Promise<void> {
+async function openInsertPanel(page: TaskpaneSurface): Promise<void> {
   await clickElement(page, "#panel-button-insert");
 }
 
-async function openSettingsPanel(page: Page): Promise<void> {
+async function openSettingsPanel(page: TaskpaneSurface): Promise<void> {
   await clickElement(page, "#panel-button-settings");
 }
 
-async function openHelpPanel(page: Page): Promise<void> {
+async function openHelpPanel(page: TaskpaneSurface): Promise<void> {
   await clickElement(page, "#panel-button-help");
 }
 
@@ -303,7 +382,9 @@ async function verifyPreviewScenario(
       `Preview text collides with the preview background in ${scenario.name}.`
     );
 
-    await assertToolbarPinnedToViewport(page, scenario.name);
+    await assertToolbarPinnedToViewport(page, scenario.name, {
+      expectScrollableContent: true,
+    });
 
     await page.screenshot({
       fullPage: false,
@@ -394,14 +475,101 @@ async function verifyRapidInputAndToolbarScenario(
       await page.waitForTimeout(100);
     }
 
-    await assertToolbarPinnedToViewport(page, "rapid-input-toolbar");
+    await assertToolbarPinnedToViewport(page, "rapid-input-toolbar", {
+      expectScrollableContent: true,
+    });
+  } finally {
+    await page.context().close();
+  }
+}
+
+async function verifyOwaLikeDrawerHostScenario(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(
+    browser,
+    config,
+    {
+      colorScheme: "dark",
+      height: 1024,
+      name: "owa-like-drawer",
+      width: 644,
+    },
+    { previewDelayMs: "120" }
+  );
+
+  try {
+    await openHelpPanel(taskpane);
+    await taskpane
+      .locator("#taskpane-shell")
+      .getByText("GitHub repository", { exact: true })
+      .waitFor({ timeout: config.timeoutMs });
+
+    await assertOwaHostFrameLayout(page, "owa-like-help-short-content");
+    await assertToolbarPinnedToViewport(
+      taskpane,
+      "owa-like-help-short-content",
+      {
+        expectScrollableContent: false,
+      }
+    );
+
+    await page.screenshot({
+      fullPage: false,
+      path: path.join(config.outputDirectory, "taskpane-owa-like-help.png"),
+    });
+
+    await openInsertPanel(taskpane);
+    await setTextareaValue(
+      taskpane,
+      "#markdown-input",
+      LONG_DRAWER_MARKDOWN_SAMPLE
+    );
+    await taskpane
+      .locator("#mo-preview")
+      .getByText("Long drawer content", { exact: false })
+      .waitFor({ timeout: config.timeoutMs });
+
+    await assertOwaHostFrameLayout(page, "owa-like-insert-long-content");
+    await assertToolbarPinnedToViewport(
+      taskpane,
+      "owa-like-insert-long-content",
+      {
+        expectScrollableContent: true,
+      }
+    );
+
+    await setTextareaValueInChunks(
+      taskpane,
+      "#markdown-input",
+      RAPID_MARKDOWN_SAMPLE
+    );
+    await openSettingsPanel(taskpane);
+    await taskpane
+      .locator("#theme-mode-system")
+      .waitFor({ timeout: config.timeoutMs });
+    await openHelpPanel(taskpane);
+    await taskpane
+      .locator("#taskpane-shell")
+      .getByText("GitHub repository", { exact: true })
+      .waitFor({ timeout: config.timeoutMs });
+    await openInsertPanel(taskpane);
+    await taskpane
+      .locator("#mo-preview")
+      .getByText("Stable preview", { exact: false })
+      .waitFor({ timeout: config.timeoutMs });
+    assert.equal(
+      await taskpane.locator("#markdown-input").inputValue(),
+      RAPID_MARKDOWN_SAMPLE
+    );
   } finally {
     await page.context().close();
   }
 }
 
 async function verifyNestedListSpacing(
-  page: Page,
+  page: TaskpaneSurface,
   config: TaskpaneUiConfig,
   scenarioName: string
 ): Promise<void> {
@@ -439,9 +607,106 @@ async function verifyNestedListSpacing(
   );
 }
 
-async function assertToolbarPinnedToViewport(
+async function assertOwaHostFrameLayout(
   page: Page,
   scenarioName: string
+): Promise<void> {
+  const metrics = await page.evaluate(() => {
+    const drawer = document.querySelector<HTMLElement>(
+      '[data-testid="owa-drawer"]'
+    );
+    const drawerBody = document.querySelector<HTMLElement>(
+      '[data-testid="owa-drawer-body"]'
+    );
+    const frame = document.querySelector<HTMLIFrameElement>(
+      '[data-testid="owa-taskpane-frame"]'
+    );
+    const frameHost = document.querySelector<HTMLElement>(
+      '[data-testid="owa-frame-host"]'
+    );
+
+    if (
+      drawer === null ||
+      drawerBody === null ||
+      frame === null ||
+      frameHost === null
+    ) {
+      throw new Error("OWA-like drawer host elements are missing.");
+    }
+
+    const drawerRect = drawer.getBoundingClientRect();
+    const drawerBodyRect = drawerBody.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+    const frameHostRect = frameHost.getBoundingClientRect();
+    const documentScrollTop =
+      document.scrollingElement?.scrollTop ??
+      document.documentElement.scrollTop;
+
+    return {
+      documentScrollTop,
+      drawerBodyBottom: drawerBodyRect.bottom,
+      drawerBodyTop: drawerBodyRect.top,
+      drawerBottom: drawerRect.bottom,
+      drawerHeight: drawerRect.height,
+      drawerWidth: drawerRect.width,
+      frameBottom: frameRect.bottom,
+      frameHeight: frameRect.height,
+      frameHostBottom: frameHostRect.bottom,
+      frameHostHeight: frameHostRect.height,
+      frameHostTop: frameHostRect.top,
+      frameTop: frameRect.top,
+      frameWidth: frameRect.width,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  assert.equal(
+    metrics.documentScrollTop,
+    0,
+    `OWA-like host document scrolled in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.drawerWidth - 320) <= 1,
+    `OWA-like drawer width drifted in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.drawerBottom - metrics.viewportHeight) <= 1,
+    `OWA-like drawer does not fill the viewport in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.drawerHeight > metrics.frameHeight,
+    `OWA-like drawer header is not outside the iframe in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.drawerBodyTop - metrics.frameTop) <= 1,
+    `OWA-like iframe does not start flush with the drawer body in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.drawerBodyBottom - metrics.frameBottom) <= 1,
+    `OWA-like iframe does not end flush with the drawer body in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.frameHostTop - metrics.frameTop) <= 1,
+    `OWA-like frame host does not start flush with the iframe in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.frameHostBottom - metrics.frameBottom) <= 1,
+    `OWA-like frame host does not end flush with the iframe in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.frameHostHeight - metrics.frameHeight) <= 1,
+    `OWA-like frame host height differs from the iframe in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.frameWidth - 320) <= 1,
+    `OWA-like iframe width drifted in ${scenarioName}.`
+  );
+}
+
+async function assertToolbarPinnedToViewport(
+  page: TaskpaneSurface,
+  scenarioName: string,
+  options: ToolbarLayoutOptions
 ): Promise<void> {
   const metrics = await page.evaluate(() => {
     const contentViewport = document.querySelector<HTMLElement>(
@@ -482,10 +747,17 @@ async function assertToolbarPinnedToViewport(
     };
   });
 
-  assert.ok(
-    metrics.contentScrollHeight > metrics.contentClientHeight,
-    `Content viewport does not expose its own scroll range in ${scenarioName}.`
-  );
+  if (options.expectScrollableContent) {
+    assert.ok(
+      metrics.contentScrollHeight > metrics.contentClientHeight,
+      `Content viewport does not expose its own scroll range in ${scenarioName}.`
+    );
+    assert.ok(
+      metrics.contentScrollTop > 0,
+      `Content viewport did not scroll in ${scenarioName}.`
+    );
+  }
+
   assert.equal(
     metrics.initialDocumentScrollTop,
     0,
@@ -495,10 +767,6 @@ async function assertToolbarPinnedToViewport(
     metrics.scrolledDocumentScrollTop,
     0,
     `Document scrolled instead of the content viewport in ${scenarioName}.`
-  );
-  assert.ok(
-    metrics.contentScrollTop > 0,
-    `Content viewport did not scroll in ${scenarioName}.`
   );
   assert.ok(
     Math.abs(metrics.toolbarBottom - metrics.viewportHeight) <= 1,
@@ -529,7 +797,10 @@ async function assertTogglePressed(
   assert.equal(state, "true");
 }
 
-async function clickElement(page: Page, selector: string): Promise<void> {
+async function clickElement(
+  page: TaskpaneSurface,
+  selector: string
+): Promise<void> {
   const clickTarget = await page.locator(selector).evaluate((node) => {
     const rect = node.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
@@ -579,7 +850,7 @@ async function clickElement(page: Page, selector: string): Promise<void> {
 }
 
 async function setTextareaValue(
-  page: Page,
+  page: TaskpaneSurface,
   selector: string,
   value: string
 ): Promise<void> {
@@ -604,7 +875,7 @@ async function setTextareaValue(
 }
 
 async function setTextareaValueInChunks(
-  page: Page,
+  page: TaskpaneSurface,
   selector: string,
   value: string
 ): Promise<void> {
@@ -616,7 +887,7 @@ async function setTextareaValueInChunks(
 }
 
 async function scrollElementIntoView(
-  page: Page,
+  page: TaskpaneSurface,
   selector: string
 ): Promise<void> {
   await page.locator(selector).evaluate((node) => {

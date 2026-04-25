@@ -40,6 +40,12 @@ module.exports = (_env, options) => {
         chunks: ["taskpane-mock"],
         filename: "taskpane-mock.html",
         template: "./src/taskpane/mock/taskpane-mock.html",
+      }),
+      new HtmlWebpackPlugin({
+        chunks: [],
+        filename: "owa-taskpane-host.html",
+        inject: false,
+        template: "./src/taskpane/mock/owa-taskpane-host.html",
       })
     );
   }
