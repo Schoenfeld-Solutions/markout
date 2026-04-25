@@ -131,7 +131,7 @@ describe("settings store", () => {
     expect(defaultStylesheet).toContain("li {\n  margin: 0;\n}");
     expect(defaultStylesheet).toContain("li p {\n  margin: 0 !important;\n}");
     expect(defaultStylesheet).toContain(
-      "ul ul, ul ol, ol ul, ol ol {\n  margin: 0 !important;\n  padding-left: 1em;\n}"
+      "li ul, li ol {\n  margin: 0 !important;\n  padding-left: 1em;\n}"
     );
     expect(defaultStylesheet).toMatch(
       /code,\s*pre,\s*\.hljs\s*\{[^}]*font-family:/i
@@ -174,12 +174,12 @@ describe("settings store", () => {
       roamingSettings.get(
         getChannelScopedKey(runtimeChannelConfig, "stylesheetPreset")
       )
-    ).toBe("default-host-inherit-v2");
+    ).toBe("default-host-inherit-v3");
     expect(persistedStore.getStylesheet()).toBe(defaultStylesheet);
     expect(persistedStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
-  it("remigrates the persisted v1 preset to the stricter v2 default", () => {
+  it("remigrates persisted legacy presets to the stricter v3 default", () => {
     const roamingSettings = new FakeRoamingSettings();
 
     roamingSettings.set(
@@ -205,6 +205,26 @@ describe("settings store", () => {
       `
     );
     roamingSettings.set("markout.stylesheetPreset", "default-host-inherit-v1");
+
+    const settingsStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(true);
+  });
+
+  it("remigrates the persisted v2 preset to the nested-list-safe v3 default", () => {
+    const roamingSettings = new FakeRoamingSettings();
+
+    roamingSettings.set(
+      "markout.stylesheet",
+      `
+        ul ul, ul ol, ol ul, ol ol {
+          margin: 0 !important;
+          padding-left: 1em;
+        }
+      `
+    );
+    roamingSettings.set("markout.stylesheetPreset", "default-host-inherit-v2");
 
     const settingsStore = createOfficeSettingsStore(roamingSettings);
 

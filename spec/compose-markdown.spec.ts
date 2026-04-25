@@ -40,6 +40,33 @@ describe("compose markdown service", () => {
     );
   });
 
+  it("uses selection html structure instead of flattened selection text", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.selectionSource = "body";
+    mailboxItem.selectionText = "# Title Paragraph - parent - child";
+    mailboxItem.selectionHtml = [
+      "<div># Title</div>",
+      "<div>Paragraph text</div>",
+      "<div>- parent</div>",
+      "<div>&nbsp;&nbsp;- child</div>",
+    ].join("");
+    installOfficeEnvironment({ mailboxItem });
+
+    const composeMarkdownService = createComposeMarkdownService();
+
+    await composeMarkdownService.renderSelection();
+
+    expect(mailboxItem.body.lastSelectedHtml).toContain("<h1>Title</h1>");
+    expect(mailboxItem.body.lastSelectedHtml).toContain(
+      "<p>Paragraph text</p>"
+    );
+    expect(mailboxItem.body.lastSelectedHtml).toContain("<li>parent");
+    expect(mailboxItem.body.lastSelectedHtml).toContain("<li>child</li>");
+    expect(mailboxItem.body.lastSelectedHtml).not.toContain(
+      "# Title Paragraph - parent - child"
+    );
+  });
+
   it("inserts rendered markdown at the current body cursor when no selection exists", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
     mailboxItem.selectionSource = "body";

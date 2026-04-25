@@ -28,6 +28,11 @@ interface PreviewScenario {
 
 interface MockSnapshot {
   bodyHtml: string;
+  lastInsertedHtml: string | null;
+  transientNotifications: {
+    intent: "error" | "info" | "success" | "warning";
+    message: string;
+  }[];
 }
 
 interface OwaHostPage {
@@ -85,6 +90,23 @@ ${Array.from(
     `- Drawer line ${String(index + 1).padStart(2, "0")} keeps the content viewport scrollable.`
 ).join("\n")}
 `;
+const COMPLEX_SELECTION_TEXT = "# Selection Title Paragraph - parent - child";
+const COMPLEX_SELECTION_HTML = [
+  "<div># Selection Title</div>",
+  "<div>Paragraph from Outlook selection</div>",
+  "<div>- parent</div>",
+  "<div>&nbsp;&nbsp;- child</div>",
+].join("");
+const SIGNATURE_HTML =
+  '<div id="owa-signature" class="signature"><p>Kind regards,<br>Gabriel</p><img src="https://example.com/logo.png"></div>';
+const DRAFT_WITH_SIGNATURE_HTML = [
+  "<div># Draft Title</div>",
+  "<div>- parent</div>",
+  "<div>&nbsp;&nbsp;- child</div>",
+  SIGNATURE_HTML,
+].join("");
+const DRAFT_WITHOUT_MARKDOWN_HTML =
+  '<div>Hello team,<br>please review the attached file.</div><div class="signature">Kind regards,<br>Gabriel</div>';
 const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
@@ -151,6 +173,9 @@ export async function runTaskpaneUiPlaywright(
 
     console.log("Verifying rapid input and toolbar interaction regressions.");
     await verifyRapidInputAndToolbarScenario(browser, config);
+
+    console.log("Verifying selection and draft rendering regressions.");
+    await verifySelectionAndDraftRenderingScenario(browser, config);
 
     console.log("Verifying OWA-like drawer host layout regressions.");
     await verifyOwaLikeDrawerHostScenario(browser, config);
@@ -483,6 +508,134 @@ async function verifyRapidInputAndToolbarScenario(
   }
 }
 
+async function verifySelectionAndDraftRenderingScenario(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const page = await openMockPage(browser, config, {
+    colorScheme: "light",
+    height: 570,
+    name: "selection-draft-rendering",
+    width: 320,
+  });
+
+  try {
+    await openInsertPanel(page);
+    await page.evaluate(
+      ({ html, text }) => {
+        window.__MARKOUT_TASKPANE_MOCK__?.setSelection({
+          hasSelection: true,
+          html,
+          source: "body",
+          text,
+        });
+        window.dispatchEvent(new Event("focus"));
+      },
+      {
+        html: COMPLEX_SELECTION_HTML,
+        text: COMPLEX_SELECTION_TEXT,
+      }
+    );
+    await page.locator("#render-selection-button:not([disabled])").waitFor({
+      timeout: config.timeoutMs,
+    });
+    await scrollElementIntoView(page, "#render-selection-button");
+    await clickElement(page, "#render-selection-button");
+    await page.waitForFunction(() => {
+      return (
+        window.__MARKOUT_TASKPANE_MOCK__
+          ?.getState()
+          .lastInsertedHtml?.includes("Selection Title") ?? false
+      );
+    });
+
+    const selectionSnapshot = await readMockSnapshot(page);
+    assert.ok(
+      selectionSnapshot.lastInsertedHtml !== null,
+      "Selection render did not write any HTML."
+    );
+    assert.ok(
+      selectionSnapshot.lastInsertedHtml.includes("<h1>Selection Title</h1>"),
+      "Selection heading was not preserved as a heading."
+    );
+    assert.ok(
+      selectionSnapshot.lastInsertedHtml.includes(
+        "<p>Paragraph from Outlook selection</p>"
+      ),
+      "Selection paragraph was not preserved as its own block."
+    );
+    assert.ok(
+      selectionSnapshot.lastInsertedHtml.includes("<li>parent"),
+      "Selection parent list item was not rendered as a list item."
+    );
+    assert.ok(
+      selectionSnapshot.lastInsertedHtml.includes("<li>child</li>"),
+      "Selection child list item was not rendered as a nested list item."
+    );
+    assert.ok(
+      !selectionSnapshot.lastInsertedHtml.includes(COMPLEX_SELECTION_TEXT),
+      "Selection render used the flattened Outlook text instead of HTML structure."
+    );
+
+    await page.evaluate((bodyHtml) => {
+      window.__MARKOUT_TASKPANE_MOCK__?.reset();
+      window.__MARKOUT_TASKPANE_MOCK__?.setBodyHtml(bodyHtml);
+    }, DRAFT_WITH_SIGNATURE_HTML);
+    await openInsertPanel(page);
+    await scrollElementIntoView(page, "#render-entire-draft-button");
+    await clickElement(page, "#render-entire-draft-button");
+    await page.waitForFunction(() => {
+      return (
+        window.__MARKOUT_TASKPANE_MOCK__
+          ?.getState()
+          .bodyHtml.includes("Draft Title") ?? false
+      );
+    });
+
+    const renderedDraftSnapshot = await readMockSnapshot(page);
+    assert.match(
+      renderedDraftSnapshot.bodyHtml,
+      /<h1\b[^>]*>Draft Title<\/h1>/
+    );
+    assert.match(renderedDraftSnapshot.bodyHtml, /<li\b[^>]*>parent/);
+    assert.match(renderedDraftSnapshot.bodyHtml, /<li\b[^>]*>child<\/li>/);
+    assert.ok(
+      renderedDraftSnapshot.bodyHtml.includes(SIGNATURE_HTML),
+      "Draft render changed the non-Markdown signature HTML."
+    );
+
+    await scrollElementIntoView(page, "#render-entire-draft-button");
+    await clickElement(page, "#render-entire-draft-button");
+    await page.waitForFunction((originalBodyHtml) => {
+      return (
+        window.__MARKOUT_TASKPANE_MOCK__?.getState().bodyHtml ===
+        originalBodyHtml
+      );
+    }, DRAFT_WITH_SIGNATURE_HTML);
+
+    await page.evaluate((bodyHtml) => {
+      window.__MARKOUT_TASKPANE_MOCK__?.reset();
+      window.__MARKOUT_TASKPANE_MOCK__?.setBodyHtml(bodyHtml);
+    }, DRAFT_WITHOUT_MARKDOWN_HTML);
+    await openInsertPanel(page);
+    await scrollElementIntoView(page, "#render-entire-draft-button");
+    await clickElement(page, "#render-entire-draft-button");
+
+    const unchangedDraftSnapshot = await readMockSnapshot(page);
+    assert.equal(unchangedDraftSnapshot.bodyHtml, DRAFT_WITHOUT_MARKDOWN_HTML);
+    assert.ok(
+      unchangedDraftSnapshot.transientNotifications.some(
+        (notification) =>
+          notification.intent === "info" &&
+          notification.message.includes("No Markdown-looking draft blocks")
+      ),
+      "No-op draft render did not surface an informational notification."
+    );
+  } finally {
+    await page.context().close();
+  }
+}
+
 async function verifyOwaLikeDrawerHostScenario(
   browser: Browser,
   config: TaskpaneUiConfig
@@ -582,14 +735,31 @@ async function verifyNestedListSpacing(
     const nestedList = document.querySelector<HTMLElement>(
       "#mo-preview li > ul"
     );
+    const parentListItem =
+      document.querySelector<HTMLElement>("#mo-preview li");
 
-    if (nestedList === null) {
+    if (nestedList === null || parentListItem === null) {
       throw new Error("Nested preview list is missing.");
     }
 
     const nestedListStyle = window.getComputedStyle(nestedList);
+    const parentTextNode = Array.from(parentListItem.childNodes).find(
+      (childNode) =>
+        childNode.nodeType === Node.TEXT_NODE &&
+        (childNode.textContent ?? "").trim().length > 0
+    );
+
+    if (parentTextNode === undefined) {
+      throw new Error("Nested preview list parent text is missing.");
+    }
+
+    const textRange = document.createRange();
+    textRange.selectNodeContents(parentTextNode);
+    const textRect = textRange.getBoundingClientRect();
+    const nestedListRect = nestedList.getBoundingClientRect();
 
     return {
+      visualGap: nestedListRect.top - textRect.bottom,
       marginBottom: Number.parseFloat(nestedListStyle.marginBottom),
       marginTop: Number.parseFloat(nestedListStyle.marginTop),
     };
@@ -605,6 +775,19 @@ async function verifyNestedListSpacing(
     0,
     `Nested list has an unexpected bottom margin in ${scenarioName}.`
   );
+  assert.ok(
+    nestedListMetrics.visualGap <= 6,
+    `Nested list is visually detached from its parent in ${scenarioName}.`
+  );
+}
+
+async function readMockSnapshot(page: TaskpaneSurface): Promise<MockSnapshot> {
+  const snapshot = await page.evaluate(() => {
+    return window.__MARKOUT_TASKPANE_MOCK__?.getState() ?? null;
+  });
+
+  assert.ok(snapshot !== null, "Taskpane mock state is unavailable.");
+  return snapshot;
 }
 
 async function assertOwaHostFrameLayout(

@@ -7,7 +7,11 @@ import {
 import { createComposeNotificationService } from "../lib/compose-notifications";
 import { createOfficeSettingsStore, type SettingsStore } from "../lib/config";
 import { DefaultHtmlSanitizer } from "../lib/html-sanitizer";
-import { createItemRenderer, type RenderDependencies } from "../lib/item";
+import {
+  createItemRenderer,
+  type RenderDependencies,
+  type RenderItemResult,
+} from "../lib/item";
 import { createLazyMarkdownRenderer } from "../lib/lazy-markdown-renderer";
 import { createOfficeBodyAccessor } from "../lib/body-accessor";
 import { createOfficeRenderStateStore } from "../lib/render-state-store";
@@ -182,7 +186,7 @@ function createTaskpaneRuntimeServices(
   settingsStore: SettingsStore
 ): {
   composeMarkdown: ReturnType<typeof createComposeMarkdownService>;
-  renderEntireDraft: () => Promise<"rendered" | "restored">;
+  renderEntireDraft: () => Promise<RenderItemResult>;
 } {
   const markdownRenderer = createLazyMarkdownRenderer();
   const bodyAccessor = createOfficeBodyAccessor();

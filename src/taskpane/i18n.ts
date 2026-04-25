@@ -122,6 +122,7 @@ export interface LocalizedStrings {
     developerEnabled: string;
     draftRendered: string;
     draftRestored: string;
+    draftUnchanged: string;
     fileDecodeFailed: (fileName: string) => string;
     fileReadFailed: (fileName: string) => string;
     dropFileInstruction: string;
@@ -247,12 +248,12 @@ const EN_US: LocalizedStrings = {
     previewDescription: "",
     previewLoading: "Rendering preview...",
     previewTitle: "Preview",
-    renderEntireDraftButton: "Render entire draft",
+    renderEntireDraftButton: "Render draft Markdown",
     renderSelectionButton: "Render selection",
   },
   notifications: {
     autoRenderFallbackBody:
-      "Auto-render on send is enabled for this draft. MarkOut will try to render the entire draft when Smart Alerts run.",
+      "Auto-render on send is enabled for this draft. MarkOut will try to render Markdown-looking draft blocks when Smart Alerts run.",
     autoRenderFallbackDismiss: "Dismiss",
     autoRenderFallbackTitle: "Auto-render is enabled",
     autoRenderStickyBody:
@@ -264,7 +265,7 @@ const EN_US: LocalizedStrings = {
   },
   settings: {
     autoRenderDescription:
-      "Render the entire draft before send when Smart Alerts run.",
+      "Render Markdown-looking draft blocks before send when Smart Alerts run.",
     autoRenderTitle: "Smart Alerts auto-render",
     creditsDescription: "Show or hide the credits icon in the bottom toolbar.",
     creditsTitle: "Credits visibility",
@@ -300,6 +301,8 @@ const EN_US: LocalizedStrings = {
     developerEnabled: "Developer tools enabled.",
     draftRendered: "The current draft was rendered successfully.",
     draftRestored: "The original draft HTML was restored successfully.",
+    draftUnchanged:
+      "No Markdown-looking draft blocks were found, so the message body was left unchanged.",
     fileDecodeFailed: (fileName) => `${fileName} could not be decoded.`,
     fileReadFailed: (fileName) => `${fileName} could not be read.`,
     dropFileInstruction:
@@ -338,7 +341,7 @@ const EN_US: LocalizedStrings = {
     insertRenderedMarkdown:
       "Render the Markdown in the editor and replace the current body selection, or insert it at the current body cursor.",
     renderEntireDraft:
-      "Render the entire draft body. If the draft was already rendered, MarkOut restores the original draft HTML instead.",
+      "Render Markdown-looking draft blocks while preserving non-Markdown HTML such as signatures. If the draft was already rendered, MarkOut restores the original draft HTML instead.",
     renderSelection:
       "Render only the currently selected Markdown text in the message body.",
     renderSelectionNoSelection:
@@ -437,12 +440,12 @@ const DE_DE: LocalizedStrings = {
     previewDescription: "",
     previewLoading: "Vorschau wird gerendert...",
     previewTitle: "Vorschau",
-    renderEntireDraftButton: "Gesamten Entwurf rendern",
+    renderEntireDraftButton: "Markdown im Entwurf rendern",
     renderSelectionButton: "Selektion rendern",
   },
   notifications: {
     autoRenderFallbackBody:
-      "Auto-Render beim Senden ist für diesen Entwurf aktiv. MarkOut versucht, den gesamten Entwurf zu rendern, sobald Smart Alerts laufen.",
+      "Auto-Render beim Senden ist für diesen Entwurf aktiv. MarkOut versucht, Markdown-artige Entwurfsblöcke zu rendern, sobald Smart Alerts laufen.",
     autoRenderFallbackDismiss: "Schließen",
     autoRenderFallbackTitle: "Auto-Render ist aktiv",
     autoRenderStickyBody:
@@ -454,7 +457,7 @@ const DE_DE: LocalizedStrings = {
   },
   settings: {
     autoRenderDescription:
-      "Den gesamten Entwurf vor dem Senden rendern, wenn Smart Alerts laufen.",
+      "Markdown-artige Entwurfsblöcke vor dem Senden rendern, wenn Smart Alerts laufen.",
     autoRenderTitle: "Smart Alerts Auto-Render",
     creditsDescription:
       "Credits-Symbol in der unteren Toolbar ein- oder ausblenden.",
@@ -495,6 +498,8 @@ const DE_DE: LocalizedStrings = {
     draftRendered: "Der aktuelle Entwurf wurde erfolgreich gerendert.",
     draftRestored:
       "Das ursprüngliche Entwurfs-HTML wurde erfolgreich wiederhergestellt.",
+    draftUnchanged:
+      "Es wurden keine Markdown-artigen Entwurfsblöcke gefunden; der Nachrichten-Body blieb unverändert.",
     fileDecodeFailed: (fileName) =>
       `${fileName} konnte nicht dekodiert werden.`,
     fileReadFailed: (fileName) => `${fileName} konnte nicht gelesen werden.`,
@@ -541,7 +546,7 @@ const DE_DE: LocalizedStrings = {
     insertRenderedMarkdown:
       "Das Markdown aus dem Editor rendern und die aktuelle Body-Selektion ersetzen oder am aktuellen Cursor einfügen.",
     renderEntireDraft:
-      "Den gesamten Entwurf rendern. Falls der Entwurf bereits gerendert wurde, stellt MarkOut stattdessen das ursprüngliche Entwurfs-HTML wieder her.",
+      "Markdown-artige Entwurfsblöcke rendern und Nicht-Markdown-HTML wie Signaturen unverändert lassen. Falls der Entwurf bereits gerendert wurde, stellt MarkOut stattdessen das ursprüngliche Entwurfs-HTML wieder her.",
     renderSelection:
       "Nur den aktuell ausgewählten Markdown-Text im Nachrichten-Body rendern.",
     renderSelectionNoSelection:

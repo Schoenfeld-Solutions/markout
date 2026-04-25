@@ -21,15 +21,13 @@ p {
 table,
 dl,
 blockquote,
-ul,
-ol,
 pre {
   margin: 1em 0 !important;
 }
 
 ul,
 ol {
-  margin: 0.9em 0;
+  margin: 1em 0 !important;
   padding-left: 1.5em;
 }
 
@@ -41,7 +39,7 @@ li p {
   margin: 0 !important;
 }
 
-ul ul, ul ol, ol ul, ol ol {
+li ul, li ol {
   margin: 0 !important;
   padding-left: 1em;
 }
@@ -184,8 +182,11 @@ const SETTING_LANGUAGE_PREFERENCE = "markout.languagePreference";
 const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_STYLESHEET_PRESET = "markout.stylesheetPreset";
 const SETTING_THEME_MODE = "markout.themeMode";
-const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v2";
-const LEGACY_STYLESHEET_PRESETS = new Set(["default-host-inherit-v1"]);
+const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v3";
+const LEGACY_STYLESHEET_PRESETS = new Set([
+  "default-host-inherit-v1",
+  "default-host-inherit-v2",
+]);
 const CUSTOM_STYLESHEET_PRESET = "custom";
 
 const LEGACY_DEFAULT_SIGNATURE_PATTERNS = [
@@ -214,10 +215,8 @@ const KNOWN_DEFAULT_SELECTORS = new Set([
   "pre",
   "li",
   "li p",
-  "ul ul",
-  "ul ol",
-  "ol ul",
-  "ol ol",
+  "li ul",
+  "li ol",
   "ul ul ol",
   "ul ol ol",
   "ol ul ol",

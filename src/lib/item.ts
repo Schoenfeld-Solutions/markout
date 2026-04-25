@@ -1,4 +1,4 @@
-import { cleanse } from "./cleanser";
+import { extractMarkdownSourceFromHtml } from "./cleanser";
 import { createOfficeBodyAccessor, type BodyAccessor } from "./body-accessor";
 import { createOfficeSettingsStore, type SettingsStore } from "./config";
 import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
@@ -16,7 +16,7 @@ import {
 } from "./render-state-store";
 import { resolveRuntimeChannelConfig } from "./runtime";
 
-export type RenderItemResult = "rendered" | "restored";
+export type RenderItemResult = "rendered" | "restored" | "unchanged";
 
 export interface RenderDependencies {
   bodyAccessor: BodyAccessor;
@@ -57,25 +57,27 @@ export async function ensureRendered(): Promise<boolean> {
 async function applyRenderedContent(
   dependencies: RenderDependencies,
   originalHtml: string
-): Promise<void> {
-  const markdownSource = cleanse(originalHtml);
-  const renderedHtml = await dependencies.markdownRenderer.render({
-    css: dependencies.settingsStore.getStylesheet(),
-    markdown: markdownSource,
-    mode: "full",
-  });
-  const sanitizedHtml = dependencies.htmlSanitizer.sanitize(renderedHtml);
+): Promise<boolean> {
+  const renderedHtml = await renderDraftMarkdownSegments(
+    dependencies,
+    originalHtml
+  );
+
+  if (renderedHtml === null) {
+    return false;
+  }
 
   await dependencies.renderStateStore.setPendingRenderState(originalHtml);
 
   try {
-    await dependencies.bodyAccessor.setHtml(sanitizedHtml);
+    await dependencies.bodyAccessor.setHtml(renderedHtml);
   } catch (error) {
     await clearRenderStateQuietly(dependencies.renderStateStore);
     throw error;
   }
 
   await dependencies.renderStateStore.setRenderedRenderState(originalHtml);
+  return true;
 }
 
 async function clearRenderStateQuietly(
@@ -117,8 +119,7 @@ async function ensureRenderedInternal(
       dependencies,
       renderState
     );
-    await applyRenderedContent(dependencies, originalHtml);
-    return true;
+    return applyRenderedContent(dependencies, originalHtml);
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
@@ -130,8 +131,7 @@ async function ensureRenderedInternal(
     return false;
   }
 
-  await applyRenderedContent(dependencies, currentHtml);
-  return true;
+  return applyRenderedContent(dependencies, currentHtml);
 }
 
 async function recoverPendingRenderState(
@@ -164,14 +164,16 @@ async function renderItemInternal(
       dependencies,
       renderState
     );
-    await applyRenderedContent(dependencies, originalHtml);
-    return "rendered";
+    return (await applyRenderedContent(dependencies, originalHtml))
+      ? "rendered"
+      : "unchanged";
   }
 
   const currentHtml = await dependencies.bodyAccessor.getHtml();
   assertFullDraftRenderAllowed(currentHtml);
-  await applyRenderedContent(dependencies, currentHtml);
-  return "rendered";
+  return (await applyRenderedContent(dependencies, currentHtml))
+    ? "rendered"
+    : "unchanged";
 }
 
 function assertFullDraftRenderAllowed(html: string): void {
@@ -182,4 +184,157 @@ function assertFullDraftRenderAllowed(html: string): void {
   if (containsMarkOutFullRenderMarker(html)) {
     throw new Error(LARGE_DRAFT_RESTORE_MESSAGE);
   }
+}
+
+async function renderDraftMarkdownSegments(
+  dependencies: RenderDependencies,
+  originalHtml: string
+): Promise<string | null> {
+  const documentFragment = new DOMParser().parseFromString(
+    originalHtml,
+    "text/html"
+  );
+  const outputSegments: string[] = [];
+  const markdownSegments: string[] = [];
+  let renderedAnySegment = false;
+  let preserveRemainingNodes = false;
+
+  async function flushMarkdownSegments(): Promise<string | null> {
+    const markdownSource = markdownSegments.join("\n").trim();
+    markdownSegments.length = 0;
+
+    if (markdownSource.length === 0) {
+      return null;
+    }
+
+    const renderedHtml = await dependencies.markdownRenderer.render({
+      css: dependencies.settingsStore.getStylesheet(),
+      markdown: markdownSource,
+      mode: "full",
+    });
+
+    return dependencies.htmlSanitizer.sanitize(renderedHtml);
+  }
+
+  async function appendMarkdownSegments(): Promise<boolean> {
+    const renderedSegment = await flushMarkdownSegments();
+
+    if (renderedSegment === null) {
+      return false;
+    }
+
+    outputSegments.push(renderedSegment);
+    return true;
+  }
+
+  for (const node of Array.from(documentFragment.body.childNodes)) {
+    if (preserveRemainingNodes) {
+      outputSegments.push(serializeNode(node));
+      continue;
+    }
+
+    if (isSignatureBoundaryNode(node)) {
+      if (await appendMarkdownSegments()) {
+        renderedAnySegment = true;
+      }
+      outputSegments.push(serializeNode(node));
+      preserveRemainingNodes = true;
+      continue;
+    }
+
+    const markdownSource = extractMarkdownSourceFromNode(node);
+
+    if (isMarkdownSourceRenderable(markdownSource)) {
+      markdownSegments.push(markdownSource);
+      continue;
+    }
+
+    if (await appendMarkdownSegments()) {
+      renderedAnySegment = true;
+    }
+    outputSegments.push(serializeNode(node));
+  }
+
+  if (await appendMarkdownSegments()) {
+    renderedAnySegment = true;
+  }
+
+  return renderedAnySegment ? outputSegments.join("") : null;
+}
+
+function extractMarkdownSourceFromNode(node: Node): string {
+  return extractMarkdownSourceFromHtml(serializeNode(node));
+}
+
+function isMarkdownSourceRenderable(markdownSource: string): boolean {
+  const lines = markdownSource
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) {
+    return false;
+  }
+
+  if (hasMarkdownTable(lines)) {
+    return true;
+  }
+
+  return lines.some((line) => {
+    return (
+      /^#{1,6}\s+\S/.test(line) ||
+      /^>\s?\S/.test(line) ||
+      /^[-+*]\s+\S/.test(line) ||
+      /^\d+[.)]\s+\S/.test(line) ||
+      /^(```|~~~)/.test(line) ||
+      /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) ||
+      /(?:^|[^\w])(?:\*\*|__|`)[^\s].*(?:\*\*|__|`)/.test(line) ||
+      /!?\[[^\]]+\]\([^)]+\)/.test(line)
+    );
+  });
+}
+
+function hasMarkdownTable(lines: string[]): boolean {
+  return lines.some((line, index) => {
+    const nextLine = lines[index + 1];
+
+    return (
+      line.includes("|") &&
+      nextLine !== undefined &&
+      /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(nextLine)
+    );
+  });
+}
+
+function isSignatureBoundaryNode(node: Node): boolean {
+  if (node.nodeType !== 1) {
+    return false;
+  }
+
+  const element = node as Element;
+  const signatureMetadata = [
+    element.id,
+    element.className,
+    element.getAttribute("aria-label") ?? "",
+    element.getAttribute("title") ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (signatureMetadata.includes("signature")) {
+    return true;
+  }
+
+  return element.textContent.trim() === "--";
+}
+
+function serializeNode(node: Node): string {
+  const container = node.ownerDocument?.createElement("div");
+
+  if (container === undefined) {
+    return node.textContent ?? "";
+  }
+
+  container.appendChild(node.cloneNode(true));
+  return container.innerHTML;
 }
