@@ -32,7 +32,9 @@ ol {
 }
 
 li {
-  margin: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  line-height: 1.25;
 }
 
 li p {
@@ -40,7 +42,8 @@ li p {
 }
 
 li ul, li ol {
-  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   padding-left: 1em;
 }
 
@@ -182,10 +185,11 @@ const SETTING_LANGUAGE_PREFERENCE = "markout.languagePreference";
 const SETTING_STYLESHEET = "markout.stylesheet";
 const SETTING_STYLESHEET_PRESET = "markout.stylesheetPreset";
 const SETTING_THEME_MODE = "markout.themeMode";
-const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v3";
+const CURRENT_STYLESHEET_PRESET = "default-host-inherit-v4";
 const LEGACY_STYLESHEET_PRESETS = new Set([
   "default-host-inherit-v1",
   "default-host-inherit-v2",
+  "default-host-inherit-v3",
 ]);
 const CUSTOM_STYLESHEET_PRESET = "custom";
 

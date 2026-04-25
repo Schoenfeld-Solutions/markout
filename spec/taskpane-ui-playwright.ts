@@ -74,6 +74,14 @@ const NESTED_LIST_SAMPLE = `# List spacing
   - child
     - grandchild
 `;
+const PASTED_NBSP_LIST_SAMPLE = [
+  "# hi",
+  "",
+  "ich bin",
+  "- cool",
+  "\u00a0\u00a0- super cool",
+  "- cool",
+].join("\n");
 const RAPID_MARKDOWN_SAMPLE = `# Stable preview
 
 Typing should keep the toolbar usable while the preview settles.
@@ -679,10 +687,7 @@ async function verifyOwaLikeDrawerHostScenario(
       "#markdown-input",
       LONG_DRAWER_MARKDOWN_SAMPLE
     );
-    await taskpane
-      .locator("#mo-preview")
-      .getByText("Long drawer content", { exact: false })
-      .waitFor({ timeout: config.timeoutMs });
+    await waitForPreviewText(taskpane, "Long drawer content", config.timeoutMs);
 
     await assertOwaHostFrameLayout(page, "owa-like-insert-long-content");
     await assertToolbarPinnedToViewport(
@@ -708,10 +713,7 @@ async function verifyOwaLikeDrawerHostScenario(
       .getByText("GitHub repository", { exact: true })
       .waitFor({ timeout: config.timeoutMs });
     await openInsertPanel(taskpane);
-    await taskpane
-      .locator("#mo-preview")
-      .getByText("Stable preview", { exact: false })
-      .waitFor({ timeout: config.timeoutMs });
+    await waitForPreviewText(taskpane, "Stable preview", config.timeoutMs);
     assert.equal(
       await taskpane.locator("#markdown-input").inputValue(),
       RAPID_MARKDOWN_SAMPLE
@@ -730,7 +732,65 @@ async function verifyNestedListSpacing(
   await page.locator("#mo-preview li > ul").first().waitFor({
     timeout: config.timeoutMs,
   });
+  await assertNestedListSpacing(page, scenarioName);
 
+  await setTextareaValue(page, "#markdown-input", PASTED_NBSP_LIST_SAMPLE);
+  await page.waitForFunction(() => {
+    return (
+      document
+        .querySelector<HTMLTextAreaElement>("#markdown-input")
+        ?.value.includes("  - super cool") ?? false
+    );
+  });
+  await page.locator("#mo-preview li > ul li").getByText("super cool").waitFor({
+    timeout: config.timeoutMs,
+  });
+
+  const pastedListSnapshot = await page.evaluate(() => {
+    const textarea =
+      document.querySelector<HTMLTextAreaElement>("#markdown-input");
+    const parentListItem =
+      document.querySelector<HTMLElement>("#mo-preview li");
+    const nestedListItem = document.querySelector<HTMLElement>(
+      "#mo-preview li > ul li"
+    );
+
+    if (
+      textarea === null ||
+      parentListItem === null ||
+      nestedListItem === null
+    ) {
+      throw new Error("Pasted nested list preview is missing.");
+    }
+
+    return {
+      nestedText: nestedListItem.textContent.trim(),
+      parentText: parentListItem.textContent,
+      textareaValue: textarea.value,
+    };
+  });
+
+  assert.ok(
+    pastedListSnapshot.textareaValue.includes("  - super cool"),
+    `Pasted non-breaking indentation was not normalized in ${scenarioName}.`
+  );
+  assert.ok(
+    !pastedListSnapshot.textareaValue.includes("\u00a0\u00a0- super cool"),
+    `Pasted non-breaking indentation remained in ${scenarioName}.`
+  );
+  assert.equal(pastedListSnapshot.nestedText, "super cool");
+  assert.ok(
+    !pastedListSnapshot.parentText.includes("- super cool"),
+    `Pasted sublist rendered as parent item text in ${scenarioName}.`
+  );
+
+  await assertNestedListSpacing(page, `${scenarioName}-pasted-nbsp`);
+}
+
+async function assertNestedListSpacing(
+  page: TaskpaneSurface,
+  scenarioName: string
+): Promise<void> {
   const nestedListMetrics = await page.evaluate(() => {
     const nestedList = document.querySelector<HTMLElement>(
       "#mo-preview li > ul"
@@ -776,7 +836,7 @@ async function verifyNestedListSpacing(
     `Nested list has an unexpected bottom margin in ${scenarioName}.`
   );
   assert.ok(
-    nestedListMetrics.visualGap <= 6,
+    nestedListMetrics.visualGap <= 3,
     `Nested list is visually detached from its parent in ${scenarioName}.`
   );
 }
@@ -1046,13 +1106,7 @@ async function setTextareaValue(
 
     textarea.focus();
     valueSetter?.call(textarea, nextValue);
-    textarea.dispatchEvent(
-      new InputEvent("input", {
-        bubbles: true,
-        data: nextValue,
-        inputType: "insertText",
-      })
-    );
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
 }
@@ -1067,6 +1121,21 @@ async function setTextareaValueInChunks(
   for (let index = 1; index <= value.length; index += 1) {
     await setTextareaValue(page, selector, value.slice(0, index));
   }
+}
+
+async function waitForPreviewText(
+  page: TaskpaneSurface,
+  expectedText: string,
+  timeoutMs: number
+): Promise<void> {
+  await page.waitForFunction(
+    (text) => {
+      const preview = document.querySelector("#mo-preview");
+      return preview?.textContent.includes(text) ?? false;
+    },
+    expectedText,
+    { timeout: timeoutMs }
+  );
 }
 
 async function scrollElementIntoView(

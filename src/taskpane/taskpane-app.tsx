@@ -49,6 +49,7 @@ import {
   resolveLocale,
   resolveOfficeDisplayLanguage,
 } from "./i18n";
+import { normalizeMarkdownInput } from "./markdown-input";
 import {
   CreditsPanel,
   DeveloperPanel,
@@ -592,7 +593,9 @@ export function TaskpaneApp({
   );
   const [isDropActive, setIsDropActive] = useState(false);
   const [isWorking, setIsWorking] = useState<string | null>(null);
-  const [markdownInput, setMarkdownInput] = useState(initialMarkdownInput);
+  const [markdownInput, setMarkdownInput] = useState(() =>
+    normalizeMarkdownInput(initialMarkdownInput)
+  );
   const [panelMessage, setPanelMessage] = useState<PanelMessageState | null>(
     null
   );
@@ -679,6 +682,9 @@ export function TaskpaneApp({
             stylesheet,
           }
     );
+  });
+  const handleMarkdownInputChange = useEffectEvent((value: string) => {
+    setMarkdownInput(normalizeMarkdownInput(value));
   });
   const { previewHtml, previewState } = usePreviewController(
     services.composeMarkdown,
@@ -1074,7 +1080,7 @@ export function TaskpaneApp({
 
     try {
       const content = await readDroppedMarkdownFile(file);
-      setMarkdownInput(content);
+      setMarkdownInput(normalizeMarkdownInput(content));
       await showComposeNotification(
         "success",
         localizedStrings.status.stylesheetLoaded(file.name)
@@ -1186,7 +1192,7 @@ export function TaskpaneApp({
                     onInsertRenderedMarkdown={() => {
                       void handleInsertRenderedMarkdown();
                     }}
-                    onMarkdownInputChange={setMarkdownInput}
+                    onMarkdownInputChange={handleMarkdownInputChange}
                     onRenderEntireDraft={() => {
                       void handleRenderEntireDraft();
                     }}
