@@ -13,8 +13,9 @@ MarkOut is intentionally **taskpane-first** in Outlook compose.
 
 - `Open MarkOut` is the single compose command and opens the task pane.
 - Manual Markdown work happens inside the task pane: render the current body
-  selection, render the entire draft, or insert rendered Markdown fragments at
-  the current body selection or cursor.
+  selection, render Markdown-looking blocks in the draft while preserving
+  non-Markdown HTML such as signatures, or insert rendered Markdown fragments
+  at the current body selection or cursor.
 - The task pane includes light, dark, and system theme modes, first-run intro
   content, help, credits, developer tooling, and Smart Alerts settings.
 

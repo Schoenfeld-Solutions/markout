@@ -18,7 +18,8 @@ Verify the hosted beta channel that is published from `main`.
    `https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html`.
 4. Verify the main compose flows:
    - render selection
-   - render entire draft
+   - render Markdown-looking draft blocks without changing a non-Markdown
+     signature
    - insert rendered Markdown
    - toggle auto-render in settings
 5. Confirm no browser settings, notification state, or restore-state behavior

@@ -5,7 +5,10 @@ import {
   FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE,
   createItemRenderer,
 } from "../src/lib/item";
-import type { MarkdownRenderer } from "../src/lib/renderer";
+import {
+  createMarkdownRenderer,
+  type MarkdownRenderer,
+} from "../src/lib/renderer";
 import type {
   RenderState,
   RenderStateStore,
@@ -83,7 +86,7 @@ describe("item renderer", () => {
   });
 
   it("renders the draft and restores the original html on the next toggle", async () => {
-    const originalHtml = "<div><strong>Hello</strong> team</div>";
+    const originalHtml = "<div># Hello team</div>";
     const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
     const renderStateStore = new InMemoryRenderStateStore();
     const markdownRenderer: MarkdownRenderer = {
@@ -154,7 +157,7 @@ describe("item renderer", () => {
   });
 
   it("recovers pending state by restoring the original html before re-rendering", async () => {
-    const originalHtml = "<div>Original draft</div>";
+    const originalHtml = "<div>## Original draft</div>";
     const bodyAccessor = new InMemoryBodyAccessor("<div>Half rendered</div>");
     const renderStateStore = new InMemoryRenderStateStore();
     await renderStateStore.setPendingRenderState(originalHtml);
@@ -271,5 +274,71 @@ describe("item renderer", () => {
     await expect(itemRenderer.renderItem()).rejects.toThrow(
       FULL_RENDER_BLOCKED_BY_FRAGMENT_MESSAGE
     );
+  });
+
+  it("renders only markdown-looking draft blocks and preserves signatures", async () => {
+    const signatureHtml =
+      '<div id="owa-signature" class="signature"><p>Kind regards,<br>Gabriel</p><img src="https://example.com/logo.png"></div>';
+    const originalHtml = [
+      "<div># Release notes</div>",
+      "<div>- fixed selection rendering</div>",
+      "<div>&nbsp;&nbsp;- kept nested list spacing tight</div>",
+      signatureHtml,
+    ].join("");
+    const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
+    const renderStateStore = new InMemoryRenderStateStore();
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: createMarkdownRenderer(),
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.renderItem()).toBe("rendered");
+
+    const renderedHtml = await bodyAccessor.getHtml();
+    expect(renderedHtml).toContain("<h1>Release notes</h1>");
+    expect(renderedHtml).toContain("<li>fixed selection rendering");
+    expect(renderedHtml).toContain("<li>kept nested list spacing tight</li>");
+    expect(renderedHtml).toContain(signatureHtml);
+
+    expect(await itemRenderer.renderItem()).toBe("restored");
+    expect(await bodyAccessor.getHtml()).toBe(originalHtml);
+  });
+
+  it("leaves non-markdown draft html unchanged", async () => {
+    const originalHtml =
+      '<div>Hello team,<br>please review the attached file.</div><div class="signature">Kind regards,<br>Gabriel</div>';
+    const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
+    const renderStateStore = new InMemoryRenderStateStore();
+    let renderCalls = 0;
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: {
+        render(): Promise<string> {
+          renderCalls += 1;
+          return Promise.resolve("<div>Should not render</div>");
+        },
+      },
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.renderItem()).toBe("unchanged");
+    expect(await bodyAccessor.getHtml()).toBe(originalHtml);
+    expect(await renderStateStore.getRenderState()).toBeNull();
+    expect(renderCalls).toBe(0);
   });
 });

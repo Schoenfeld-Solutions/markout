@@ -35,6 +35,7 @@ import {
   lintStylesheet,
   type StylesheetLintResult,
 } from "../lib/stylesheet-lint";
+import type { RenderItemResult } from "../lib/item";
 import {
   useAutoRenderNotificationController,
   usePreviewController,
@@ -516,6 +517,44 @@ const useStyles = makeStyles({
   },
 });
 
+export function getDraftRenderFeedback(
+  strings: LocalizedStrings,
+  result: RenderItemResult
+): {
+  diagnosticArea: "render" | "restore";
+  diagnosticCode:
+    | "draft.render.succeeded"
+    | "draft.render.unchanged"
+    | "draft.restore.succeeded";
+  intent: PanelMessageState["intent"];
+  message: string;
+} {
+  if (result === "rendered") {
+    return {
+      diagnosticArea: "render",
+      diagnosticCode: "draft.render.succeeded",
+      intent: "success",
+      message: strings.status.draftRendered,
+    };
+  }
+
+  if (result === "restored") {
+    return {
+      diagnosticArea: "restore",
+      diagnosticCode: "draft.restore.succeeded",
+      intent: "success",
+      message: strings.status.draftRestored,
+    };
+  }
+
+  return {
+    diagnosticArea: "render",
+    diagnosticCode: "draft.render.unchanged",
+    intent: "info",
+    message: strings.status.draftUnchanged,
+  };
+}
+
 function TaskpaneContent({
   children,
 }: {
@@ -975,18 +1014,11 @@ export function TaskpaneApp({
 
       try {
         const result = await services.renderEntireDraft();
-        await showComposeNotification(
-          "success",
-          result === "rendered"
-            ? localizedStrings.status.draftRendered
-            : localizedStrings.status.draftRestored
-        );
+        const feedback = getDraftRenderFeedback(localizedStrings, result);
+        await showComposeNotification(feedback.intent, feedback.message);
         recordDiagnostic({
-          area: result === "rendered" ? "render" : "restore",
-          code:
-            result === "rendered"
-              ? "draft.render.succeeded"
-              : "draft.restore.succeeded",
+          area: feedback.diagnosticArea,
+          code: feedback.diagnosticCode,
           level: "info",
         });
         await updateSelectionState();

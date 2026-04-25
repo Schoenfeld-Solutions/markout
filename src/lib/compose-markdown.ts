@@ -3,6 +3,7 @@ import {
   type BodyAccessor,
   type ComposeSelection,
 } from "./body-accessor";
+import { extractMarkdownSourceFromHtml } from "./cleanser";
 import { createOfficeSettingsStore, type SettingsStore } from "./config";
 import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
 import {
@@ -89,14 +90,19 @@ async function renderSelectionInternal(
   const selection = await dependencies.bodyAccessor.getSelection();
   assertBodySelection(selection.source);
 
-  if (!selection.hasSelection) {
+  const selectionMarkdownSource = getSelectionMarkdownSource(selection);
+
+  if (!selection.hasSelection && selectionMarkdownSource.trim().length === 0) {
     throw new Error(EMPTY_SELECTION_MESSAGE);
   }
 
   assertSelectionIsNotAlreadyRendered(selection.html);
   await assertDraftIsNotFullyRendered(dependencies.bodyAccessor);
 
-  const renderedHtml = await renderFragment(selection.text, dependencies);
+  const renderedHtml = await renderFragment(
+    selectionMarkdownSource,
+    dependencies
+  );
   await dependencies.bodyAccessor.replaceSelectionWithHtml(renderedHtml);
 }
 
@@ -148,6 +154,17 @@ function assertSelectionIsNotAlreadyRendered(
   ) {
     throw new Error(RENDERED_SELECTION_BLOCKED_MESSAGE);
   }
+}
+
+function getSelectionMarkdownSource(selection: ComposeSelection): string {
+  const htmlMarkdownSource =
+    selection.html === null
+      ? ""
+      : extractMarkdownSourceFromHtml(selection.html);
+
+  return htmlMarkdownSource.trim().length > 0
+    ? htmlMarkdownSource
+    : selection.text;
 }
 
 function createDefaultDependencies(): ComposeMarkdownDependencies {

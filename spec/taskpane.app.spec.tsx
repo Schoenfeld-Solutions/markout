@@ -10,6 +10,7 @@ import {
   TaskpaneApp,
   type TaskpaneServices,
   buildToolbarPanels,
+  getDraftRenderFeedback,
   getPanelAfterVisibilityChange,
   getRenderSelectionTooltip,
   isDarkColor,
@@ -346,6 +347,29 @@ describe("taskpane app helpers", () => {
       });
       restoreMatchMedia();
     }
+  });
+
+  it("maps draft render results to status copy and diagnostics", () => {
+    const strings = getStrings("en-US");
+
+    expect(getDraftRenderFeedback(strings, "rendered")).toEqual({
+      diagnosticArea: "render",
+      diagnosticCode: "draft.render.succeeded",
+      intent: "success",
+      message: strings.status.draftRendered,
+    });
+    expect(getDraftRenderFeedback(strings, "restored")).toEqual({
+      diagnosticArea: "restore",
+      diagnosticCode: "draft.restore.succeeded",
+      intent: "success",
+      message: strings.status.draftRestored,
+    });
+    expect(getDraftRenderFeedback(strings, "unchanged")).toEqual({
+      diagnosticArea: "render",
+      diagnosticCode: "draft.render.unchanged",
+      intent: "info",
+      message: strings.status.draftUnchanged,
+    });
   });
 
   it("records preview controller diagnostics for successful renders", async () => {
