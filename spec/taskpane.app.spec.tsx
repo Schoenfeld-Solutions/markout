@@ -404,6 +404,90 @@ describe("taskpane app helpers", () => {
     }
   });
 
+  it("ignores stale preview renders when markdown changes quickly", async () => {
+    const renders: {
+      markdown: string;
+      resolve: (html: string) => void;
+    }[] = [];
+    const service = {
+      ...createServices().composeMarkdown,
+      renderPreview: (markdown: string) =>
+        new Promise<string>((resolve) => {
+          renders.push({ markdown, resolve });
+        }),
+    };
+    let root: Root | null = null;
+
+    function PreviewProbe({ markdown }: { markdown: string }): ReactElement {
+      const { previewHtml, previewState } = usePreviewController(
+        service,
+        markdown,
+        "",
+        "Preview failed.",
+        () => undefined
+      );
+
+      return (
+        <div data-state={previewState} id="preview-probe">
+          {previewHtml}
+        </div>
+      );
+    }
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      await act(async () => {
+        root?.render(<PreviewProbe markdown="# First" />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        root?.render(<PreviewProbe markdown="# Second" />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(renders.map((render) => render.markdown)).toEqual([
+        "# First",
+        "# Second",
+      ]);
+
+      await act(async () => {
+        renders[1]?.resolve("<p>Second</p>");
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector("#preview-probe")?.textContent).toContain(
+        "Second"
+      );
+
+      await act(async () => {
+        renders[0]?.resolve("<p>First</p>");
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector("#preview-probe")?.textContent).toContain(
+        "Second"
+      );
+      expect(
+        container.querySelector("#preview-probe")?.textContent
+      ).not.toContain("First");
+    } finally {
+      act(() => {
+        root?.unmount();
+      });
+    }
+  });
+
   it("records preview controller diagnostics for render failures", async () => {
     const restoreMatchMedia = ensureMatchMedia();
     const consoleError = jest

@@ -43,6 +43,21 @@ Paragraph with [a link](https://example.com) and \`inline code\`.
 const preview = "theme-aware";
 \`\`\`
 `;
+const NESTED_LIST_SAMPLE = `# List spacing
+
+- parent
+  - child
+    - grandchild
+`;
+const RAPID_MARKDOWN_SAMPLE = `# Stable preview
+
+Typing should keep the toolbar usable while the preview settles.
+
+- first
+- second
+  - nested
+`;
+const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
   partialConfig: Partial<TaskpaneUiConfig> = {}
@@ -97,6 +112,9 @@ export async function runTaskpaneUiPlaywright(
       console.log(`Verifying preview scenario ${scenario.name}.`);
       await verifyPreviewScenario(browser, config, scenario);
     }
+
+    console.log("Verifying rapid input and toolbar interaction regressions.");
+    await verifyRapidInputAndToolbarScenario(browser, config);
   } finally {
     await browser.close();
   }
@@ -134,7 +152,8 @@ function findBrowserExecutable(): string {
 async function openMockPage(
   browser: Browser,
   config: TaskpaneUiConfig,
-  scenario: PreviewScenario
+  scenario: PreviewScenario,
+  queryParams: Record<string, string> = {}
 ): Promise<Page> {
   const context = await browser.newContext({
     colorScheme: scenario.colorScheme,
@@ -145,12 +164,25 @@ async function openMockPage(
     },
   });
   const page = await context.newPage();
-  await page.goto(config.baseUrl, {
+  await page.goto(buildPageUrl(config.baseUrl, queryParams), {
     timeout: config.timeoutMs,
     waitUntil: "domcontentloaded",
   });
   await page.locator("#taskpane-shell").waitFor({ timeout: config.timeoutMs });
   return page;
+}
+
+function buildPageUrl(
+  baseUrl: string,
+  queryParams: Record<string, string>
+): string {
+  const pageUrl = new URL(baseUrl);
+
+  for (const [key, value] of Object.entries(queryParams)) {
+    pageUrl.searchParams.set(key, value);
+  }
+
+  return pageUrl.toString();
 }
 
 async function openInsertPanel(page: Page): Promise<void> {
@@ -271,14 +303,17 @@ async function verifyPreviewScenario(
       `Preview text collides with the preview background in ${scenario.name}.`
     );
 
+    await assertToolbarPinnedToViewport(page, scenario.name);
+
     await page.screenshot({
-      fullPage: true,
+      fullPage: false,
       path: path.join(
         config.outputDirectory,
         `taskpane-preview-${scenario.name}.png`
       ),
     });
 
+    await verifyNestedListSpacing(page, config, scenario.name);
     await clickElement(page, "#insert-rendered-markdown-button");
 
     const snapshot = await page.evaluate(() => {
@@ -290,6 +325,193 @@ async function verifyPreviewScenario(
   } finally {
     await page.context().close();
   }
+}
+
+async function verifyRapidInputAndToolbarScenario(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const page = await openMockPage(
+    browser,
+    config,
+    {
+      colorScheme: "dark",
+      height: 570,
+      name: "rapid-input-toolbar",
+      width: 320,
+    },
+    { previewDelayMs: "120" }
+  );
+
+  try {
+    await openInsertPanel(page);
+    const textarea = page.locator("#markdown-input");
+    await setTextareaValueInChunks(
+      page,
+      "#markdown-input",
+      RAPID_MARKDOWN_SAMPLE
+    );
+
+    await openSettingsPanel(page);
+    await page
+      .locator("#theme-mode-system")
+      .waitFor({ timeout: config.timeoutMs });
+
+    await scrollElementIntoView(page, "#developer-tools-switch");
+    await clickElement(page, "#developer-tools-switch");
+    await page
+      .locator("#panel-button-developer")
+      .waitFor({ timeout: config.timeoutMs });
+
+    await clickElement(page, "#panel-button-developer");
+    await page
+      .locator("#taskpane-shell")
+      .getByText("Developer tools", { exact: true })
+      .waitFor({ timeout: config.timeoutMs });
+
+    await openHelpPanel(page);
+    await page
+      .locator("#taskpane-shell")
+      .getByText("GitHub repository", { exact: true })
+      .waitFor({ timeout: config.timeoutMs });
+
+    await openInsertPanel(page);
+    await page
+      .locator("#mo-preview")
+      .getByText("Stable preview", { exact: false })
+      .waitFor({ timeout: config.timeoutMs });
+
+    assert.equal(await textarea.inputValue(), RAPID_MARKDOWN_SAMPLE);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const shellText =
+        (await page.locator("#taskpane-shell").textContent()) ?? "";
+      assert.ok(
+        !shellText.includes(PREVIEW_LOADING_TEXT),
+        "Preview returned to the loading state after rapid input settled."
+      );
+      assert.equal(await textarea.inputValue(), RAPID_MARKDOWN_SAMPLE);
+      await page.waitForTimeout(100);
+    }
+
+    await assertToolbarPinnedToViewport(page, "rapid-input-toolbar");
+  } finally {
+    await page.context().close();
+  }
+}
+
+async function verifyNestedListSpacing(
+  page: Page,
+  config: TaskpaneUiConfig,
+  scenarioName: string
+): Promise<void> {
+  await setTextareaValue(page, "#markdown-input", NESTED_LIST_SAMPLE);
+  await page.locator("#mo-preview li > ul").first().waitFor({
+    timeout: config.timeoutMs,
+  });
+
+  const nestedListMetrics = await page.evaluate(() => {
+    const nestedList = document.querySelector<HTMLElement>(
+      "#mo-preview li > ul"
+    );
+
+    if (nestedList === null) {
+      throw new Error("Nested preview list is missing.");
+    }
+
+    const nestedListStyle = window.getComputedStyle(nestedList);
+
+    return {
+      marginBottom: Number.parseFloat(nestedListStyle.marginBottom),
+      marginTop: Number.parseFloat(nestedListStyle.marginTop),
+    };
+  });
+
+  assert.equal(
+    nestedListMetrics.marginTop,
+    0,
+    `Nested list has an unexpected top margin in ${scenarioName}.`
+  );
+  assert.equal(
+    nestedListMetrics.marginBottom,
+    0,
+    `Nested list has an unexpected bottom margin in ${scenarioName}.`
+  );
+}
+
+async function assertToolbarPinnedToViewport(
+  page: Page,
+  scenarioName: string
+): Promise<void> {
+  const metrics = await page.evaluate(() => {
+    const contentViewport = document.querySelector<HTMLElement>(
+      '[data-testid="taskpane-content-viewport"]'
+    );
+    const toolbar = document.querySelector<HTMLElement>(
+      '[data-testid="taskpane-toolbar"]'
+    );
+
+    if (contentViewport === null || toolbar === null) {
+      throw new Error("Taskpane scroll regions are missing.");
+    }
+
+    contentViewport.scrollTop = 0;
+    const initialToolbarRect = toolbar.getBoundingClientRect();
+    const initialContentRect = contentViewport.getBoundingClientRect();
+    const initialDocumentScrollTop =
+      document.scrollingElement?.scrollTop ??
+      document.documentElement.scrollTop;
+
+    contentViewport.scrollTop = contentViewport.scrollHeight;
+    const scrolledToolbarRect = toolbar.getBoundingClientRect();
+    const scrolledDocumentScrollTop =
+      document.scrollingElement?.scrollTop ??
+      document.documentElement.scrollTop;
+
+    return {
+      contentBottom: initialContentRect.bottom,
+      contentClientHeight: contentViewport.clientHeight,
+      contentScrollHeight: contentViewport.scrollHeight,
+      contentScrollTop: contentViewport.scrollTop,
+      initialDocumentScrollTop,
+      scrolledDocumentScrollTop,
+      toolbarBottom: initialToolbarRect.bottom,
+      toolbarTop: initialToolbarRect.top,
+      toolbarTopAfterContentScroll: scrolledToolbarRect.top,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  assert.ok(
+    metrics.contentScrollHeight > metrics.contentClientHeight,
+    `Content viewport does not expose its own scroll range in ${scenarioName}.`
+  );
+  assert.equal(
+    metrics.initialDocumentScrollTop,
+    0,
+    `Document scrolled before content scroll in ${scenarioName}.`
+  );
+  assert.equal(
+    metrics.scrolledDocumentScrollTop,
+    0,
+    `Document scrolled instead of the content viewport in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.contentScrollTop > 0,
+    `Content viewport did not scroll in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.toolbarBottom - metrics.viewportHeight) <= 1,
+    `Toolbar is not pinned to the viewport bottom in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.contentBottom - metrics.toolbarTop) <= 1,
+    `Content viewport does not end flush at the toolbar in ${scenarioName}.`
+  );
+  assert.ok(
+    Math.abs(metrics.toolbarTopAfterContentScroll - metrics.toolbarTop) <= 1,
+    `Toolbar moved while content scrolled in ${scenarioName}.`
+  );
 }
 
 async function assertTogglePressed(
@@ -308,6 +530,49 @@ async function assertTogglePressed(
 }
 
 async function clickElement(page: Page, selector: string): Promise<void> {
+  const clickTarget = await page.locator(selector).evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const elementAtPoint = document.elementFromPoint(x, y);
+
+    return {
+      hitTestTarget:
+        elementAtPoint === null
+          ? null
+          : {
+              id: elementAtPoint.id,
+              tagName: elementAtPoint.tagName,
+            },
+      height: rect.height,
+      isHitTarget:
+        elementAtPoint !== null &&
+        (node === elementAtPoint || node.contains(elementAtPoint)),
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+      width: rect.width,
+      x,
+      y,
+    };
+  });
+
+  assert.ok(clickTarget.width > 0, `${selector} has no clickable width.`);
+  assert.ok(clickTarget.height > 0, `${selector} has no clickable height.`);
+  assert.ok(clickTarget.x >= 0, `${selector} is left of the viewport.`);
+  assert.ok(clickTarget.y >= 0, `${selector} is above the viewport.`);
+  assert.ok(
+    clickTarget.x <= clickTarget.viewportWidth,
+    `${selector} is right of the viewport.`
+  );
+  assert.ok(
+    clickTarget.y <= clickTarget.viewportHeight,
+    `${selector} is below the viewport.`
+  );
+  assert.ok(
+    clickTarget.isHitTarget,
+    `${selector} is covered by ${JSON.stringify(clickTarget.hitTestTarget)}.`
+  );
+
   await page.locator(selector).evaluate((node) => {
     (node as HTMLElement).click();
   });
@@ -336,6 +601,27 @@ async function setTextareaValue(
     );
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
+}
+
+async function setTextareaValueInChunks(
+  page: Page,
+  selector: string,
+  value: string
+): Promise<void> {
+  await setTextareaValue(page, selector, "");
+
+  for (let index = 1; index <= value.length; index += 1) {
+    await setTextareaValue(page, selector, value.slice(0, index));
+  }
+}
+
+async function scrollElementIntoView(
+  page: Page,
+  selector: string
+): Promise<void> {
+  await page.locator(selector).evaluate((node) => {
+    node.scrollIntoView({ block: "center", inline: "nearest" });
+  });
 }
 
 function assertHostInheritOutput(snapshot: MockSnapshot): void {

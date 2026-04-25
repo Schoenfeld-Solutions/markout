@@ -130,6 +130,9 @@ describe("settings store", () => {
     expect(defaultStylesheet).not.toMatch(/a\s*\{[^}]*\bcolor\b/i);
     expect(defaultStylesheet).toContain("li {\n  margin: 0;\n}");
     expect(defaultStylesheet).toContain("li p {\n  margin: 0 !important;\n}");
+    expect(defaultStylesheet).toContain(
+      "ul ul, ul ol, ol ul, ol ol {\n  margin: 0 !important;\n  padding-left: 1em;\n}"
+    );
     expect(defaultStylesheet).toMatch(
       /code,\s*pre,\s*\.hljs\s*\{[^}]*font-family:/i
     );

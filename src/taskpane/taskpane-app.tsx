@@ -84,6 +84,7 @@ const useStyles = makeStyles({
     height: "100%",
     minHeight: 0,
     minWidth: 0,
+    overflow: "hidden",
     width: "100%",
   },
   contentViewport: {
@@ -1075,7 +1076,10 @@ export function TaskpaneApp({
       <TaskpaneContent>
         {(styles) => (
           <div className={styles.appShell}>
-            <main className={styles.contentViewport}>
+            <main
+              className={styles.contentViewport}
+              data-testid="taskpane-content-viewport"
+            >
               <div className={styles.messageStack}>
                 {showAutoRenderFallbackNotice && preferences.autoRender ? (
                   <MessageBar intent="info">
@@ -1221,6 +1225,7 @@ export function TaskpaneApp({
             <nav
               aria-label={localizedStrings.appTitle}
               className={styles.toolbar}
+              data-testid="taskpane-toolbar"
               ref={toolbarRef}
             >
               {toolbarPanels.map((panel) => {
