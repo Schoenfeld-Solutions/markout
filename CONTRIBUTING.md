@@ -13,8 +13,9 @@ constraints documented in [README.md](README.md).
   keep `package-lock.json` synchronized.
 - DOM-dependent tests use `jest-environment-jsdom` instead of a direct `jsdom`
   dependency.
-- `markdown-it-emoji` is intentionally pinned below `latest` because newer
-  majors are not green in this repo today.
+- `markdown-it-emoji` v3 is supported through the renderer compatibility
+  adapter; keep the emoji shortcode and shortcut rendering tests green when
+  changing Markdown renderer dependencies.
 
 ## Branches and pull requests
 

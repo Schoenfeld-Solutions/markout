@@ -104,8 +104,8 @@ when the user enables that option.
 MarkOut currently validates against Node 25 in CI and allows the next Node major without reopening
 the repo policy immediately.
 DOM-dependent tests use `jest-environment-jsdom` instead of a direct `jsdom`
-dependency, and `markdown-it-emoji` stays on 2.x because v3 changes the plugin
-shape used by the renderer.
+dependency. The renderer accepts both the old function-style
+`markdown-it-emoji` export shape and the v3 `{ full }` plugin export shape.
 
 ### Setup
 
