@@ -20,10 +20,7 @@ import {
   resolveToolbarLayoutMode,
   supportsMarkdownFile,
 } from "../src/taskpane/app";
-import {
-  usePreviewController,
-  useSelectionStateController,
-} from "../src/taskpane/controllers";
+import { usePreviewController } from "../src/taskpane/controllers";
 import { getStrings } from "../src/taskpane/i18n";
 import { HelpPanel, IntroPanel, SettingsPanel } from "../src/taskpane/panels";
 import { TaskpaneRuntimeErrorBoundary } from "../src/taskpane/runtime";
