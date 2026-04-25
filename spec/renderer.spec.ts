@@ -5,6 +5,7 @@ import {
   renderMarkdown,
 } from "../src/lib/renderer";
 import { defaultStylesheet } from "../src/lib/config";
+import { normalizeMarkdownInput } from "../src/taskpane/markdown-input";
 import { installDomParser } from "./helpers";
 
 describe("renderer", () => {
@@ -157,9 +158,32 @@ describe("renderer", () => {
     const nestedList = documentFragment.body.querySelector("li > ul");
 
     expect(nestedList?.getAttribute("style")).toContain(
-      "margin: 0px !important"
+      "margin-top: 0px !important"
+    );
+    expect(nestedList?.getAttribute("style")).toContain(
+      "margin-bottom: 0px !important"
     );
     expect(nestedList?.getAttribute("style")).toContain("padding-left: 1em");
+  });
+
+  it("renders normalized pasted non-breaking indents as nested lists", async () => {
+    const output = await renderMarkdown({
+      css: "html {}",
+      markdown: normalizeMarkdownInput(
+        [
+          "# hi",
+          "",
+          "ich bin",
+          "- cool",
+          "\u00a0\u00a0- super cool",
+          "- cool",
+        ].join("\n")
+      ),
+    });
+
+    expect(output.match(/<ul>/g) ?? []).toHaveLength(2);
+    expect(output).toContain("<li>super cool</li>");
+    expect(output).not.toContain("\u00a0\u00a0- super cool");
   });
 
   it("keeps blank-line list grouping under markdown-it semantics", async () => {

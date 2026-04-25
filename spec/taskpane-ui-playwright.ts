@@ -74,6 +74,14 @@ const NESTED_LIST_SAMPLE = `# List spacing
   - child
     - grandchild
 `;
+const PASTED_NBSP_LIST_SAMPLE = [
+  "# hi",
+  "",
+  "ich bin",
+  "- cool",
+  "\u00a0\u00a0- super cool",
+  "- cool",
+].join("\n");
 const RAPID_MARKDOWN_SAMPLE = `# Stable preview
 
 Typing should keep the toolbar usable while the preview settles.
@@ -730,7 +738,65 @@ async function verifyNestedListSpacing(
   await page.locator("#mo-preview li > ul").first().waitFor({
     timeout: config.timeoutMs,
   });
+  await assertNestedListSpacing(page, scenarioName);
 
+  await setTextareaValue(page, "#markdown-input", PASTED_NBSP_LIST_SAMPLE);
+  await page.waitForFunction(() => {
+    return (
+      document
+        .querySelector<HTMLTextAreaElement>("#markdown-input")
+        ?.value.includes("  - super cool") ?? false
+    );
+  });
+  await page.locator("#mo-preview li > ul li").getByText("super cool").waitFor({
+    timeout: config.timeoutMs,
+  });
+
+  const pastedListSnapshot = await page.evaluate(() => {
+    const textarea =
+      document.querySelector<HTMLTextAreaElement>("#markdown-input");
+    const parentListItem =
+      document.querySelector<HTMLElement>("#mo-preview li");
+    const nestedListItem = document.querySelector<HTMLElement>(
+      "#mo-preview li > ul li"
+    );
+
+    if (
+      textarea === null ||
+      parentListItem === null ||
+      nestedListItem === null
+    ) {
+      throw new Error("Pasted nested list preview is missing.");
+    }
+
+    return {
+      nestedText: nestedListItem.textContent.trim(),
+      parentText: parentListItem.textContent,
+      textareaValue: textarea.value,
+    };
+  });
+
+  assert.ok(
+    pastedListSnapshot.textareaValue.includes("  - super cool"),
+    `Pasted non-breaking indentation was not normalized in ${scenarioName}.`
+  );
+  assert.ok(
+    !pastedListSnapshot.textareaValue.includes("\u00a0\u00a0- super cool"),
+    `Pasted non-breaking indentation remained in ${scenarioName}.`
+  );
+  assert.equal(pastedListSnapshot.nestedText, "super cool");
+  assert.ok(
+    !pastedListSnapshot.parentText.includes("- super cool"),
+    `Pasted sublist rendered as parent item text in ${scenarioName}.`
+  );
+
+  await assertNestedListSpacing(page, `${scenarioName}-pasted-nbsp`);
+}
+
+async function assertNestedListSpacing(
+  page: TaskpaneSurface,
+  scenarioName: string
+): Promise<void> {
   const nestedListMetrics = await page.evaluate(() => {
     const nestedList = document.querySelector<HTMLElement>(
       "#mo-preview li > ul"
@@ -776,7 +842,7 @@ async function verifyNestedListSpacing(
     `Nested list has an unexpected bottom margin in ${scenarioName}.`
   );
   assert.ok(
-    nestedListMetrics.visualGap <= 6,
+    nestedListMetrics.visualGap <= 3,
     `Nested list is visually detached from its parent in ${scenarioName}.`
   );
 }

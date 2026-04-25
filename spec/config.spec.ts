@@ -128,10 +128,12 @@ describe("settings store", () => {
     );
     expect(defaultStylesheet).not.toContain("border-bottom");
     expect(defaultStylesheet).not.toMatch(/a\s*\{[^}]*\bcolor\b/i);
-    expect(defaultStylesheet).toContain("li {\n  margin: 0;\n}");
+    expect(defaultStylesheet).toContain(
+      "li {\n  margin-top: 0;\n  margin-bottom: 0;\n  line-height: 1.25;\n}"
+    );
     expect(defaultStylesheet).toContain("li p {\n  margin: 0 !important;\n}");
     expect(defaultStylesheet).toContain(
-      "li ul, li ol {\n  margin: 0 !important;\n  padding-left: 1em;\n}"
+      "li ul, li ol {\n  margin-top: 0 !important;\n  margin-bottom: 0 !important;\n  padding-left: 1em;\n}"
     );
     expect(defaultStylesheet).toMatch(
       /code,\s*pre,\s*\.hljs\s*\{[^}]*font-family:/i
@@ -174,12 +176,12 @@ describe("settings store", () => {
       roamingSettings.get(
         getChannelScopedKey(runtimeChannelConfig, "stylesheetPreset")
       )
-    ).toBe("default-host-inherit-v3");
+    ).toBe("default-host-inherit-v4");
     expect(persistedStore.getStylesheet()).toBe(defaultStylesheet);
     expect(persistedStore.hasStylesheetMigrationPending()).toBe(false);
   });
 
-  it("remigrates persisted legacy presets to the stricter v3 default", () => {
+  it("remigrates persisted legacy presets to the stricter v4 default", () => {
     const roamingSettings = new FakeRoamingSettings();
 
     roamingSettings.set(
@@ -212,7 +214,7 @@ describe("settings store", () => {
     expect(settingsStore.hasStylesheetMigrationPending()).toBe(true);
   });
 
-  it("remigrates the persisted v2 preset to the nested-list-safe v3 default", () => {
+  it("remigrates the persisted v2 preset to the nested-list-safe v4 default", () => {
     const roamingSettings = new FakeRoamingSettings();
 
     roamingSettings.set(
@@ -225,6 +227,26 @@ describe("settings store", () => {
       `
     );
     roamingSettings.set("markout.stylesheetPreset", "default-host-inherit-v2");
+
+    const settingsStore = createOfficeSettingsStore(roamingSettings);
+
+    expect(settingsStore.getStylesheet()).toBe(defaultStylesheet);
+    expect(settingsStore.hasStylesheetMigrationPending()).toBe(true);
+  });
+
+  it("remigrates the persisted v3 preset to the tighter nested-list v4 default", () => {
+    const roamingSettings = new FakeRoamingSettings();
+
+    roamingSettings.set(
+      "markout.stylesheet",
+      `
+        li ul, li ol {
+          margin: 0 !important;
+          padding-left: 1em;
+        }
+      `
+    );
+    roamingSettings.set("markout.stylesheetPreset", "default-host-inherit-v3");
 
     const settingsStore = createOfficeSettingsStore(roamingSettings);
 
