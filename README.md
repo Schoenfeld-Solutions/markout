@@ -44,6 +44,10 @@ MarkOut currently supports `en-US` and `de-DE` in the taskpane runtime.
   short lifetime.
 - Pane-local message bars are reserved for taskpane-internal states such as
   stylesheet linting, editor failures, and notification API fallback.
+- Developer tools include a pane-local diagnostic ring buffer for recent
+  preview, selection, render, restore, and notification events. The buffer is
+  in-memory only and stores operational codes and sizes, not draft content,
+  selection text, tokens, recipient data, or session state.
 
 References:
 

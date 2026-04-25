@@ -1,5 +1,7 @@
 import {
   MarkOutError,
+  createInMemoryDiagnosticSink,
+  getErrorDiagnosticMetadata,
   getAllRuntimeChannelConfigs,
   getChannelScopedKey,
   getRuntimeChannelConfig,
@@ -35,6 +37,9 @@ describe("runtime channel config", () => {
   });
 
   it("falls back to host and pathname heuristics when the channel query is absent", () => {
+    expect(resolveRuntimeChannelConfig("not a url").channelId).toBe(
+      "production"
+    );
     expect(
       resolveRuntimeChannelConfig("https://localhost:3000/taskpane.html")
         .channelId
@@ -68,5 +73,132 @@ describe("runtime channel config", () => {
     expect(
       isMarkOutErrorCode(new Error("boom"), "restore-state-too-large")
     ).toBe(false);
+  });
+
+  it("keeps diagnostics bounded and immutable", () => {
+    const sink = createInMemoryDiagnosticSink(
+      2,
+      () => new Date("2026-04-25T10:00:00.000Z")
+    );
+
+    sink.record({
+      area: "preview",
+      code: "preview.render.started",
+      level: "debug",
+    });
+    sink.record({
+      area: "render",
+      code: "draft.render.started",
+      level: "debug",
+    });
+    sink.record({
+      area: "restore",
+      code: "draft.restore.succeeded",
+      level: "info",
+    });
+
+    const snapshot = sink.snapshot();
+    expect(snapshot.map((event) => event.code)).toEqual([
+      "draft.render.started",
+      "draft.restore.succeeded",
+    ]);
+    expect(snapshot[0]?.id).toBe(2);
+    expect(snapshot[1]?.timestamp).toBe("2026-04-25T10:00:00.000Z");
+
+    snapshot[0]!.metadata.mutated = true;
+    expect(sink.snapshot()[0]?.metadata).toEqual({});
+  });
+
+  it("redacts sensitive diagnostic metadata and omits error messages", () => {
+    const sink = createInMemoryDiagnosticSink(
+      4,
+      () => new Date("2026-04-25T10:00:00.000Z")
+    );
+    const error = new MarkOutError(
+      "unsupported-body-type",
+      "Message body contains private draft content."
+    );
+
+    sink.record({
+      area: "body-io",
+      code: "body.write.failed",
+      level: "error",
+      message: "  write failed\nwith whitespace  ",
+      metadata: {
+        bodyHtml: "<p>secret</p>",
+        errorMessage: error.message,
+        safeCount: 4,
+        tokenValue: "secret-token",
+        ...getErrorDiagnosticMetadata(error),
+      },
+    });
+
+    expect(sink.snapshot()).toEqual([
+      {
+        area: "body-io",
+        code: "body.write.failed",
+        id: 1,
+        level: "error",
+        message: "write failed with whitespace",
+        metadata: {
+          bodyHtml: "[redacted]",
+          errorCode: "unsupported-body-type",
+          errorMessage: "[redacted]",
+          errorName: "MarkOutError",
+          safeCount: 4,
+          tokenValue: "[redacted]",
+        },
+        timestamp: "2026-04-25T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("normalizes diagnostic capacity, truncates long strings, and clears events", () => {
+    const sink = createInMemoryDiagnosticSink(
+      0,
+      () => new Date("2026-04-25T10:00:00.000Z")
+    );
+
+    sink.record({
+      area: "notification",
+      code: "notification.transient.shown",
+      level: "info",
+      message: "x".repeat(200),
+      metadata: {
+        detail: "y".repeat(160),
+        omitted: undefined,
+      },
+    });
+    expect(sink.snapshot()[0]?.message).toMatch(/\.\.\.$/);
+    expect(String(sink.snapshot()[0]?.metadata.detail)).toMatch(/\.\.\.$/);
+
+    sink.record({
+      area: "render",
+      code: "draft.render.succeeded",
+      level: "info",
+    });
+
+    expect(sink.snapshot()).toEqual([
+      {
+        area: "render",
+        code: "draft.render.succeeded",
+        id: 2,
+        level: "info",
+        metadata: {},
+        timestamp: "2026-04-25T10:00:00.000Z",
+      },
+    ]);
+
+    sink.clear();
+    expect(sink.snapshot()).toEqual([]);
+  });
+
+  it("reports non-MarkOut error diagnostics without leaking messages", () => {
+    expect(getErrorDiagnosticMetadata(new TypeError("private value"))).toEqual({
+      errorName: "TypeError",
+    });
+    expect(getErrorDiagnosticMetadata("private value")).toEqual({
+      errorName: "UnknownError",
+    });
   });
 });

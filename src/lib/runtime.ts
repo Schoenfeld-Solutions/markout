@@ -17,10 +17,61 @@ export type MarkOutErrorCode =
   | "restore-state-too-large"
   | "unsupported-body-type";
 
+export type DiagnosticEventArea =
+  | "body-io"
+  | "notification"
+  | "preview"
+  | "render"
+  | "restore"
+  | "selection";
+
+export type DiagnosticEventLevel = "debug" | "error" | "info" | "warning";
+
+export type DiagnosticEventMetadataValue =
+  | boolean
+  | null
+  | number
+  | string
+  | undefined;
+
+export type DiagnosticEventMetadata = Record<
+  string,
+  DiagnosticEventMetadataValue
+>;
+
+export interface DiagnosticEventInput {
+  area: DiagnosticEventArea;
+  code: string;
+  level: DiagnosticEventLevel;
+  message?: string;
+  metadata?: DiagnosticEventMetadata;
+}
+
+export interface DiagnosticEventRecord {
+  area: DiagnosticEventArea;
+  code: string;
+  id: number;
+  level: DiagnosticEventLevel;
+  message?: string;
+  metadata: Record<string, boolean | null | number | string>;
+  timestamp: string;
+}
+
+export interface DiagnosticSink {
+  clear(): void;
+  record(event: DiagnosticEventInput): DiagnosticEventRecord;
+  snapshot(): DiagnosticEventRecord[];
+}
+
 interface MarkOutErrorOptions {
   cause?: unknown;
 }
 
+const DEFAULT_DIAGNOSTIC_CAPACITY = 50;
+const MAX_DIAGNOSTIC_MESSAGE_LENGTH = 160;
+const MAX_DIAGNOSTIC_METADATA_VALUE_LENGTH = 120;
+const SENSITIVE_DIAGNOSTIC_METADATA_KEY_PATTERN =
+  /(auth|body|cookie|draft|email|html|mail|markdown|message|password|recipient|secret|selection|session|state|storage|text|token)/i;
 const SUPPORT_URL = "https://github.com/Schoenfeld-Solutions/markout";
 
 function withChannelQuery(url: string, channelId: ChannelId): string {
@@ -168,6 +219,118 @@ export function isMarkOutErrorCode(
   code: MarkOutErrorCode
 ): error is MarkOutError {
   return error instanceof MarkOutError && error.code === code;
+}
+
+export function createInMemoryDiagnosticSink(
+  capacity = DEFAULT_DIAGNOSTIC_CAPACITY,
+  clock: () => Date = () => new Date()
+): DiagnosticSink {
+  return new InMemoryDiagnosticSink(capacity, clock);
+}
+
+export function getErrorDiagnosticMetadata(
+  error: unknown
+): DiagnosticEventMetadata {
+  if (error instanceof MarkOutError) {
+    return {
+      errorCode: error.code,
+      errorName: error.name,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      errorName: error.name,
+    };
+  }
+
+  return {
+    errorName: "UnknownError",
+  };
+}
+
+class InMemoryDiagnosticSink implements DiagnosticSink {
+  private readonly clock: () => Date;
+  private events: DiagnosticEventRecord[] = [];
+  private nextId = 1;
+  private readonly capacity: number;
+
+  public constructor(capacity: number, clock: () => Date) {
+    this.capacity = Math.max(1, Math.floor(capacity));
+    this.clock = clock;
+  }
+
+  public clear(): void {
+    this.events = [];
+  }
+
+  public record(event: DiagnosticEventInput): DiagnosticEventRecord {
+    const record: DiagnosticEventRecord = {
+      area: event.area,
+      code: event.code,
+      id: this.nextId,
+      level: event.level,
+      metadata: sanitizeDiagnosticMetadata(event.metadata),
+      timestamp: this.clock().toISOString(),
+    };
+
+    if (event.message !== undefined) {
+      record.message = truncateDiagnosticString(
+        event.message,
+        MAX_DIAGNOSTIC_MESSAGE_LENGTH
+      );
+    }
+
+    this.nextId += 1;
+    this.events = [...this.events, record].slice(-this.capacity);
+    return record;
+  }
+
+  public snapshot(): DiagnosticEventRecord[] {
+    return this.events.map((event) => ({
+      ...event,
+      metadata: { ...event.metadata },
+    }));
+  }
+}
+
+function sanitizeDiagnosticMetadata(
+  metadata: DiagnosticEventMetadata | undefined
+): Record<string, boolean | null | number | string> {
+  if (metadata === undefined) {
+    return {};
+  }
+
+  const normalizedMetadata: Record<string, boolean | null | number | string> =
+    {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value === undefined) {
+      continue;
+    }
+
+    if (SENSITIVE_DIAGNOSTIC_METADATA_KEY_PATTERN.test(key)) {
+      normalizedMetadata[key] = "[redacted]";
+      continue;
+    }
+
+    normalizedMetadata[key] =
+      typeof value === "string"
+        ? truncateDiagnosticString(value, MAX_DIAGNOSTIC_METADATA_VALUE_LENGTH)
+        : value;
+  }
+
+  return normalizedMetadata;
+}
+
+function truncateDiagnosticString(value: string, maxLength: number): string {
+  const normalizedValue = value.replaceAll(/\s+/g, " ").trim();
+
+  if (normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function readCurrentLocationHref(): string | undefined {

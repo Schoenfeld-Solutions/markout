@@ -27,6 +27,11 @@ import {
 } from "../lib/compose-markdown";
 import { defaultStylesheet, type ThemeMode } from "../lib/config";
 import {
+  createInMemoryDiagnosticSink,
+  getErrorDiagnosticMetadata,
+  type DiagnosticEventInput,
+} from "../lib/runtime";
+import {
   lintStylesheet,
   type StylesheetLintResult,
 } from "../lib/stylesheet-lint";
@@ -520,6 +525,7 @@ function TaskpaneContent({
 }
 
 export function TaskpaneApp({
+  diagnosticSink,
   forcedToolbarLayoutMode,
   initialMarkdownInput = "",
   locale,
@@ -527,6 +533,12 @@ export function TaskpaneApp({
   services,
   settingsStore,
 }: TaskpaneAppProps): ReactElement {
+  const diagnosticSinkRef = useRef(
+    diagnosticSink ?? createInMemoryDiagnosticSink()
+  );
+  const [diagnosticEvents, setDiagnosticEvents] = useState(() =>
+    diagnosticSinkRef.current.snapshot()
+  );
   const [preferences, setPreferences] = useState<PreferenceState>(() =>
     readPreferences(settingsStore)
   );
@@ -559,12 +571,30 @@ export function TaskpaneApp({
     colorScheme: resolvedColorMode,
   } as const;
 
+  const recordDiagnosticImplementationRef = useRef<
+    (event: DiagnosticEventInput) => void
+  >(() => undefined);
+  recordDiagnosticImplementationRef.current = (event: DiagnosticEventInput) => {
+    diagnosticSinkRef.current.record(event);
+    setDiagnosticEvents(diagnosticSinkRef.current.snapshot());
+  };
+  const recordDiagnosticRef = useRef((event: DiagnosticEventInput) => {
+    recordDiagnosticImplementationRef.current(event);
+  });
+  const recordDiagnostic = recordDiagnosticRef.current;
+
   const showComposeNotification = useEffectEvent(
     async (intent: PanelMessageState["intent"], message: string) => {
       if (notificationService === undefined) {
         console.warn(
           "MarkOut could not show a compose infobar because no notification service is available."
         );
+        recordDiagnostic({
+          area: "notification",
+          code: "notification.transient.missing-service",
+          level: "warning",
+          metadata: { intent },
+        });
         return;
       }
 
@@ -577,7 +607,21 @@ export function TaskpaneApp({
         console.warn(
           "MarkOut could not show the compose infobar and skipped the sidebar fallback."
         );
+        recordDiagnostic({
+          area: "notification",
+          code: "notification.transient.fallback-pane",
+          level: "warning",
+          metadata: { intent },
+        });
+        return;
       }
+
+      recordDiagnostic({
+        area: "notification",
+        code: "notification.transient.shown",
+        level: "debug",
+        metadata: { intent },
+      });
     }
   );
   const handlePanelError = useEffectEvent((message: string) => {
@@ -601,19 +645,25 @@ export function TaskpaneApp({
     markdownInput,
     preferences.stylesheet,
     localizedStrings.status.previewFailed,
-    handlePanelError
+    handlePanelError,
+    recordDiagnostic
   );
   const {
     isInspectingSelection,
     selectionState,
     setIsInspectingSelection,
     updateSelectionState,
-  } = useSelectionStateController(services.composeMarkdown, activePanel);
+  } = useSelectionStateController(
+    services.composeMarkdown,
+    activePanel,
+    recordDiagnostic
+  );
   const { dismissAutoRenderFallbackNotice, showAutoRenderFallbackNotice } =
     useAutoRenderNotificationController(
       notificationService,
       preferences.autoRender,
-      localizedStrings.notifications.autoRenderStickyBody
+      localizedStrings.notifications.autoRenderStickyBody,
+      recordDiagnostic
     );
   const { codeMirrorHostRef, isCodeMirrorLoading } = useStylesheetEditor(
     activePanel,
@@ -836,6 +886,13 @@ export function TaskpaneApp({
 
   async function handleInsertRenderedMarkdown(): Promise<void> {
     await withBusyState("insert-markdown", async () => {
+      recordDiagnostic({
+        area: "render",
+        code: "fragment.insert.started",
+        level: "debug",
+        metadata: { inputLength: markdownInput.length },
+      });
+
       try {
         const result =
           await services.composeMarkdown.insertRenderedMarkdown(markdownInput);
@@ -845,9 +902,23 @@ export function TaskpaneApp({
             ? localizedStrings.status.fragmentReplaced
             : localizedStrings.status.fragmentInserted
         );
+        recordDiagnostic({
+          area: "body-io",
+          code:
+            result === "replaced"
+              ? "fragment.insert.replaced-selection"
+              : "fragment.insert.inserted-at-cursor",
+          level: "info",
+        });
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to insert rendered Markdown.", error);
+        recordDiagnostic({
+          area: "body-io",
+          code: "fragment.insert.failed",
+          level: "error",
+          metadata: getErrorDiagnosticMetadata(error),
+        });
         await showComposeNotification(
           "error",
           localizeActionError(localizedStrings, error)
@@ -858,15 +929,32 @@ export function TaskpaneApp({
 
   async function handleRenderSelection(): Promise<void> {
     await withBusyState("render-selection", async () => {
+      recordDiagnostic({
+        area: "render",
+        code: "selection.render.started",
+        level: "debug",
+      });
+
       try {
         await services.composeMarkdown.renderSelection();
         await showComposeNotification(
           "success",
           localizedStrings.status.selectionRendered
         );
+        recordDiagnostic({
+          area: "body-io",
+          code: "selection.render.succeeded",
+          level: "info",
+        });
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current selection.", error);
+        recordDiagnostic({
+          area: "body-io",
+          code: "selection.render.failed",
+          level: "error",
+          metadata: getErrorDiagnosticMetadata(error),
+        });
         await showComposeNotification(
           "error",
           localizeActionError(localizedStrings, error)
@@ -878,6 +966,12 @@ export function TaskpaneApp({
 
   async function handleRenderEntireDraft(): Promise<void> {
     await withBusyState("render-entire-draft", async () => {
+      recordDiagnostic({
+        area: "render",
+        code: "draft.render.started",
+        level: "debug",
+      });
+
       try {
         const result = await services.renderEntireDraft();
         await showComposeNotification(
@@ -886,9 +980,23 @@ export function TaskpaneApp({
             ? localizedStrings.status.draftRendered
             : localizedStrings.status.draftRestored
         );
+        recordDiagnostic({
+          area: result === "rendered" ? "render" : "restore",
+          code:
+            result === "rendered"
+              ? "draft.render.succeeded"
+              : "draft.restore.succeeded",
+          level: "info",
+        });
         await updateSelectionState();
       } catch (error) {
         console.error("MarkOut failed to render the current draft.", error);
+        recordDiagnostic({
+          area: "render",
+          code: "draft.render.failed",
+          level: "error",
+          metadata: getErrorDiagnosticMetadata(error),
+        });
         await showComposeNotification(
           "error",
           localizeActionError(localizedStrings, error)
@@ -1005,6 +1113,7 @@ export function TaskpaneApp({
                 ),
                 developerPanel: (
                   <DeveloperPanel
+                    diagnosticEvents={diagnosticEvents}
                     isInspectingSelection={isInspectingSelection}
                     onInspectSelection={() => {
                       void handleInspectSelection();

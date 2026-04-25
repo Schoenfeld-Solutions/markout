@@ -23,6 +23,10 @@ The taskpane is split into smaller modules with explicit boundaries.
   helpers or focused hooks.
 - `panels.tsx` owns panel rendering and keeps panel components free from Office
   side effects.
+- Runtime diagnostics are an in-memory ring buffer exposed to the developer
+  panel through props. Diagnostic events store operational codes, levels, and
+  bounded metadata only; draft body, selection text, session data, tokens, and
+  recipient fields are redacted before display.
 
 ## Consequences
 

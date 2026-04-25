@@ -63,8 +63,8 @@ rerunning old workflow IDs.
 5. Restore-state hardening: guarantee that MarkOut never loses current draft
    content because of a timer. Only reconstructable artifacts may expire.
 6. Security, fault injection, and observability: expand sanitizer corpus tests,
-   Office API failure tests, notification race tests, and in-memory diagnostic
-   events.
+   Office API failure tests, notification race tests, and continue extending the
+   in-memory diagnostic event buffer where new critical paths are added.
 7. Taskpane decomposition and coverage: split the remaining large taskpane
    shell and raise global coverage to at least 90% with critical files at least
    85%.

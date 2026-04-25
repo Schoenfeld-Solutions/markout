@@ -23,7 +23,11 @@ import {
   RepositoryIcon,
   UpstreamIcon,
 } from "./icons";
-import type { PanelKey, SelectionDebugState } from "./types";
+import type {
+  DiagnosticEventRecord,
+  PanelKey,
+  SelectionDebugState,
+} from "./types";
 
 const DOCS_URL = "https://schoenfeld-solutions.github.io/markout/";
 const REPOSITORY_URL = "https://github.com/Schoenfeld-Solutions/markout";
@@ -648,6 +652,7 @@ function CreditBox(props: {
 }
 
 export function DeveloperPanel(props: {
+  diagnosticEvents: DiagnosticEventRecord[];
   isInspectingSelection: boolean;
   onInspectSelection: () => void;
   resolvedColorMode: "dark" | "light";
@@ -657,6 +662,7 @@ export function DeveloperPanel(props: {
   themeMode: ThemeMode;
 }): ReactElement {
   const {
+    diagnosticEvents,
     isInspectingSelection,
     onInspectSelection,
     resolvedColorMode,
@@ -696,6 +702,19 @@ export function DeveloperPanel(props: {
           {selectionDebug === null
             ? strings.developer.noSelectionSnapshot
             : JSON.stringify(selectionDebug, null, 2)}
+        </pre>
+        <div className={styles.sectionHeading}>
+          <h3 className={styles.sectionTitle}>
+            {strings.developer.diagnosticsTitle}
+          </h3>
+          <p className={styles.sectionBody}>
+            {strings.developer.diagnosticsPrivacyNote}
+          </p>
+        </div>
+        <pre className={styles.developerCode}>
+          {diagnosticEvents.length === 0
+            ? strings.developer.noDiagnostics
+            : JSON.stringify(diagnosticEvents, null, 2)}
         </pre>
         <ul className={styles.developerNoteList}>
           <li className={styles.developerNoteItem}>
