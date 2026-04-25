@@ -7,16 +7,23 @@ import {
 } from "react";
 import type { ComposeNotificationService } from "../lib/compose-notifications";
 import type { ComposeMarkdownService } from "../lib/compose-markdown";
+import {
+  getErrorDiagnosticMetadata,
+  type DiagnosticEventInput,
+} from "../lib/runtime";
 import type { PanelKey, SelectionState } from "./types";
 
 const SELECTION_REFRESH_INTERVAL_MS = 1600;
+
+export type TaskpaneDiagnosticRecorder = (event: DiagnosticEventInput) => void;
 
 export function usePreviewController(
   composeMarkdown: ComposeMarkdownService,
   markdownInput: string,
   stylesheet: string,
   previewFailedMessage: string,
-  onPreviewError: (message: string) => void
+  onPreviewError: (message: string) => void,
+  recordDiagnostic?: TaskpaneDiagnosticRecorder
 ): {
   previewHtml: string;
   previewState: "empty" | "loading" | "ready";
@@ -25,6 +32,12 @@ export function usePreviewController(
   const [previewState, setPreviewState] = useState<
     "empty" | "loading" | "ready"
   >("empty");
+  const handlePreviewError = useEffectEvent((message: string) => {
+    onPreviewError(message);
+  });
+  const emitDiagnostic = useEffectEvent((event: DiagnosticEventInput) => {
+    recordDiagnostic?.(event);
+  });
   const deferredMarkdownInput = useDeferredValue(markdownInput);
   const deferredStylesheet = useDeferredValue(stylesheet);
 
@@ -38,6 +51,15 @@ export function usePreviewController(
     }
 
     setPreviewState("loading");
+    emitDiagnostic({
+      area: "preview",
+      code: "preview.render.started",
+      level: "debug",
+      metadata: {
+        inputLength: deferredMarkdownInput.length,
+        stylesheetLength: deferredStylesheet.length,
+      },
+    });
     void composeMarkdown
       .renderPreview(deferredMarkdownInput, deferredStylesheet)
       .then((html) => {
@@ -47,6 +69,14 @@ export function usePreviewController(
 
         setPreviewHtml(html);
         setPreviewState("ready");
+        emitDiagnostic({
+          area: "preview",
+          code: "preview.render.succeeded",
+          level: "info",
+          metadata: {
+            outputLength: html.length,
+          },
+        });
       })
       .catch((error: unknown) => {
         if (ignore) {
@@ -56,7 +86,13 @@ export function usePreviewController(
         console.error("MarkOut failed to refresh the taskpane preview.", error);
         setPreviewHtml("");
         setPreviewState("empty");
-        onPreviewError(previewFailedMessage);
+        emitDiagnostic({
+          area: "preview",
+          code: "preview.render.failed",
+          level: "error",
+          metadata: getErrorDiagnosticMetadata(error),
+        });
+        handlePreviewError(previewFailedMessage);
       });
 
     return () => {
@@ -66,7 +102,6 @@ export function usePreviewController(
     composeMarkdown,
     deferredMarkdownInput,
     deferredStylesheet,
-    onPreviewError,
     previewFailedMessage,
   ]);
 
@@ -75,7 +110,8 @@ export function usePreviewController(
 
 export function useSelectionStateController(
   composeMarkdown: ComposeMarkdownService,
-  activePanel: PanelKey
+  activePanel: PanelKey,
+  recordDiagnostic?: TaskpaneDiagnosticRecorder
 ): {
   isInspectingSelection: boolean;
   selectionState: SelectionState;
@@ -87,6 +123,9 @@ export function useSelectionStateController(
     debug: null,
   });
   const [isInspectingSelection, setIsInspectingSelection] = useState(false);
+  const emitDiagnostic = useEffectEvent((event: DiagnosticEventInput) => {
+    recordDiagnostic?.(event);
+  });
 
   const updateSelectionState = useEffectEvent(async (): Promise<boolean> => {
     try {
@@ -105,12 +144,28 @@ export function useSelectionStateController(
           textPreview: selection.text.slice(0, 200),
         },
       });
+      emitDiagnostic({
+        area: "selection",
+        code: "selection.read.succeeded",
+        level: "info",
+        metadata: {
+          hasSelection: selection.hasSelection,
+          inputLength: selection.text.length,
+          source: selection.source,
+        },
+      });
       return true;
-    } catch {
+    } catch (error) {
       setSelectionState((currentState) => ({
         availability: "unknown",
         debug: currentState.debug,
       }));
+      emitDiagnostic({
+        area: "selection",
+        code: "selection.read.failed",
+        level: "warning",
+        metadata: getErrorDiagnosticMetadata(error),
+      });
       return false;
     }
   });
@@ -154,7 +209,8 @@ export function useSelectionStateController(
 export function useAutoRenderNotificationController(
   notificationService: ComposeNotificationService | undefined,
   autoRenderEnabled: boolean,
-  stickyMessage: string
+  stickyMessage: string,
+  recordDiagnostic?: TaskpaneDiagnosticRecorder
 ): {
   showAutoRenderFallbackNotice: boolean;
   dismissAutoRenderFallbackNotice: () => Promise<void>;
@@ -162,6 +218,9 @@ export function useAutoRenderNotificationController(
   const [showAutoRenderFallbackNotice, setShowAutoRenderFallbackNotice] =
     useState(false);
   const previousAutoRenderRef = useRef(autoRenderEnabled);
+  const emitDiagnostic = useEffectEvent((event: DiagnosticEventInput) => {
+    recordDiagnostic?.(event);
+  });
 
   useEffect(() => {
     if (notificationService === undefined) {
@@ -170,6 +229,11 @@ export function useAutoRenderNotificationController(
 
     notificationService.onAutoRenderDismiss(() => {
       setShowAutoRenderFallbackNotice(false);
+      emitDiagnostic({
+        area: "notification",
+        code: "notification.autorender.dismissed",
+        level: "info",
+      });
     });
   }, [notificationService]);
 
@@ -189,6 +253,11 @@ export function useAutoRenderNotificationController(
         await notificationService.clearAutoRenderDismissed();
         if (!isCancelled()) {
           setShowAutoRenderFallbackNotice(false);
+          emitDiagnostic({
+            area: "notification",
+            code: "notification.autorender.disabled",
+            level: "debug",
+          });
         }
         return;
       }
@@ -204,6 +273,11 @@ export function useAutoRenderNotificationController(
 
       if (dismissed) {
         setShowAutoRenderFallbackNotice(false);
+        emitDiagnostic({
+          area: "notification",
+          code: "notification.autorender.dismissal-restored",
+          level: "debug",
+        });
         return;
       }
 
@@ -213,8 +287,28 @@ export function useAutoRenderNotificationController(
 
       if (!isCancelled()) {
         setShowAutoRenderFallbackNotice(surface === "pane");
+        emitDiagnostic({
+          area: "notification",
+          code:
+            surface === "pane"
+              ? "notification.autorender.fallback-pane"
+              : "notification.autorender.shown",
+          level: surface === "pane" ? "warning" : "info",
+        });
       }
-    })();
+    })().catch((error: unknown) => {
+      if (isCancelled()) {
+        return;
+      }
+
+      setShowAutoRenderFallbackNotice(false);
+      emitDiagnostic({
+        area: "notification",
+        code: "notification.autorender.failed",
+        level: "error",
+        metadata: getErrorDiagnosticMetadata(error),
+      });
+    });
 
     return () => {
       cancelled = true;

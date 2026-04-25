@@ -2,6 +2,7 @@
 
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { act } from "react";
+import type { ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ComposeNotificationService } from "../src/lib/compose-notifications";
 import type { LanguagePreference, SettingsStore } from "../src/lib/config";
@@ -19,6 +20,7 @@ import {
   resolveToolbarLayoutMode,
   supportsMarkdownFile,
 } from "../src/taskpane/app";
+import { usePreviewController } from "../src/taskpane/controllers";
 import { getStrings } from "../src/taskpane/i18n";
 import { HelpPanel, IntroPanel, SettingsPanel } from "../src/taskpane/panels";
 import { TaskpaneRuntimeErrorBoundary } from "../src/taskpane/runtime";
@@ -341,6 +343,125 @@ describe("taskpane app helpers", () => {
       Object.defineProperty(globalThis, "NodeFilter", {
         configurable: true,
         value: originalNodeFilter,
+      });
+      restoreMatchMedia();
+    }
+  });
+
+  it("records preview controller diagnostics for successful renders", async () => {
+    const restoreMatchMedia = ensureMatchMedia();
+    const events: string[] = [];
+    const service = createServices().composeMarkdown;
+    let root: Root | null = null;
+
+    function PreviewProbe(): ReactElement {
+      const { previewHtml, previewState } = usePreviewController(
+        service,
+        "# Heading",
+        "",
+        "Preview failed.",
+        () => undefined,
+        (event) => {
+          events.push(event.code);
+        }
+      );
+
+      return (
+        <div data-state={previewState} id="preview-probe">
+          {previewHtml}
+        </div>
+      );
+    }
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      await act(async () => {
+        root?.render(<PreviewProbe />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector("#preview-probe")?.textContent).toContain(
+        "preview"
+      );
+      expect(events).toEqual([
+        "preview.render.started",
+        "preview.render.succeeded",
+      ]);
+    } finally {
+      act(() => {
+        root?.unmount();
+      });
+      restoreMatchMedia();
+    }
+  });
+
+  it("records preview controller diagnostics for render failures", async () => {
+    const restoreMatchMedia = ensureMatchMedia();
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const events: string[] = [];
+    const panelErrors: string[] = [];
+    const service = {
+      ...createServices().composeMarkdown,
+      renderPreview: () => Promise.reject(new TypeError("private failure")),
+    };
+    let root: Root | null = null;
+
+    function PreviewProbe(): ReactElement {
+      const { previewState } = usePreviewController(
+        service,
+        "# Heading",
+        "",
+        "Preview failed.",
+        (message) => {
+          panelErrors.push(message);
+        },
+        (event) => {
+          events.push(event.code);
+        }
+      );
+
+      return <div id="preview-probe">{previewState}</div>;
+    }
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>';
+      const container = document.getElementById("root");
+
+      if (container === null) {
+        throw new Error("Expected a taskpane test container.");
+      }
+
+      root = createRoot(container);
+
+      await act(async () => {
+        root?.render(<PreviewProbe />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(container.querySelector("#preview-probe")?.textContent).toBe(
+        "empty"
+      );
+      expect(panelErrors).toEqual(["Preview failed."]);
+      expect(events).toEqual([
+        "preview.render.started",
+        "preview.render.failed",
+      ]);
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      act(() => {
+        root?.unmount();
       });
       restoreMatchMedia();
     }

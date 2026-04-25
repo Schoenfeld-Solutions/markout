@@ -8,6 +8,7 @@ import type {
   ThemeMode,
 } from "../lib/config";
 import type { RenderItemResult } from "../lib/item";
+import type { DiagnosticEventRecord, DiagnosticSink } from "../lib/runtime";
 import type { SupportedLocale } from "./i18n";
 
 export type PanelKey =
@@ -66,6 +67,7 @@ export interface TaskpaneServices {
 }
 
 export interface TaskpaneAppProps {
+  diagnosticSink?: DiagnosticSink;
   forcedToolbarLayoutMode?: ToolbarLayoutMode;
   initialMarkdownInput?: string;
   locale?: SupportedLocale;
@@ -73,3 +75,5 @@ export interface TaskpaneAppProps {
   services: TaskpaneServices;
   settingsStore: SettingsStore;
 }
+
+export type { DiagnosticEventRecord };

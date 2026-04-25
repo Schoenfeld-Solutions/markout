@@ -13,8 +13,11 @@ export interface LocalizedStrings {
     upstreamTitle: string;
   };
   developer: {
+    diagnosticsPrivacyNote: string;
+    diagnosticsTitle: string;
     hostNotesTitle: string;
     inspectSelection: string;
+    noDiagnostics: string;
     noSelectionSnapshot: string;
     panelDescription: string;
     panelTitle: string;
@@ -175,8 +178,12 @@ const EN_US: LocalizedStrings = {
     upstreamTitle: "Upstream foundation",
   },
   developer: {
+    diagnosticsPrivacyNote:
+      "Events keep operational codes and sizes only. MarkOut redacts draft, selection, session, recipient, token, and other sensitive metadata.",
+    diagnosticsTitle: "Recent diagnostics",
     hostNotesTitle: "Host notes",
     inspectSelection: "Inspect selection",
+    noDiagnostics: "No diagnostic events recorded yet.",
     noSelectionSnapshot: "No selection snapshot loaded yet.",
     panelDescription: "",
     panelTitle: "Developer tools",
@@ -361,8 +368,12 @@ const DE_DE: LocalizedStrings = {
     upstreamTitle: "Upstream-Basis",
   },
   developer: {
+    diagnosticsPrivacyNote:
+      "Events enthalten nur operative Codes und Groessen. MarkOut redigiert Entwurf, Selektion, Session, Empfaenger, Token und andere sensible Metadaten.",
+    diagnosticsTitle: "Letzte Diagnosen",
     hostNotesTitle: "Host-Hinweise",
     inspectSelection: "Selektion prüfen",
+    noDiagnostics: "Noch keine Diagnoseevents aufgezeichnet.",
     noSelectionSnapshot: "Noch kein Selektions-Snapshot geladen.",
     panelDescription: "",
     panelTitle: "Developer-Tools",

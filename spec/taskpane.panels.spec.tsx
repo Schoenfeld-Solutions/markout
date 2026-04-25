@@ -165,6 +165,16 @@ describe("taskpane panels", () => {
     );
     const developerPanel = (
       <DeveloperPanel
+        diagnosticEvents={[
+          {
+            area: "render",
+            code: "draft.render.failed",
+            id: 1,
+            level: "error",
+            metadata: { errorName: "OfficeAsyncError" },
+            timestamp: "2026-04-25T10:00:00.000Z",
+          },
+        ]}
         isInspectingSelection={false}
         onInspectSelection={() => undefined}
         resolvedColorMode="dark"
@@ -204,6 +214,10 @@ describe("taskpane panels", () => {
         strings.developer.inspectSelection
       );
       expect(container.textContent).toContain("Preview text");
+      expect(container.textContent).toContain(
+        strings.developer.diagnosticsTitle
+      );
+      expect(container.textContent).toContain("draft.render.failed");
       expect(container.textContent).toContain(
         strings.credits.currentMaintenanceTitle
       );
