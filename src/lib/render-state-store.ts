@@ -162,8 +162,12 @@ class OfficeRenderStateStore implements RenderStateStore {
       await this.clearSessionState();
       return;
     } catch (error) {
-      if (!isCapacityError(error) || !supportsSessionData(this.mailboxItem)) {
+      if (!isCapacityError(error)) {
         throw error;
+      }
+
+      if (!supportsSessionData(this.mailboxItem)) {
+        throw createRestoreStateTooLargeError(error);
       }
     }
 
