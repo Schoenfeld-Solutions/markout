@@ -1106,13 +1106,7 @@ async function setTextareaValue(
 
     textarea.focus();
     valueSetter?.call(textarea, nextValue);
-    textarea.dispatchEvent(
-      new InputEvent("input", {
-        bubbles: true,
-        data: nextValue,
-        inputType: "insertText",
-      })
-    );
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
 }
