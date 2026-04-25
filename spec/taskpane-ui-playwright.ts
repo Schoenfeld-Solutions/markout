@@ -687,10 +687,7 @@ async function verifyOwaLikeDrawerHostScenario(
       "#markdown-input",
       LONG_DRAWER_MARKDOWN_SAMPLE
     );
-    await taskpane
-      .locator("#mo-preview")
-      .getByText("Long drawer content", { exact: false })
-      .waitFor({ timeout: config.timeoutMs });
+    await waitForPreviewText(taskpane, "Long drawer content", config.timeoutMs);
 
     await assertOwaHostFrameLayout(page, "owa-like-insert-long-content");
     await assertToolbarPinnedToViewport(
@@ -716,10 +713,7 @@ async function verifyOwaLikeDrawerHostScenario(
       .getByText("GitHub repository", { exact: true })
       .waitFor({ timeout: config.timeoutMs });
     await openInsertPanel(taskpane);
-    await taskpane
-      .locator("#mo-preview")
-      .getByText("Stable preview", { exact: false })
-      .waitFor({ timeout: config.timeoutMs });
+    await waitForPreviewText(taskpane, "Stable preview", config.timeoutMs);
     assert.equal(
       await taskpane.locator("#markdown-input").inputValue(),
       RAPID_MARKDOWN_SAMPLE
@@ -1133,6 +1127,21 @@ async function setTextareaValueInChunks(
   for (let index = 1; index <= value.length; index += 1) {
     await setTextareaValue(page, selector, value.slice(0, index));
   }
+}
+
+async function waitForPreviewText(
+  page: TaskpaneSurface,
+  expectedText: string,
+  timeoutMs: number
+): Promise<void> {
+  await page.waitForFunction(
+    (text) => {
+      const preview = document.querySelector("#mo-preview");
+      return preview?.textContent.includes(text) ?? false;
+    },
+    expectedText,
+    { timeout: timeoutMs }
+  );
 }
 
 async function scrollElementIntoView(
