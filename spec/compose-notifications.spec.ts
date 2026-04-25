@@ -1,4 +1,5 @@
 import { createComposeNotificationService } from "../src/lib/compose-notifications";
+import { getRuntimeChannelConfig } from "../src/lib/runtime";
 import { FakeMailboxItem, installOfficeEnvironment } from "./helpers";
 
 describe("compose notification service", () => {
@@ -66,6 +67,54 @@ describe("compose notification service", () => {
     expect(mailboxItem.lastNotificationDetails).toBeNull();
   });
 
+  it("keeps only the newest transient notification timer active", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.showTransientNotification({
+      intent: "info",
+      message: "First transient message.",
+    });
+    await notificationService.showTransientNotification({
+      intent: "success",
+      message: "Second transient message.",
+    });
+
+    expect(mailboxItem.lastNotificationDetails).toMatchObject({
+      message: "Second transient message.",
+    });
+
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+
+    expect(mailboxItem.notificationMessages.removeAsync).toHaveBeenCalledTimes(
+      1
+    );
+    expect(mailboxItem.lastNotificationDetails).toBeNull();
+  });
+
+  it("cancels a pending transient timer when the notification is cleared manually", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.showTransientNotification({
+      intent: "warning",
+      message: "Drop a Markdown or text file to load content into MarkOut.",
+    });
+    await notificationService.clearTransientNotification();
+
+    expect(mailboxItem.notificationMessages.removeAsync).toHaveBeenCalledTimes(
+      1
+    );
+
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+
+    expect(mailboxItem.notificationMessages.removeAsync).toHaveBeenCalledTimes(
+      1
+    );
+  });
+
   it("uses the error infobar type for transient errors", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
     const notificationService = createComposeNotificationService(mailboxItem);
@@ -129,6 +178,52 @@ describe("compose notification service", () => {
     ).resolves.toBe(false);
   });
 
+  it("ignores non-dismiss informational infobar clicks", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+    const dismissHandler = jest.fn();
+
+    notificationService.onAutoRenderDismiss(dismissHandler);
+
+    for (const handler of mailboxItem.infobarHandlers) {
+      await handler({
+        infobarDetails: {
+          actionType: "OpenTaskPane",
+          infobarType: Office.MailboxEnums.InfobarType.Informational,
+        } as unknown as Office.InfobarDetails,
+        type: Office.EventType.InfobarClicked,
+      } as unknown as Office.InfobarClickedEventArgs);
+    }
+
+    expect(dismissHandler).not.toHaveBeenCalled();
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(false);
+  });
+
+  it("ignores dismiss clicks for non-informational infobars", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+    const dismissHandler = jest.fn();
+
+    notificationService.onAutoRenderDismiss(dismissHandler);
+
+    for (const handler of mailboxItem.infobarHandlers) {
+      await handler({
+        infobarDetails: {
+          actionType: Office.MailboxEnums.InfobarActionType.Dismiss,
+          infobarType: Office.MailboxEnums.InfobarType.Error,
+        } as Office.InfobarDetails,
+        type: Office.EventType.InfobarClicked,
+      } as unknown as Office.InfobarClickedEventArgs);
+    }
+
+    expect(dismissHandler).not.toHaveBeenCalled();
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(false);
+  });
+
   it("persists infobar dismiss state per item and clears it again", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
     const notificationService = createComposeNotificationService(mailboxItem);
@@ -150,6 +245,27 @@ describe("compose notification service", () => {
     ).resolves.toBe(false);
   });
 
+  it("scopes persisted auto-render dismissals by runtime channel", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const productionNotificationService = createComposeNotificationService(
+      mailboxItem,
+      getRuntimeChannelConfig("production")
+    );
+    const betaNotificationService = createComposeNotificationService(
+      mailboxItem,
+      getRuntimeChannelConfig("beta")
+    );
+
+    await productionNotificationService.markAutoRenderDismissed();
+
+    await expect(
+      productionNotificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(true);
+    await expect(
+      betaNotificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(false);
+  });
+
   it("falls back to in-memory dismiss tracking when sessionData writes fail", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
     mailboxItem.sessionData.nextSetError = {
@@ -159,6 +275,21 @@ describe("compose notification service", () => {
     const notificationService = createComposeNotificationService(mailboxItem);
 
     await notificationService.markAutoRenderDismissed();
+
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(true);
+  });
+
+  it("keeps in-memory dismiss tracking when sessionData reads fail", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.markAutoRenderDismissed();
+    mailboxItem.sessionData.nextGetError = {
+      message: "Session get failed.",
+      name: "SessionGetError",
+    };
 
     await expect(
       notificationService.hasAutoRenderBeenDismissed()
@@ -190,6 +321,22 @@ describe("compose notification service", () => {
       notificationService.showTransientNotification({
         intent: "warning",
         message: "Drop a Markdown or text file to load content into MarkOut.",
+      })
+    ).resolves.toBe("pane");
+  });
+
+  it("falls back to pane-local notifications when no Outlook item is available", async () => {
+    const notificationService = createComposeNotificationService(null);
+
+    await expect(
+      notificationService.showAutoRenderNotification({
+        message: "MarkOut auto-render is enabled",
+      })
+    ).resolves.toBe("pane");
+    await expect(
+      notificationService.showTransientNotification({
+        intent: "info",
+        message: "The current draft was rendered successfully.",
       })
     ).resolves.toBe("pane");
   });

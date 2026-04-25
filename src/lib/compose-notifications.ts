@@ -1,6 +1,7 @@
 import {
   getChannelScopedKey,
   resolveRuntimeChannelConfig,
+  type ChannelId,
   type RuntimeChannelConfig,
 } from "./runtime";
 
@@ -77,7 +78,10 @@ interface NotificationAwareItemLike {
   sessionData?: AsyncSessionDataLike;
 }
 
-const inMemoryDismissals = new WeakMap<NotificationAwareItemLike, boolean>();
+const inMemoryDismissals = new WeakMap<
+  NotificationAwareItemLike,
+  Set<ChannelId>
+>();
 
 class OutlookComposeNotificationService implements ComposeNotificationService {
   private transientGeneration = 0;
@@ -119,7 +123,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     const sessionData = currentItem.sessionData;
 
     if (sessionData === undefined) {
-      inMemoryDismissals.delete(currentItem);
+      this.clearInMemoryDismissal(currentItem);
       return;
     }
 
@@ -134,10 +138,10 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
       });
     })
       .then(() => {
-        inMemoryDismissals.delete(currentItem);
+        this.clearInMemoryDismissal(currentItem);
       })
       .catch(() => {
-        inMemoryDismissals.delete(currentItem);
+        this.clearInMemoryDismissal(currentItem);
       });
   }
 
@@ -166,7 +170,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
     const sessionData = currentItem.sessionData;
 
     if (sessionData === undefined) {
-      return inMemoryDismissals.get(currentItem) === true;
+      return this.hasInMemoryDismissal(currentItem);
     }
 
     try {
@@ -184,12 +188,12 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
       );
 
       if (dismissedValue === undefined) {
-        return inMemoryDismissals.get(currentItem) === true;
+        return this.hasInMemoryDismissal(currentItem);
       }
 
       return dismissedValue === "true";
     } catch {
-      return inMemoryDismissals.get(currentItem) === true;
+      return this.hasInMemoryDismissal(currentItem);
     }
   }
 
@@ -200,7 +204,7 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
       return;
     }
 
-    inMemoryDismissals.set(currentItem, true);
+    this.markInMemoryDismissal(currentItem);
     const sessionData = currentItem.sessionData;
 
     if (sessionData === undefined) {
@@ -300,6 +304,35 @@ class OutlookComposeNotificationService implements ComposeNotificationService {
       globalThis.clearTimeout(this.transientTimeoutId);
       this.transientTimeoutId = null;
     }
+  }
+
+  private clearInMemoryDismissal(item: NotificationAwareItemLike): void {
+    const dismissedChannels = inMemoryDismissals.get(item);
+
+    if (dismissedChannels === undefined) {
+      return;
+    }
+
+    dismissedChannels.delete(this.runtimeChannelConfig.channelId);
+
+    if (dismissedChannels.size === 0) {
+      inMemoryDismissals.delete(item);
+    }
+  }
+
+  private hasInMemoryDismissal(item: NotificationAwareItemLike): boolean {
+    return (
+      inMemoryDismissals.get(item)?.has(this.runtimeChannelConfig.channelId) ===
+      true
+    );
+  }
+
+  private markInMemoryDismissal(item: NotificationAwareItemLike): void {
+    const dismissedChannels =
+      inMemoryDismissals.get(item) ?? new Set<ChannelId>();
+
+    dismissedChannels.add(this.runtimeChannelConfig.channelId);
+    inMemoryDismissals.set(item, dismissedChannels);
   }
 
   private async removeNotification(key: string): Promise<void> {
