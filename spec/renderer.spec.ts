@@ -31,6 +31,16 @@ describe("renderer", () => {
     expect(output).toBe(expected);
   });
 
+  it("renders emoji shortcodes and shortcuts with the markdown-it emoji plugin", async () => {
+    const output = await renderMarkdown({
+      css: "html {}",
+      markdown: "Emoji :smile: :-)",
+    });
+
+    expect(output).toContain("<p>Emoji 😄 😃</p>");
+    expect(output).not.toContain(":smile:");
+  });
+
   it("inlines stylesheet rules that target supported selectors", async () => {
     const output = await renderMarkdown({
       css: ".mo { color: rgb(1, 2, 3); } p { margin-top: 12px; }",

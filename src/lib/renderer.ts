@@ -15,10 +15,17 @@ import {
 } from "./render-markers";
 import { isInlineableSelector, parseStyleRules } from "./stylesheet-rules";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const markdownItEmoji = require("markdown-it-emoji") as (
-  markdownIt: MarkdownIt
-) => void;
+type MarkdownItPlugin = (markdownIt: MarkdownIt) => void;
+
+type MarkdownItEmojiExport =
+  | MarkdownItPlugin
+  | {
+      full?: unknown;
+    };
+
+const markdownItEmojiExport =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require("markdown-it-emoji") as MarkdownItEmojiExport;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const markdownItFootnote = require("markdown-it-footnote") as (
   markdownIt: MarkdownIt
@@ -53,6 +60,24 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function isMarkdownItPlugin(value: unknown): value is MarkdownItPlugin {
+  return typeof value === "function";
+}
+
+function resolveMarkdownItEmojiPlugin(
+  emojiExport: MarkdownItEmojiExport
+): MarkdownItPlugin {
+  if (isMarkdownItPlugin(emojiExport)) {
+    return emojiExport;
+  }
+
+  if (isMarkdownItPlugin(emojiExport.full)) {
+    return emojiExport.full;
+  }
+
+  throw new Error("Unsupported markdown-it-emoji export shape.");
+}
+
 const markdownIt = new MarkdownIt({
   breaks: false,
   highlight(str, lang): string {
@@ -69,7 +94,7 @@ const markdownIt = new MarkdownIt({
   html: true,
 })
   .use(markdownItFootnote)
-  .use(markdownItEmoji);
+  .use(resolveMarkdownItEmojiPlugin(markdownItEmojiExport));
 
 function createWrapperClasses(mode: RenderMode): string {
   return mode === "full"
