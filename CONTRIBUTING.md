@@ -153,7 +153,12 @@ GitHub pull requests also require:
 
 ## Documentation and licensing
 
-- Keep source code, UI copy, and Markdown docs in English.
+- Repository documentation, ADRs, runbooks, PR descriptions, code comments, and
+  English source copy must be authored in English.
+- Product locale literals such as `de-DE`, the visible language label
+  `Deutsch`, localized runtime strings, and proper nouns such as
+  `Gabriel-Johannes Schönfeld` are allowed only when documenting or
+  implementing current localization behavior.
 - Preserve visible credit to the upstream source in README.
 - Do not change the license text unless there is a verified legal reason to do
   so.

@@ -50,6 +50,12 @@ MarkOut currently supports `en-US` and `de-DE` in the taskpane runtime.
   in-memory only and stores operational codes and sizes, not draft content,
   selection text, tokens, recipient data, or session state.
 
+Repository documentation, ADRs, runbooks, PR descriptions, code comments, and
+English source copy are authored in English. Product locale literals such as
+`de-DE`, the visible language label `Deutsch`, localized runtime strings, and
+proper nouns such as `Gabriel-Johannes Schönfeld` may appear when documenting or
+implementing current localization behavior.
+
 References:
 
 - [Localization for Office Add-ins](https://learn.microsoft.com/office/dev/add-ins/develop/localization)
