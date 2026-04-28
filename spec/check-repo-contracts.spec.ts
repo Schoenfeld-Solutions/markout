@@ -1,6 +1,8 @@
 import {
+  checkEnglishDocumentationPolicy,
   checkDeployableManifestInvariants,
   checkOfficeMailManifestInvariants,
+  type DocumentationPolicySnapshot,
   type ManifestSnapshot,
   type RuntimeChannelConfigSnapshot,
 } from "../scripts/check-repo-contracts";
@@ -62,6 +64,23 @@ function createManifestSnapshot(
       "WebViewRuntime.Url": runtimeChannelConfig.commandsUrl,
     },
     version: "1.0.1.0",
+    ...overrides,
+  };
+}
+
+function createDocumentationPolicySnapshot(
+  overrides: Partial<DocumentationPolicySnapshot> = {}
+): DocumentationPolicySnapshot {
+  return {
+    agents:
+      "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy stay in English.\n" +
+      "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` may appear only when documenting or implementing current localization behavior.",
+    contributing:
+      "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy must be authored in English.\n" +
+      "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` are allowed only when documenting or implementing current localization behavior.",
+    readme:
+      "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy are authored in English.\n" +
+      "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` may appear when documenting or implementing current localization behavior.",
     ...overrides,
   };
 }
@@ -136,6 +155,71 @@ describe("repository contract manifest checks", () => {
 
     expect(contractErrors).toContain(
       "manifest.xml Taskpane.Url must stay under `/markout/outlook/`."
+    );
+  });
+});
+
+describe("repository contract documentation policy checks", () => {
+  it("accepts the English-only repository documentation policy", () => {
+    const contractErrors: string[] = [];
+
+    checkEnglishDocumentationPolicy(
+      createDocumentationPolicySnapshot(),
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual([]);
+  });
+
+  it("allows product locale literals and proper nouns in English policy prose", () => {
+    const contractErrors: string[] = [];
+
+    checkEnglishDocumentationPolicy(
+      createDocumentationPolicySnapshot({
+        readme:
+          "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy are authored in English.\n" +
+          "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` may appear when documenting or implementing current localization behavior.\n" +
+          "The taskpane still documents the `de-DE` runtime locale and the `Deutsch` label in English.",
+      }),
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual([]);
+  });
+
+  it("rejects German-default repository documentation rules", () => {
+    const contractErrors: string[] = [];
+
+    checkEnglishDocumentationPolicy(
+      createDocumentationPolicySnapshot({
+        contributing:
+          "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy must be authored in English.\n" +
+          "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` are allowed only when documenting or implementing current localization behavior.\n" +
+          "Markdown docs must stay in German.",
+      }),
+      contractErrors
+    );
+
+    expect(contractErrors).toContain(
+      "CONTRIBUTING.md must not define German as the repository documentation language."
+    );
+  });
+
+  it("rejects German-language documentation policy phrases", () => {
+    const contractErrors: string[] = [];
+
+    checkEnglishDocumentationPolicy(
+      createDocumentationPolicySnapshot({
+        agents:
+          "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy stay in English.\n" +
+          "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` may appear only when documenting or implementing current localization behavior.\n" +
+          "Dokumentation ist auf Deutsch zu schreiben.",
+      }),
+      contractErrors
+    );
+
+    expect(contractErrors).toContain(
+      "AGENTS.md must not define German as the repository documentation language."
     );
   });
 });

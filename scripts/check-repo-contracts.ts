@@ -34,6 +34,12 @@ interface ExpectedManifestContract {
   manifestPath: string;
 }
 
+export interface DocumentationPolicySnapshot {
+  agents?: string;
+  contributing: string;
+  readme: string;
+}
+
 const REPOSITORY_ROOT = process.cwd();
 const DEPLOYABLE_MANIFEST_CHANNELS = new Set<ChannelId>(["beta", "production"]);
 const deployableManifestsOnly = process.argv.includes(
@@ -83,6 +89,37 @@ const EXPECTED_RELEASE_POLICY_SNIPPETS = [
     snippet:
       "Do not turn OWA checks into scheduled GitHub Actions or release CI gates.",
   },
+];
+
+const EXPECTED_ENGLISH_DOCUMENTATION_POLICY_SNIPPETS = [
+  {
+    file: "CONTRIBUTING.md",
+    snippet:
+      "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy must be authored in English.",
+  },
+  {
+    file: "CONTRIBUTING.md",
+    snippet:
+      "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` are allowed only when documenting or implementing current localization behavior.",
+  },
+  {
+    file: "README.md",
+    snippet:
+      "Repository documentation, ADRs, runbooks, PR descriptions, code comments, and English source copy are authored in English.",
+  },
+  {
+    file: "README.md",
+    snippet:
+      "Product locale literals such as `de-DE`, the visible language label `Deutsch`, localized runtime strings, and proper nouns such as `Gabriel-Johannes Schönfeld` may appear when documenting or implementing current localization behavior.",
+  },
+];
+
+const GERMAN_DOCUMENTATION_POLICY_PATTERNS = [
+  /\bGerman\s+(?:by default|default|required|mandatory|only|first)\b/iu,
+  /\b(?:docs|documentation|Markdown docs|Markdown documentation|ADRs|runbooks)\s+(?:stay|must stay|are|must be|should be|default to)\s+(?:in\s+)?German\b/iu,
+  /\b(?:German|Deutsch)\s+(?:docs|documentation|ADRs|runbooks)\s+(?:by default|required|mandatory|only|first)\b/iu,
+  /\b(?:Dokumentation|Markdown-Doku|ADRs|Runbooks)[^.]*\b(?:Deutsch|deutsch)\b/iu,
+  /\b(?:Deutsch|deutsch)[^.]*\b(?:Dokumentation|Markdown-Doku|ADRs|Runbooks)\b/iu,
 ];
 
 const EXPECTED_WORKFLOW_SNIPPETS = [
@@ -250,11 +287,18 @@ async function main(): Promise<void> {
   }
 
   if (!deployableManifestsOnly) {
-    const [readme, contributing] = await Promise.all([
+    const [readme, contributing, agents] = await Promise.all([
       readText("README.md"),
       readText("CONTRIBUTING.md"),
+      readOptionalText("AGENTS.md"),
     ]);
     checkSnippetPresence(readme, contributing, contractErrors);
+    checkEnglishDocumentationPolicy(
+      agents === undefined
+        ? { contributing, readme }
+        : { agents, contributing, readme },
+      contractErrors
+    );
     await checkWorkflowSnippets(contractErrors);
   }
 
@@ -406,6 +450,41 @@ function checkSnippetPresence(
   }
 }
 
+export function checkEnglishDocumentationPolicy(
+  snapshot: DocumentationPolicySnapshot,
+  contractErrors: string[]
+): void {
+  const fileContents: Record<string, string> = {
+    "CONTRIBUTING.md": normalizeWhitespace(snapshot.contributing),
+    "README.md": normalizeWhitespace(snapshot.readme),
+  };
+
+  if (snapshot.agents !== undefined) {
+    fileContents["AGENTS.md"] = normalizeWhitespace(snapshot.agents);
+  }
+
+  for (const {
+    file,
+    snippet,
+  } of EXPECTED_ENGLISH_DOCUMENTATION_POLICY_SNIPPETS) {
+    if (!fileContents[file]?.includes(normalizeWhitespace(snippet))) {
+      contractErrors.push(
+        `${file} is missing the required English documentation policy snippet: ${snippet}`
+      );
+    }
+  }
+
+  for (const [file, content] of Object.entries(fileContents)) {
+    for (const pattern of GERMAN_DOCUMENTATION_POLICY_PATTERNS) {
+      if (pattern.test(content)) {
+        contractErrors.push(
+          `${file} must not define German as the repository documentation language.`
+        );
+      }
+    }
+  }
+}
+
 async function checkWorkflowSnippets(contractErrors: string[]): Promise<void> {
   for (const { file, snippet } of EXPECTED_WORKFLOW_SNIPPETS) {
     const workflowText = normalizeWhitespace(await readText(file));
@@ -513,6 +592,25 @@ function normalizeWhitespace(value: string): string {
 
 async function readText(relativePath: string): Promise<string> {
   return readFile(path.join(REPOSITORY_ROOT, relativePath), "utf8");
+}
+
+async function readOptionalText(
+  relativePath: string
+): Promise<string | undefined> {
+  try {
+    return await readText(relativePath);
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return undefined;
+    }
+
+    throw error;
+  }
 }
 
 const isDirectExecution =
