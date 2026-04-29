@@ -37,7 +37,7 @@ interface CodeMirrorEditorViewConstructor {
   };
 }
 
-interface CodeMirrorModules {
+export interface StylesheetEditorModules {
   css: () => LanguageSupport;
   defaultHighlightStyle: HighlightStyle;
   EditorState: CodeMirrorEditorStateConstructor;
@@ -53,7 +53,11 @@ interface CodeMirrorModules {
   ) => Extension;
 }
 
-async function loadCodeMirrorModules(): Promise<CodeMirrorModules> {
+interface StylesheetEditorOptions {
+  loadCodeMirrorModules?: () => Promise<StylesheetEditorModules>;
+}
+
+export async function loadCodeMirrorModules(): Promise<StylesheetEditorModules> {
   const [cssModule, languageModule, lintModule, stateModule, viewModule] =
     await Promise.all([
       import("@codemirror/lang-css"),
@@ -74,7 +78,7 @@ async function loadCodeMirrorModules(): Promise<CodeMirrorModules> {
   };
 }
 
-function findLintIssueRange(
+export function findLintIssueRange(
   stylesheet: string,
   issue: StylesheetLintResult["issues"][number]
 ): { from: number; to: number } {
@@ -115,7 +119,7 @@ function findLintIssueRange(
   };
 }
 
-function toCodeMirrorDiagnostics(
+export function toCodeMirrorDiagnostics(
   stylesheet: string,
   lintResult: StylesheetLintResult | null
 ): Diagnostic[] {
@@ -142,15 +146,20 @@ export function useStylesheetEditor(
   resolvedColorMode: "dark" | "light",
   onStylesheetChange: (stylesheet: string) => void,
   onEditorLoadError: (message: string) => void,
-  loadFailedMessage: string
+  loadFailedMessage: string,
+  options: StylesheetEditorOptions = {}
 ): {
   codeMirrorHostRef: RefObject<HTMLDivElement | null>;
   isCodeMirrorLoading: boolean;
 } {
   const [isCodeMirrorLoading, setIsCodeMirrorLoading] = useState(false);
   const codeMirrorHostRef = useRef<HTMLDivElement | null>(null);
-  const codeMirrorModulesRef = useRef<CodeMirrorModules | null>(null);
+  const codeMirrorModulesRef = useRef<StylesheetEditorModules | null>(null);
   const codeMirrorViewRef = useRef<CodeMirrorEditorView | null>(null);
+  const latestStylesheetRef = useRef(stylesheet);
+  const loadModules = options.loadCodeMirrorModules ?? loadCodeMirrorModules;
+
+  latestStylesheetRef.current = stylesheet;
 
   useEffect(() => {
     if (activePanel !== "settings") {
@@ -168,7 +177,7 @@ export function useStylesheetEditor(
 
     setIsCodeMirrorLoading(true);
 
-    void loadCodeMirrorModules()
+    void loadModules()
       .then((modules) => {
         if (cancelled || codeMirrorHostRef.current === null) {
           return;
@@ -236,7 +245,7 @@ export function useStylesheetEditor(
         editorView = new modules.EditorView({
           parent: codeMirrorHostRef.current,
           state: modules.EditorState.create({
-            doc: stylesheet,
+            doc: latestStylesheetRef.current,
             extensions: [
               modules.lineNumbers(),
               modules.css(),
@@ -274,10 +283,10 @@ export function useStylesheetEditor(
   }, [
     activePanel,
     loadFailedMessage,
+    loadModules,
     onEditorLoadError,
     onStylesheetChange,
     resolvedColorMode,
-    stylesheet,
   ]);
 
   useEffect(() => {

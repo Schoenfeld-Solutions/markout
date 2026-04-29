@@ -10,6 +10,7 @@ interface RulesetAuditResult {
   hasHumanBypass: boolean;
   hasReleaseProductionCondition: boolean;
   hasRequiredRuleTypes: boolean;
+  hasUnexpectedBypass: boolean;
   name: string;
 }
 
@@ -199,12 +200,25 @@ async function checkReleaseProductionRulesets(
       );
     })
   );
-  const matchingRulesets: RulesetAuditResult[] = [];
-  for (const detailedRuleset of detailedRulesets) {
-    if (detailedRuleset === undefined) {
-      continue;
-    }
+  const rulesetValidationErrors = validateReleaseProductionRulesets(
+    detailedRulesets.filter(
+      (detailedRuleset): detailedRuleset is unknown =>
+        detailedRuleset !== undefined
+    ),
+    releaseBotAppId
+  );
 
+  errors.push(...rulesetValidationErrors);
+}
+
+export function validateReleaseProductionRulesets(
+  detailedRulesets: readonly unknown[],
+  releaseBotAppId: string
+): string[] {
+  const errors: string[] = [];
+  const matchingRulesets: RulesetAuditResult[] = [];
+
+  for (const detailedRuleset of detailedRulesets) {
     const auditResult = auditRuleset(detailedRuleset, releaseBotAppId);
     if (
       auditResult.hasReleaseProductionCondition &&
@@ -218,7 +232,7 @@ async function checkReleaseProductionRulesets(
     errors.push(
       "release/production must have an active ruleset that blocks creation, update, and deletion."
     );
-    return;
+    return errors;
   }
 
   if (!matchingRulesets.some((ruleset) => ruleset.hasAutomationBypass)) {
@@ -232,9 +246,17 @@ async function checkReleaseProductionRulesets(
       "release/production ruleset must not include User, Team, or admin bypass actors."
     );
   }
+
+  if (matchingRulesets.some((ruleset) => ruleset.hasUnexpectedBypass)) {
+    errors.push(
+      "release/production ruleset must not include bypass actors other than the markout-release-bot GitHub App."
+    );
+  }
+
+  return errors;
 }
 
-function auditRuleset(
+export function auditRuleset(
   ruleset: unknown,
   expectedReleaseBotAppId: string
 ): RulesetAuditResult {
@@ -261,6 +283,9 @@ function auditRuleset(
     hasRequiredRuleTypes: REQUIRED_RELEASE_RULE_TYPES.every((ruleType) =>
       ruleTypes.has(ruleType)
     ),
+    hasUnexpectedBypass: bypassActors.some(
+      (actor) => !isExpectedReleaseBotBypass(actor, expectedReleaseBotAppId)
+    ),
     name,
   };
 }
@@ -279,7 +304,7 @@ function rulesetIncludesReleaseProduction(ruleset: unknown): boolean {
     refNameCondition,
     "include"
   );
-  return includePatterns.some((pattern) => {
+  const includesReleaseProduction = includePatterns.some((pattern) => {
     if (typeof pattern !== "string") {
       return false;
     }
@@ -290,6 +315,21 @@ function rulesetIncludesReleaseProduction(ruleset: unknown): boolean {
       pattern === "~ALL"
     );
   });
+  const excludePatterns = readOptionalArrayProperty(
+    refNameCondition,
+    "exclude"
+  );
+  const excludesReleaseProduction = excludePatterns.some((pattern) => {
+    if (typeof pattern !== "string") {
+      return false;
+    }
+
+    return (
+      pattern === RELEASE_PRODUCTION_REF || pattern === "release/production"
+    );
+  });
+
+  return includesReleaseProduction && !excludesReleaseProduction;
 }
 
 function isExpectedReleaseBotBypass(
