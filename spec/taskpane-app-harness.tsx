@@ -185,12 +185,15 @@ export async function mountTaskpaneApp(
     notificationService: NotificationServiceMocks;
     services: TaskpaneServiceMocks;
     settingsStore: MutableSettingsStore;
+    withoutNotificationService: boolean;
   }> = {}
 ): Promise<MountedTaskpaneApp> {
   const settingsStore = options.settingsStore ?? createMutableSettingsStore();
   const services = options.services ?? createTaskpaneServices();
-  const notificationService =
-    options.notificationService ?? createNotificationService();
+  const fallbackNotificationService = createNotificationService();
+  const notificationService = options.withoutNotificationService
+    ? undefined
+    : (options.notificationService ?? fallbackNotificationService);
   const restoreBrowserLayoutApis = ensureBrowserLayoutApis();
 
   document.body.innerHTML = '<div id="root"></div>';
@@ -204,9 +207,9 @@ export async function mountTaskpaneApp(
 
   const appProps = {
     locale: options.locale ?? "en-US",
-    notificationService,
     services,
     settingsStore,
+    ...(notificationService === undefined ? {} : { notificationService }),
     ...(options.diagnosticSink === undefined
       ? {}
       : { diagnosticSink: options.diagnosticSink }),
@@ -239,7 +242,7 @@ export async function mountTaskpaneApp(
       await flushTaskpane();
     },
     container,
-    notificationService,
+    notificationService: notificationService ?? fallbackNotificationService,
     root,
     services,
     settingsStore,

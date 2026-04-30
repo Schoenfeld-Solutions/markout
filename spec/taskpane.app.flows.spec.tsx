@@ -125,6 +125,56 @@ describe("taskpane app flows", () => {
     }
   });
 
+  it("keeps app shell wiring active for markdown input, toolbar, and settings callbacks", async () => {
+    const settingsStore = createMutableSettingsStore({ introDismissed: true });
+    const services = createTaskpaneServices({
+      getSelection: jest.fn().mockResolvedValue({
+        hasSelection: true,
+        html: "<p>selected</p>",
+        source: "body",
+        text: "selected",
+      }),
+    });
+    const mounted = await mountTaskpaneApp({ services, settingsStore });
+
+    try {
+      await mounted.typeMarkdown("# Typed\n\u00a0\u00a0- child");
+
+      expect(
+        mounted.container.querySelector<HTMLTextAreaElement>("#markdown-input")
+          ?.value
+      ).toBe("# Typed\n  - child");
+
+      await mounted.click("#panel-button-settings");
+      await mounted.click("#show-credits-switch");
+      await mounted.click("#developer-tools-switch");
+      await mounted.click("#theme-mode-dark");
+
+      expect(settingsStore.setCreditsVisible).toHaveBeenCalledWith(false);
+      expect(settingsStore.setDeveloperToolsEnabled).toHaveBeenCalledWith(true);
+      expect(settingsStore.setThemeMode).toHaveBeenCalledWith("dark");
+
+      await waitForCondition(
+        () =>
+          mounted.container.querySelector("#panel-button-developer") !== null
+      );
+      await mounted.click("#panel-button-developer");
+      act(() => {
+        findButtonByText(mounted.container, "Inspect selection").click();
+      });
+      await flushTaskpane();
+
+      expect(services.composeMarkdown.getSelection).toHaveBeenCalled();
+
+      await mounted.click("#panel-button-settings");
+      await mounted.click("#show-intro-switch");
+
+      expect(settingsStore.setIntroDismissed).toHaveBeenCalledWith(false);
+    } finally {
+      mounted.cleanup();
+    }
+  });
+
   it("executes insert, selection render, and unchanged draft render flows", async () => {
     const diagnosticSink = createInMemoryDiagnosticSink();
     const services = createTaskpaneServices({
@@ -237,6 +287,48 @@ describe("taskpane app flows", () => {
       expect(renderDraftButton?.disabled).toBe(false);
     } finally {
       mounted.cleanup();
+    }
+  });
+
+  it("records notification fallback diagnostics when compose infobars are unavailable", async () => {
+    const diagnosticSink = createInMemoryDiagnosticSink();
+    const noService = await mountTaskpaneApp({
+      diagnosticSink,
+      initialMarkdownInput: "# Heading",
+      services: createTaskpaneServices(),
+      settingsStore: createMutableSettingsStore({ introDismissed: true }),
+      withoutNotificationService: true,
+    });
+
+    try {
+      await noService.click("#insert-rendered-markdown-button");
+
+      expect(diagnosticSink.snapshot().map((event) => event.code)).toContain(
+        "notification.transient.missing-service"
+      );
+    } finally {
+      noService.cleanup();
+    }
+
+    const fallbackSink = createInMemoryDiagnosticSink();
+    const paneFallback = await mountTaskpaneApp({
+      diagnosticSink: fallbackSink,
+      initialMarkdownInput: "# Heading",
+      notificationService: createNotificationService({
+        showTransientNotification: jest.fn().mockResolvedValue("pane"),
+      }),
+      services: createTaskpaneServices(),
+      settingsStore: createMutableSettingsStore({ introDismissed: true }),
+    });
+
+    try {
+      await paneFallback.click("#insert-rendered-markdown-button");
+
+      expect(fallbackSink.snapshot().map((event) => event.code)).toContain(
+        "notification.transient.fallback-pane"
+      );
+    } finally {
+      paneFallback.cleanup();
     }
   });
 
