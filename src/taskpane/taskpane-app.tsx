@@ -19,33 +19,20 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  EMPTY_SELECTION_MESSAGE,
-  FULL_DRAFT_ALREADY_RENDERED_MESSAGE,
-  RENDERED_SELECTION_BLOCKED_MESSAGE,
-  SUBJECT_SELECTION_UNSUPPORTED_MESSAGE,
-} from "../lib/compose-markdown";
-import { defaultStylesheet, type ThemeMode } from "../lib/config";
+import { defaultStylesheet } from "../lib/config";
 import {
   createInMemoryDiagnosticSink,
-  getErrorDiagnosticMetadata,
   type DiagnosticEventInput,
 } from "../lib/runtime";
-import {
-  lintStylesheet,
-  type StylesheetLintResult,
-} from "../lib/stylesheet-lint";
-import type { RenderItemResult } from "../lib/item";
+import type { StylesheetLintResult } from "../lib/stylesheet-lint";
 import {
   useAutoRenderNotificationController,
   usePreviewController,
   useSelectionStateController,
 } from "./controllers";
 import { useStylesheetEditor } from "./editor";
-import { readDroppedMarkdownFile, supportsMarkdownFile } from "./file-drop";
 import {
   getStrings,
-  type LocalizedStrings,
   resolveLocale,
   resolveOfficeDisplayLanguage,
 } from "./i18n";
@@ -59,11 +46,11 @@ import {
   SettingsPanel,
   renderActivePanel,
 } from "./panels";
-import { readPreferences, writePreferences } from "./preferences";
+import { readPreferences } from "./preferences";
+import { createTaskpaneActionHandlers } from "./taskpane-actions";
 import { useResolvedColorMode } from "./theme";
 import {
   buildToolbarPanels,
-  getPanelAfterVisibilityChange,
   getRenderSelectionTooltip,
   isInsertRenderedMarkdownDisabled,
   isRenderSelectionDisabled,
@@ -518,44 +505,6 @@ const useStyles = makeStyles({
   },
 });
 
-export function getDraftRenderFeedback(
-  strings: LocalizedStrings,
-  result: RenderItemResult
-): {
-  diagnosticArea: "render" | "restore";
-  diagnosticCode:
-    | "draft.render.succeeded"
-    | "draft.render.unchanged"
-    | "draft.restore.succeeded";
-  intent: PanelMessageState["intent"];
-  message: string;
-} {
-  if (result === "rendered") {
-    return {
-      diagnosticArea: "render",
-      diagnosticCode: "draft.render.succeeded",
-      intent: "success",
-      message: strings.status.draftRendered,
-    };
-  }
-
-  if (result === "restored") {
-    return {
-      diagnosticArea: "restore",
-      diagnosticCode: "draft.restore.succeeded",
-      intent: "success",
-      message: strings.status.draftRestored,
-    };
-  }
-
-  return {
-    diagnosticArea: "render",
-    diagnosticCode: "draft.render.unchanged",
-    intent: "info",
-    message: strings.status.draftUnchanged,
-  };
-}
-
 function TaskpaneContent({
   children,
 }: {
@@ -781,317 +730,30 @@ export function TaskpaneApp({
     setCssLintResult(null);
   }, [preferences.stylesheet]);
 
-  async function withBusyState(
-    busyKey: string,
-    operation: () => void | Promise<void>
-  ): Promise<void> {
-    setIsWorking(busyKey);
-
-    try {
-      await operation();
-    } finally {
-      setIsWorking(null);
-    }
-  }
-
-  async function persistPreferences(
-    nextPreferences: PreferenceState
-  ): Promise<boolean> {
-    const previousPreferences = preferences;
-    setPreferences(nextPreferences);
-    writePreferences(settingsStore, nextPreferences);
-
-    try {
-      await settingsStore.save();
-      return true;
-    } catch (error) {
-      console.error("MarkOut failed to persist settings.", error);
-      setPreferences(previousPreferences);
-      writePreferences(settingsStore, previousPreferences);
-      setPanelMessage({
-        body: localizedStrings.status.settingsUpdateFailed,
-        intent: "error",
-      });
-      return false;
-    }
-  }
-
-  async function handleToggleAutoRender(enabled: boolean): Promise<void> {
-    await persistPreferences({ ...preferences, autoRender: enabled });
-  }
-
-  async function handleToggleCreditsVisibility(
-    visible: boolean
-  ): Promise<void> {
-    const didPersist = await persistPreferences({
-      ...preferences,
-      creditsVisible: visible,
-    });
-
-    if (didPersist && !visible && activePanel === "credits") {
-      setActivePanel(
-        getPanelAfterVisibilityChange(activePanel, "credits", visible)
-      );
-    }
-  }
-
-  async function handleToggleDeveloperTools(enabled: boolean): Promise<void> {
-    const didPersist = await persistPreferences({
-      ...preferences,
-      developerToolsEnabled: enabled,
-    });
-
-    if (didPersist && !enabled && activePanel === "developer") {
-      setActivePanel(
-        getPanelAfterVisibilityChange(activePanel, "developer", enabled)
-      );
-    }
-  }
-
-  async function handleToggleHelpVisibility(visible: boolean): Promise<void> {
-    const didPersist = await persistPreferences({
-      ...preferences,
-      helpVisible: visible,
-    });
-
-    if (didPersist && !visible && activePanel === "help") {
-      setActivePanel(
-        getPanelAfterVisibilityChange(activePanel, "help", visible)
-      );
-    }
-  }
-
-  async function handleToggleIntroVisibility(
-    showIntro: boolean
-  ): Promise<void> {
-    const didPersist = await persistPreferences({
-      ...preferences,
-      introDismissed: !showIntro,
-    });
-
-    if (!didPersist) {
-      return;
-    }
-
-    setActivePanel(showIntro ? "intro" : "insert");
-  }
-
-  async function handleThemeModeChange(mode: ThemeMode): Promise<void> {
-    await persistPreferences({
-      ...preferences,
-      themeMode: mode,
-    });
-  }
-
-  async function handleLanguagePreferenceChange(
-    preference: PreferenceState["languagePreference"]
-  ): Promise<void> {
-    await persistPreferences({
-      ...preferences,
-      languagePreference: preference,
-    });
-  }
-
-  async function handleConfirmIntro(): Promise<void> {
-    if (preferences.introDismissed) {
-      setActivePanel("insert");
-      return;
-    }
-
-    const didPersist = await persistPreferences({
-      ...preferences,
-      introDismissed: true,
-    });
-
-    if (didPersist) {
-      setActivePanel("insert");
-    }
-  }
-
-  async function handleInspectSelection(): Promise<void> {
-    setIsInspectingSelection(true);
-
-    try {
-      const loaded = await updateSelectionState();
-      await showComposeNotification(
-        loaded ? "success" : "error",
-        loaded
-          ? localizedStrings.status.selectionInspectionSuccess
-          : localizedStrings.status.selectionInspectionFailed
-      );
-    } catch (error) {
-      console.error("MarkOut failed to inspect the current selection.", error);
-      await showComposeNotification(
-        "error",
-        localizedStrings.status.selectionInspectionFailed
-      );
-    } finally {
-      setIsInspectingSelection(false);
-    }
-  }
-
-  async function handleInsertRenderedMarkdown(): Promise<void> {
-    await withBusyState("insert-markdown", async () => {
-      recordDiagnostic({
-        area: "render",
-        code: "fragment.insert.started",
-        level: "debug",
-        metadata: { inputLength: markdownInput.length },
-      });
-
-      try {
-        const result =
-          await services.composeMarkdown.insertRenderedMarkdown(markdownInput);
-        await showComposeNotification(
-          "success",
-          result === "replaced"
-            ? localizedStrings.status.fragmentReplaced
-            : localizedStrings.status.fragmentInserted
-        );
-        recordDiagnostic({
-          area: "body-io",
-          code:
-            result === "replaced"
-              ? "fragment.insert.replaced-selection"
-              : "fragment.insert.inserted-at-cursor",
-          level: "info",
-        });
-        await updateSelectionState();
-      } catch (error) {
-        console.error("MarkOut failed to insert rendered Markdown.", error);
-        recordDiagnostic({
-          area: "body-io",
-          code: "fragment.insert.failed",
-          level: "error",
-          metadata: getErrorDiagnosticMetadata(error),
-        });
-        await showComposeNotification(
-          "error",
-          localizeActionError(localizedStrings, error)
-        );
-      }
-    });
-  }
-
-  async function handleRenderSelection(): Promise<void> {
-    await withBusyState("render-selection", async () => {
-      recordDiagnostic({
-        area: "render",
-        code: "selection.render.started",
-        level: "debug",
-      });
-
-      try {
-        await services.composeMarkdown.renderSelection();
-        await showComposeNotification(
-          "success",
-          localizedStrings.status.selectionRendered
-        );
-        recordDiagnostic({
-          area: "body-io",
-          code: "selection.render.succeeded",
-          level: "info",
-        });
-        await updateSelectionState();
-      } catch (error) {
-        console.error("MarkOut failed to render the current selection.", error);
-        recordDiagnostic({
-          area: "body-io",
-          code: "selection.render.failed",
-          level: "error",
-          metadata: getErrorDiagnosticMetadata(error),
-        });
-        await showComposeNotification(
-          "error",
-          localizeActionError(localizedStrings, error)
-        );
-        await updateSelectionState();
-      }
-    });
-  }
-
-  async function handleRenderEntireDraft(): Promise<void> {
-    await withBusyState("render-entire-draft", async () => {
-      recordDiagnostic({
-        area: "render",
-        code: "draft.render.started",
-        level: "debug",
-      });
-
-      try {
-        const result = await services.renderEntireDraft();
-        const feedback = getDraftRenderFeedback(localizedStrings, result);
-        await showComposeNotification(feedback.intent, feedback.message);
-        recordDiagnostic({
-          area: feedback.diagnosticArea,
-          code: feedback.diagnosticCode,
-          level: "info",
-        });
-        await updateSelectionState();
-      } catch (error) {
-        console.error("MarkOut failed to render the current draft.", error);
-        recordDiagnostic({
-          area: "render",
-          code: "draft.render.failed",
-          level: "error",
-          metadata: getErrorDiagnosticMetadata(error),
-        });
-        await showComposeNotification(
-          "error",
-          localizeActionError(localizedStrings, error)
-        );
-      }
-    });
-  }
-
-  async function handleLintStylesheet(): Promise<void> {
-    await withBusyState("lint-stylesheet", () => {
-      try {
-        setCssLintResult(lintStylesheet(preferences.stylesheet));
-      } catch (error) {
-        console.error("MarkOut failed to lint the stylesheet.", error);
-        setPanelMessage({
-          body: localizedStrings.status.cssLintFailed,
-          intent: "error",
-        });
-      }
-    });
-  }
+  const actionHandlers = createTaskpaneActionHandlers({
+    activePanel,
+    localizedStrings,
+    markdownInput,
+    preferences,
+    recordDiagnostic,
+    services,
+    settingsStore,
+    setActivePanel,
+    setCssLintResult,
+    setIsInspectingSelection,
+    setIsWorking,
+    setMarkdownInput,
+    setPanelMessage,
+    setPreferences,
+    showComposeNotification,
+    updateSelectionState,
+  });
 
   async function handleDrop(event: DragEvent<HTMLDivElement>): Promise<void> {
     setIsDropActive(false);
-    const file = event.dataTransfer.files.item(0);
-
-    if (file === null) {
-      await showComposeNotification(
-        "warning",
-        localizedStrings.status.dropFileInstruction
-      );
-      return;
-    }
-
-    if (!supportsMarkdownFile(file)) {
-      await showComposeNotification(
-        "error",
-        localizedStrings.status.unsupportedFileType
-      );
-      return;
-    }
-
-    try {
-      const content = await readDroppedMarkdownFile(file);
-      setMarkdownInput(normalizeMarkdownInput(content));
-      await showComposeNotification(
-        "success",
-        localizedStrings.status.stylesheetLoaded(file.name)
-      );
-    } catch (error) {
-      console.error("MarkOut failed to load a dropped file.", error);
-      await showComposeNotification(
-        "error",
-        localizeActionError(localizedStrings, error)
-      );
-    }
+    await actionHandlers.loadDroppedMarkdownFile(
+      event.dataTransfer.files.item(0)
+    );
   }
 
   const toolbarPanels = buildToolbarPanels(preferences, localizedStrings);
@@ -1165,7 +827,7 @@ export function TaskpaneApp({
                     diagnosticEvents={diagnosticEvents}
                     isInspectingSelection={isInspectingSelection}
                     onInspectSelection={() => {
-                      void handleInspectSelection();
+                      void actionHandlers.inspectSelection();
                     }}
                     resolvedColorMode={resolvedColorMode}
                     selectionDebug={selectionState.debug}
@@ -1190,14 +852,14 @@ export function TaskpaneApp({
                       void handleDrop(event);
                     }}
                     onInsertRenderedMarkdown={() => {
-                      void handleInsertRenderedMarkdown();
+                      void actionHandlers.insertRenderedMarkdown();
                     }}
                     onMarkdownInputChange={handleMarkdownInputChange}
                     onRenderEntireDraft={() => {
-                      void handleRenderEntireDraft();
+                      void actionHandlers.renderEntireDraft();
                     }}
                     onRenderSelection={() => {
-                      void handleRenderSelection();
+                      void actionHandlers.renderSelection();
                     }}
                     previewHtml={previewHtml}
                     previewFrameStyle={previewFrameStyle}
@@ -1212,7 +874,7 @@ export function TaskpaneApp({
                 introPanel: (
                   <IntroPanel
                     onConfirm={() => {
-                      void handleConfirmIntro();
+                      void actionHandlers.confirmIntro();
                     }}
                     strings={localizedStrings}
                     styles={styles}
@@ -1230,22 +892,22 @@ export function TaskpaneApp({
                     isWorking={isWorking !== null}
                     languagePreference={preferences.languagePreference}
                     onCreditsVisibilityChange={(visible) => {
-                      void handleToggleCreditsVisibility(visible);
+                      void actionHandlers.toggleCreditsVisibility(visible);
                     }}
                     onDeveloperToolsChange={(enabled) => {
-                      void handleToggleDeveloperTools(enabled);
+                      void actionHandlers.toggleDeveloperTools(enabled);
                     }}
                     onHelpVisibilityChange={(visible) => {
-                      void handleToggleHelpVisibility(visible);
+                      void actionHandlers.toggleHelpVisibility(visible);
                     }}
                     onIntroVisibilityChange={(visible) => {
-                      void handleToggleIntroVisibility(visible);
+                      void actionHandlers.toggleIntroVisibility(visible);
                     }}
                     onLanguagePreferenceChange={(preference) => {
-                      void handleLanguagePreferenceChange(preference);
+                      void actionHandlers.setLanguagePreference(preference);
                     }}
                     onLintStylesheet={() => {
-                      void handleLintStylesheet();
+                      void actionHandlers.runStylesheetLint();
                     }}
                     onResetStylesheet={() => {
                       setPreferences((currentPreferences) => ({
@@ -1254,10 +916,10 @@ export function TaskpaneApp({
                       }));
                     }}
                     onThemeModeChange={(mode) => {
-                      void handleThemeModeChange(mode);
+                      void actionHandlers.setThemeMode(mode);
                     }}
                     onToggleAutoRender={(enabled) => {
-                      void handleToggleAutoRender(enabled);
+                      void actionHandlers.toggleAutoRender(enabled);
                     }}
                     preferencesThemeMode={preferences.themeMode}
                     showCredits={preferences.creditsVisible}
@@ -1311,52 +973,4 @@ export function TaskpaneApp({
       </TaskpaneContent>
     </FluentProvider>
   );
-}
-
-function localizeActionError(
-  strings: LocalizedStrings,
-  error: unknown
-): string {
-  if (
-    error instanceof Error &&
-    error.message === SUBJECT_SELECTION_UNSUPPORTED_MESSAGE
-  ) {
-    return strings.tooltips.renderSelectionSubject;
-  }
-
-  if (error instanceof Error && error.message === EMPTY_SELECTION_MESSAGE) {
-    return strings.tooltips.renderSelectionNoSelection;
-  }
-
-  if (
-    error instanceof Error &&
-    error.message === FULL_DRAFT_ALREADY_RENDERED_MESSAGE
-  ) {
-    return strings.tooltips.renderEntireDraft;
-  }
-
-  if (
-    error instanceof Error &&
-    error.message === RENDERED_SELECTION_BLOCKED_MESSAGE
-  ) {
-    return strings.tooltips.renderedFragmentBlocked;
-  }
-
-  if (error instanceof Error) {
-    const readMatch = /^MarkOut could not read (.+)\.$/.exec(error.message);
-    if (readMatch !== null) {
-      const [, fileName = "the file"] = readMatch;
-      return strings.status.fileReadFailed(fileName);
-    }
-
-    const decodeMatch = /^MarkOut could not decode (.+)\.$/.exec(error.message);
-    if (decodeMatch !== null) {
-      const [, fileName = "the file"] = decodeMatch;
-      return strings.status.fileDecodeFailed(fileName);
-    }
-
-    return error.message;
-  }
-
-  return strings.status.unexpectedActionFailure;
 }

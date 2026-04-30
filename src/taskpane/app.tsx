@@ -1,5 +1,14 @@
 export { readDroppedMarkdownFile, supportsMarkdownFile } from "./file-drop";
-export { getDraftRenderFeedback, TaskpaneApp } from "./taskpane-app";
+export {
+  createTaskpaneActionHandlers,
+  persistTaskpanePreferences,
+  runWithTaskpaneBusyState,
+} from "./taskpane-actions";
+export {
+  getDraftRenderFeedback,
+  localizeActionError,
+} from "./taskpane-feedback";
+export { TaskpaneApp } from "./taskpane-app";
 export {
   buildToolbarPanels,
   getPanelAfterVisibilityChange,
