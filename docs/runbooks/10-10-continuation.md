@@ -25,61 +25,72 @@ npm run test:coverage
 npm audit --json
 ```
 
-Expected recovery baseline on 2026-04-24:
+Current operational baseline on 2026-05-01:
 
-- `main` and `origin/main` point at
-  `726bb1b41cec31fc435a5ebd147110b6cd3b331f`.
-- `origin/release/production` points at
-  `c4795a4d5ad56ef685416eb2d506a979197169a2`.
-- The `Build and Publish GitHub Pages` run `24838117797` for
-  `726bb1b41cec31fc435a5ebd147110b6cd3b331f` is the red `main` push run that
-  must be rerun after external prerequisites are set.
+- `main` and `origin/main` point at `066a73f`
+  (`test(taskpane): extract app action coverage`).
+- The latest `Build and Publish GitHub Pages` run for `066a73f` is green.
 - `github-pages` allows deployment from `main` and `release/production`.
 - `production-promotion` exists and requires review by `gabrielschoenfeld`.
-- Before the release-bot workstream is complete, `release/production` may still
-  lack an automation-only ruleset.
-- Coverage is expected to be below the final target. The known recovery baseline
-  is approximately `71.21 / 59.63 / 71.57 / 71.13`.
-- `npm audit --json` is expected to report critical and moderate findings until
-  the supply-chain workstream removes the legacy Office add-in tooling.
+- GitHub Settings Audit is green.
+- `release/production` is protected by the active
+  `release-production-automation-only` repository ruleset.
+- The only ruleset bypass actor is the `markout-release-bot` GitHub App
+  integration with app ID `3567817`; human and repository-role bypass actors
+  are not allowed.
+- Required release-governance secrets are present:
+  `MARKOUT_GITHUB_SETTINGS_AUDIT_TOKEN`, `MARKOUT_RELEASE_BOT_APP_ID`, and
+  `MARKOUT_RELEASE_BOT_PRIVATE_KEY`.
+- Manual OWA beta verification passed on 2026-05-01 for `066a73f`; see
+  [beta-verification.md](./beta-verification.md).
+- `npm audit --json` reports zero vulnerabilities.
+- Coverage is above the 9/10 baseline but still below the final 10/10 target.
+  The known post-ratchet baseline is approximately
+  `87.78 / 78.49 / 87.50 / 87.68`.
+- `src/taskpane/taskpane-app.tsx` is materially improved but still below the
+  final critical-file target for functions and branches, at approximately
+  `89.83 / 82.85 / 81.81 / 89.74`.
 
 If these facts differ, update this runbook or the active PR description before
-rerunning old workflow IDs.
+rerunning workflow IDs, changing release settings, or opening the next coverage
+ratchet PR.
 
 ## Workstream order
 
-1. Merge operational recovery: remove automated OWA credential gates, rerun the
-   failed `main` push run after the release workflow no longer requires OWA
-   secrets, verify beta manually in OWA, promote the verified SHA, and verify
-   production manually.
-2. Release governance: use GitHub-native branch rules only if they can block
-   human pushes while preserving promotion automation. Otherwise use the
-   `markout-release-bot` GitHub App documented in
-   [release-bot-bootstrap.md](./release-bot-bootstrap.md).
-3. Manual OWA verification durability: keep the beta verification runbook
-   explicit enough that a human can verify the exact SHA without chat context.
-4. Supply-chain cleanup: remove the vulnerable legacy Office tooling and keep
-   `npm audit --json` free of critical and moderate findings.
-5. Restore-state hardening: guarantee that MarkOut never loses current draft
-   content because of a timer. Only reconstructable artifacts may expire.
-6. Security, fault injection, and observability: expand sanitizer corpus tests,
-   Office API failure tests, notification race tests, and continue extending the
-   in-memory diagnostic event buffer where new critical paths are added.
-7. Taskpane decomposition and coverage: split the remaining large taskpane
-   shell and raise global coverage to at least 90% with critical files at least
-   85%.
+1. Production promotion: if the human verifier approves `066a73f` for
+   production, run `Promote Production Channel` with that SHA and the
+   2026-05-01 beta verification note, approve the `production-promotion`
+   environment, wait for the follow-up `release/production` Pages run, and
+   perform a human production OWA check.
+2. Coverage ratchet: raise global coverage from the current high-80s baseline
+   to at least 90% and close critical-file gaps, especially
+   `taskpane-app.tsx` functions and branches, `runtime.tsx`, `panels.tsx`, and
+   other taskpane edge paths.
+3. Targeted edge-case testing: add behavior tests for taskpane lifecycle races,
+   hidden-panel fallback, failed optimistic preference saves, stale async
+   completions, notification fallback without service support, and developer
+   diagnostics visibility.
+4. CI maintenance: remove the known GitHub Actions Node 20 deprecation warning,
+   especially around dependency-review tooling, without adding paid services or
+   long-running jobs.
+5. Security and fault-injection durability: keep expanding sanitizer corpus
+   tests, Office API failure tests, restore-state edge tests, and notification
+   race tests whenever new critical behavior is touched.
+6. Documentation and contracts: keep this runbook, beta verification evidence,
+   release-governance documentation, and repo-contract checks synchronized with
+   every operational policy change.
 
 ## Acceptance for the whole program
 
 The project is not `10/10` until all of these are true at the same time:
 
-- The `main` release for `726bb1b41cec31fc435a5ebd147110b6cd3b331f` is green
-  and beta was manually verified in OWA.
+- The current `main` release is green and beta was manually verified in OWA for
+  the exact SHA being considered for promotion.
 - `release/production` can only move through the approved promotion path.
 - Production promotion and the follow-up production release are green.
 - OWA verification remains human-confirmed and is recorded through the
   promotion workflow inputs and `production-promotion` approval.
-- `npm audit --json` reports no critical or moderate findings.
+- `npm audit --json` reports no vulnerabilities.
 - GitHub Actions logs do not contain Node 20 deprecation warnings.
 - Restore-state cannot lose unrecoverable draft content through TTL expiry.
 - Sanitizer, fault-injection, restore, and notification race suites cover the
