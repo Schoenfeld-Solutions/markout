@@ -33,3 +33,27 @@ Verify the hosted beta channel that is published from `main`.
 - Auto-render notifications or restore-state behavior leak from another channel.
 - The release workflow is not green for the target SHA.
 - The verifier cannot confirm the required OWA flows manually.
+
+## Verification log
+
+### 2026-05-01 beta quick check
+
+- Result: passed.
+- Verified SHA: `066a73f` (`test(taskpane): extract app action coverage`).
+- Channel and manifest: beta channel through `manifest.beta.xml`.
+- Client: Outlook Web compose with the hosted beta taskpane.
+- Verifier: human verification by Gabriel.
+- Evidence: screenshots were supplied in the project thread and intentionally
+  were not committed to the repository.
+- Checked behavior:
+  - The taskpane opened as the beta add-in.
+  - The settings panel loaded with the expected localized UI, theme controls,
+    language selector, and settings toggles.
+  - The insert panel loaded in dark mode.
+  - Markdown input rendered a heading, paragraph, and list preview.
+  - The bottom toolbar stayed visible while the content area scrolled above it.
+  - No visible beta/production channel-state leak was observed in the quick
+    check.
+
+This log is human OWA verification evidence only. It is not automated OWA test
+evidence and must not be used to justify adding unattended OWA automation.
