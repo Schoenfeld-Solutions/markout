@@ -3,6 +3,7 @@ import {
   checkDeployableManifestInvariants,
   checkOfficeMailManifestInvariants,
   checkPullRequestSupplyChainPolicy,
+  checkReleaseBotDocumentationPolicy,
   type DocumentationPolicySnapshot,
   type ManifestSnapshot,
   type RuntimeChannelConfigSnapshot,
@@ -291,6 +292,61 @@ jobs:
         "package.json must define `audit:ci` as `npm audit --audit-level=moderate`.",
         ".github/workflows/pull-request.yaml must run `npm run audit:ci` in the PR quality gate.",
         ".github/workflows/pull-request.yaml must not keep a separate dependency-review job.",
+      ])
+    );
+  });
+});
+
+describe("repository contract release-bot documentation checks", () => {
+  const releaseBotRunbook = `
+Create a dedicated GitHub App named \`markout-release-bot\`.
+
+- Repository permissions: \`Contents: Read and write\`
+- Repository permissions: \`Workflows: Read and write\`
+
+GitHub rejects those updates unless the App installation token has workflow
+write permission, even when the App is the only ruleset bypass actor.
+`;
+  const productionPromotionRunbook = `
+The \`markout-release-bot\` GitHub App has \`Contents: Read and write\` and
+\`Workflows: Read and write\`, because promoted commits may include workflow
+file changes.
+
+If the push fails with \`refusing to allow a GitHub App to create or update
+workflow\`, update the release-bot App permission.
+`;
+
+  it("accepts documented release-bot workflow write permission", () => {
+    const contractErrors: string[] = [];
+
+    checkReleaseBotDocumentationPolicy(
+      releaseBotRunbook,
+      productionPromotionRunbook,
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual([]);
+  });
+
+  it("rejects release-bot docs that omit workflow write permission", () => {
+    const contractErrors: string[] = [];
+
+    checkReleaseBotDocumentationPolicy(
+      releaseBotRunbook.replace(
+        "- Repository permissions: `Workflows: Read and write`",
+        ""
+      ),
+      productionPromotionRunbook.replace(
+        " and\n`Workflows: Read and write`",
+        ""
+      ),
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual(
+      expect.arrayContaining([
+        "docs/runbooks/release-bot-bootstrap.md is missing the required release-bot permission snippet: `Workflows: Read and write`",
+        "docs/runbooks/production-promotion.md is missing the required release-bot permission snippet: `Contents: Read and write` and `Workflows: Read and write`",
       ])
     );
   });

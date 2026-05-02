@@ -44,6 +44,21 @@ interface ToolbarLayoutOptions {
   expectScrollableContent: boolean;
 }
 
+interface PreviewWaitDiagnostics {
+  activeElementId: string | null;
+  contentViewportScrollTop: number | null;
+  documentScrollTop: number;
+  headings: string[];
+  inputExists: boolean;
+  inputLength: number;
+  inputValuePreview: string;
+  loadingTextVisible: boolean;
+  previewExists: boolean;
+  previewTextLength: number;
+  previewTextPreview: string;
+  screenshotPath: string | null;
+}
+
 type TaskpaneSurface = Frame | Page;
 
 const DEFAULT_BASE_URL = "http://localhost:3000/taskpane-mock.html";
@@ -687,7 +702,13 @@ async function verifyOwaLikeDrawerHostScenario(
       "#markdown-input",
       LONG_DRAWER_MARKDOWN_SAMPLE
     );
-    await waitForPreviewText(taskpane, "Long drawer content", config.timeoutMs);
+    await waitForPreviewText(taskpane, {
+      expectedText: "Long drawer content",
+      expectedTextareaValue: LONG_DRAWER_MARKDOWN_SAMPLE,
+      outputDirectory: config.outputDirectory,
+      scenarioName: "owa-like-long-drawer-preview",
+      timeoutMs: config.timeoutMs,
+    });
 
     await assertOwaHostFrameLayout(page, "owa-like-insert-long-content");
     await assertToolbarPinnedToViewport(
@@ -713,7 +734,13 @@ async function verifyOwaLikeDrawerHostScenario(
       .getByText("GitHub repository", { exact: true })
       .waitFor({ timeout: config.timeoutMs });
     await openInsertPanel(taskpane);
-    await waitForPreviewText(taskpane, "Stable preview", config.timeoutMs);
+    await waitForPreviewText(taskpane, {
+      expectedText: "Stable preview",
+      expectedTextareaValue: RAPID_MARKDOWN_SAMPLE,
+      outputDirectory: config.outputDirectory,
+      scenarioName: "owa-like-stable-preview",
+      timeoutMs: config.timeoutMs,
+    });
     assert.equal(
       await taskpane.locator("#markdown-input").inputValue(),
       RAPID_MARKDOWN_SAMPLE
@@ -1125,17 +1152,139 @@ async function setTextareaValueInChunks(
 
 async function waitForPreviewText(
   page: TaskpaneSurface,
-  expectedText: string,
-  timeoutMs: number
+  options: {
+    expectedText: string;
+    expectedTextareaValue?: string;
+    outputDirectory: string;
+    scenarioName: string;
+    timeoutMs: number;
+  }
 ): Promise<void> {
-  await page.waitForFunction(
-    (text) => {
-      const preview = document.querySelector("#mo-preview");
-      return preview?.textContent.includes(text) ?? false;
-    },
+  const {
     expectedText,
-    { timeout: timeoutMs }
+    expectedTextareaValue,
+    outputDirectory,
+    scenarioName,
+    timeoutMs,
+  } = options;
+
+  try {
+    if (expectedTextareaValue !== undefined) {
+      await page.waitForFunction(
+        ({ selector, value }) => {
+          const input = document.querySelector(selector);
+          return input instanceof HTMLTextAreaElement && input.value === value;
+        },
+        { selector: "#markdown-input", value: expectedTextareaValue },
+        { timeout: timeoutMs }
+      );
+    }
+
+    await page.waitForFunction(
+      ({ loadingText, text }) => {
+        const preview = document.querySelector("#mo-preview");
+        const previewText = preview?.textContent ?? "";
+        return previewText.includes(text) && !previewText.includes(loadingText);
+      },
+      { loadingText: PREVIEW_LOADING_TEXT, text: expectedText },
+      { timeout: timeoutMs }
+    );
+
+    await page.waitForTimeout(150);
+    await page.waitForFunction(
+      ({ loadingText, text }) => {
+        const preview = document.querySelector("#mo-preview");
+        const previewText = preview?.textContent ?? "";
+        return previewText.includes(text) && !previewText.includes(loadingText);
+      },
+      { loadingText: PREVIEW_LOADING_TEXT, text: expectedText },
+      { timeout: Math.min(timeoutMs, 1_000) }
+    );
+  } catch (error) {
+    const diagnostics = await collectPreviewWaitDiagnostics(
+      page,
+      outputDirectory,
+      scenarioName
+    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    assert.fail(
+      [
+        `Timed out waiting for preview text \`${expectedText}\` in scenario \`${scenarioName}\`.`,
+        `Original error: ${errorMessage}`,
+        `Diagnostics: ${JSON.stringify(diagnostics, null, 2)}`,
+      ].join("\n")
+    );
+  }
+}
+
+async function collectPreviewWaitDiagnostics(
+  page: TaskpaneSurface,
+  outputDirectory: string,
+  scenarioName: string
+): Promise<PreviewWaitDiagnostics> {
+  await mkdir(outputDirectory, { recursive: true });
+  const screenshotPath = path.join(
+    outputDirectory,
+    `${scenarioName.replace(/[^a-z0-9._-]+/giu, "-")}-timeout.png`
   );
+
+  const diagnostics = await page.evaluate((loadingText) => {
+    const markdownInput = document.querySelector("#markdown-input");
+    const preview = document.querySelector("#mo-preview");
+    const contentViewport = document.querySelector(
+      '[data-testid="taskpane-content-viewport"]'
+    );
+    const activeElement = document.activeElement;
+    const inputValue =
+      markdownInput instanceof HTMLTextAreaElement ? markdownInput.value : "";
+    const previewText = preview?.textContent ?? "";
+
+    return {
+      activeElementId:
+        activeElement instanceof HTMLElement && activeElement.id.length > 0
+          ? activeElement.id
+          : null,
+      contentViewportScrollTop:
+        contentViewport instanceof HTMLElement
+          ? contentViewport.scrollTop
+          : null,
+      documentScrollTop: document.scrollingElement?.scrollTop ?? 0,
+      headings: Array.from(document.querySelectorAll("h1, h2"), (heading) =>
+        heading.textContent.trim()
+      ).filter(Boolean),
+      inputExists: markdownInput instanceof HTMLTextAreaElement,
+      inputLength: inputValue.length,
+      inputValuePreview: inputValue.slice(0, 500),
+      loadingTextVisible: previewText.includes(loadingText),
+      previewExists: preview !== null,
+      previewTextLength: previewText.length,
+      previewTextPreview: previewText.slice(0, 500),
+      screenshotPath: null,
+    } satisfies PreviewWaitDiagnostics;
+  }, PREVIEW_LOADING_TEXT);
+
+  try {
+    await getOwningPage(page).screenshot({
+      fullPage: false,
+      path: screenshotPath,
+    });
+    return { ...diagnostics, screenshotPath };
+  } catch {
+    return diagnostics;
+  }
+}
+
+function getOwningPage(surface: TaskpaneSurface): Page {
+  if (isTaskpaneFrame(surface)) {
+    return surface.page();
+  }
+
+  return surface;
+}
+
+function isTaskpaneFrame(surface: TaskpaneSurface): surface is Frame {
+  return typeof (surface as Frame).page === "function";
 }
 
 async function scrollElementIntoView(

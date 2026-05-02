@@ -14,6 +14,9 @@ Move one validated `main` commit into the stable `release/production` branch.
 - The `production-promotion` environment requires explicit reviewer approval.
 - The `markout-release-bot` GitHub App credentials are configured as
   `MARKOUT_RELEASE_BOT_APP_ID` and `MARKOUT_RELEASE_BOT_PRIVATE_KEY`.
+- The `markout-release-bot` GitHub App has `Contents: Read and write` and
+  `Workflows: Read and write`, because promoted commits may include workflow
+  file changes.
 - The `release/production` ruleset blocks direct human pushes and allows only
   the release bot integration bypass.
 
@@ -38,6 +41,9 @@ Move one validated `main` commit into the stable `release/production` branch.
 ## Notes
 
 - This workflow is the only supported way to update production.
+- If the push fails with `refusing to allow a GitHub App to create or update
+workflow`, update the release-bot App permission to `Workflows: Read and
+write`, accept the installation permission update, and rerun promotion.
 - If repository rules, release bot credentials, or beta evidence are missing,
   stop and configure them before promotion.
 - Bootstrap and validation details live in
