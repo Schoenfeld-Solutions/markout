@@ -4,10 +4,10 @@ module.exports = {
     global: {
       // Jest applies "global" after subtracting files with explicit thresholds.
       // Keep this as a ratcheting floor for the remaining repo surface.
-      branches: 70,
-      functions: 83,
-      lines: 81,
-      statements: 81,
+      branches: 89,
+      functions: 89,
+      lines: 94,
+      statements: 94,
     },
     "./src/lib/body-accessor.ts": {
       branches: 85,
@@ -16,10 +16,10 @@ module.exports = {
       statements: 95,
     },
     "./src/lib/compose-markdown.ts": {
-      branches: 82,
-      functions: 92,
-      lines: 93,
-      statements: 93,
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
     },
     "./src/lib/html-sanitizer.ts": {
       branches: 88,

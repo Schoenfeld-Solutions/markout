@@ -18,4 +18,14 @@ describe("commands", () => {
     }).not.toThrow();
     expect(Office.actions.associate).not.toHaveBeenCalled();
   });
+
+  it("can be imported before Office.js is available", async () => {
+    delete (globalThis as { Office?: typeof Office }).Office;
+
+    const commandsModule = await import("../src/commands/commands");
+
+    expect(() => {
+      commandsModule.registerCommandHandlers();
+    }).not.toThrow();
+  });
 });
