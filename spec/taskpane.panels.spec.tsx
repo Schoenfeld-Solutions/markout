@@ -2,10 +2,10 @@
 
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { act } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { StylesheetLintResult } from "../src/lib/stylesheet-lint";
-import { getStrings } from "../src/taskpane/i18n";
+import { getStrings, type LocalizedStrings } from "../src/taskpane/i18n";
 import {
   CreditsPanel,
   DeveloperPanel,
@@ -13,6 +13,10 @@ import {
   SettingsPanel,
   renderActivePanel,
 } from "../src/taskpane/panels";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 function createStyles(): Record<string, string> {
   const styles: Record<string, string> = {};
@@ -40,8 +44,38 @@ function mount(element: ReactElement): { container: HTMLElement; root: Root } {
   return { container, root };
 }
 
+function readPanelText(element: ReactElement): ReactNode {
+  return (element as ReactElement<{ children: ReactNode }>).props.children;
+}
+
 describe("taskpane panels", () => {
+  let originalResizeObserver: typeof window.ResizeObserver | undefined;
+
+  beforeEach(() => {
+    originalResizeObserver = window.ResizeObserver;
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: class TestResizeObserver {
+        public disconnect(): void {
+          return undefined;
+        }
+
+        public observe(): void {
+          return undefined;
+        }
+
+        public unobserve(): void {
+          return undefined;
+        }
+      },
+    });
+  });
+
   afterEach(() => {
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: originalResizeObserver,
+    });
     jest.restoreAllMocks();
   });
 
@@ -116,7 +150,35 @@ describe("taskpane panels", () => {
         '[data-testid="taskpane-dropzone"]'
       );
       dropzone?.dispatchEvent(new Event("dragenter", { bubbles: true }));
+      dropzone?.dispatchEvent(new Event("dragleave", { bubbles: true }));
+      const dragOverEvent = new Event("dragover", {
+        bubbles: true,
+        cancelable: true,
+      });
+      const dragOverPreventDefault = jest.spyOn(
+        dragOverEvent,
+        "preventDefault"
+      );
+      dropzone?.dispatchEvent(dragOverEvent);
+      const dropEvent = new Event("drop", {
+        bubbles: true,
+        cancelable: true,
+      });
+      const dropPreventDefault = jest.spyOn(dropEvent, "preventDefault");
+      dropzone?.dispatchEvent(dropEvent);
+
       expect(callbacks.setDropActive).toHaveBeenCalledWith(true);
+      expect(callbacks.setDropActive).toHaveBeenCalledWith(false);
+      expect(dragOverPreventDefault).toHaveBeenCalled();
+      expect(dropPreventDefault).toHaveBeenCalled();
+      expect(callbacks.onDrop).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          callbacks.onDrop.mock.calls[0][0] as {
+            nativeEvent: Event;
+          }
+        ).nativeEvent
+      ).toBe(dropEvent);
     } finally {
       act(() => {
         root.unmount();
@@ -226,5 +288,174 @@ describe("taskpane panels", () => {
         root.unmount();
       });
     }
+  });
+
+  it("renders alternate insert, settings, and developer branches", () => {
+    const baseStrings = getStrings("en-US");
+    const strings: LocalizedStrings = {
+      ...baseStrings,
+      developer: {
+        ...baseStrings.developer,
+        panelDescription: "Developer description.",
+      },
+      insert: {
+        ...baseStrings.insert,
+        panelDescription: "Insert description.",
+        previewDescription: "Preview description.",
+      },
+      settings: {
+        ...baseStrings.settings,
+        languageDescription: "Language description.",
+        panelDescription: "Settings description.",
+        themeDescription: "Theme description.",
+      },
+    };
+    const styles = createStyles();
+    const warningLintResult: StylesheetLintResult = {
+      issues: [
+        {
+          code: "unsupported-selector",
+          message: "Selector will be ignored.",
+          severity: "warning",
+        },
+      ],
+      validRuleCount: 1,
+    };
+    const noIssueLintResult: StylesheetLintResult = {
+      issues: [],
+      validRuleCount: 2,
+    };
+    const { container, root } = mount(
+      <>
+        <InsertPanel
+          isDropActive={true}
+          isInsertRenderedMarkdownDisabled={true}
+          isWorking={true}
+          markdownInput=""
+          onDrop={() => undefined}
+          onInsertRenderedMarkdown={() => undefined}
+          onMarkdownInputChange={() => undefined}
+          onRenderEntireDraft={() => undefined}
+          onRenderSelection={() => undefined}
+          previewHtml=""
+          previewFrameStyle={{ colorScheme: "dark" }}
+          previewState="loading"
+          renderSelectionDisabled={true}
+          renderSelectionTooltip="Selection unavailable"
+          setDropActive={() => undefined}
+          strings={strings}
+          styles={styles}
+        />
+        <SettingsPanel
+          autoRenderEnabled={false}
+          codeMirrorHostRef={{ current: null }}
+          cssLintResult={warningLintResult}
+          developerToolsEnabled={false}
+          helpVisible={false}
+          introVisible={true}
+          isCodeMirrorLoading={false}
+          isWorking={true}
+          languagePreference="system"
+          onCreditsVisibilityChange={() => undefined}
+          onDeveloperToolsChange={() => undefined}
+          onHelpVisibilityChange={() => undefined}
+          onIntroVisibilityChange={() => undefined}
+          onLanguagePreferenceChange={() => undefined}
+          onLintStylesheet={() => undefined}
+          onResetStylesheet={() => undefined}
+          onThemeModeChange={() => undefined}
+          onToggleAutoRender={() => undefined}
+          preferencesThemeMode="system"
+          showCredits={false}
+          strings={strings}
+          styles={styles}
+        />
+        <SettingsPanel
+          autoRenderEnabled={false}
+          codeMirrorHostRef={{ current: null }}
+          cssLintResult={noIssueLintResult}
+          developerToolsEnabled={false}
+          helpVisible={false}
+          introVisible={false}
+          isCodeMirrorLoading={false}
+          isWorking={false}
+          languagePreference="en-US"
+          onCreditsVisibilityChange={() => undefined}
+          onDeveloperToolsChange={() => undefined}
+          onHelpVisibilityChange={() => undefined}
+          onIntroVisibilityChange={() => undefined}
+          onLanguagePreferenceChange={() => undefined}
+          onLintStylesheet={() => undefined}
+          onResetStylesheet={() => undefined}
+          onThemeModeChange={() => undefined}
+          onToggleAutoRender={() => undefined}
+          preferencesThemeMode="light"
+          showCredits={false}
+          strings={strings}
+          styles={styles}
+        />
+        <DeveloperPanel
+          diagnosticEvents={[]}
+          isInspectingSelection={true}
+          onInspectSelection={() => undefined}
+          resolvedColorMode="light"
+          selectionDebug={null}
+          strings={strings}
+          styles={styles}
+          themeMode="light"
+        />
+      </>
+    );
+
+    try {
+      expect(container.textContent).toContain("Insert description.");
+      expect(container.textContent).toContain("Preview description.");
+      expect(container.textContent).toContain(strings.insert.previewLoading);
+      expect(container.textContent).toContain("Settings description.");
+      expect(container.textContent).toContain("Theme description.");
+      expect(container.textContent).toContain("Language description.");
+      expect(container.textContent).toContain(strings.editor.lintWarningLabel);
+      expect(container.textContent).toContain("Selector will be ignored.");
+      expect(container.textContent).toContain(strings.editor.lintNoIssues);
+      expect(container.textContent).toContain("Developer description.");
+      expect(container.textContent).toContain(
+        strings.developer.noSelectionSnapshot
+      );
+      expect(container.textContent).toContain(strings.developer.noDiagnostics);
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+    }
+  });
+
+  it("selects every active panel branch and falls back to insert", () => {
+    const panels = {
+      creditsPanel: <div>Credits</div>,
+      developerPanel: <div>Developer</div>,
+      helpPanel: <div>Help</div>,
+      insertPanel: <div>Insert</div>,
+      introPanel: <div>Intro</div>,
+      settingsPanel: <div>Settings</div>,
+    };
+
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "credits" }))
+    ).toBe("Credits");
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "developer" }))
+    ).toBe("Developer");
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "help" }))
+    ).toBe("Help");
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "intro" }))
+    ).toBe("Intro");
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "settings" }))
+    ).toBe("Settings");
+    expect(
+      readPanelText(renderActivePanel({ ...panels, activePanel: "insert" }))
+    ).toBe("Insert");
   });
 });
