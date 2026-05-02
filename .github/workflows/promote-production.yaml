@@ -51,7 +51,7 @@ jobs:
             exit 1
           }
 
-          git fetch origin main release/production --depth=1
+          git fetch origin main release/production
           git rev-parse --verify "$SOURCE_SHA^{commit}" >/dev/null
           git merge-base --is-ancestor "$SOURCE_SHA" origin/main || {
             echo "The requested source_sha is not reachable from origin/main."
@@ -133,7 +133,7 @@ jobs:
           RELEASE_BOT_TOKEN: ${{ steps.release_bot.outputs.token }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          git fetch origin main release/production --depth=1
+          git fetch origin main release/production
           git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${{ github.repository }}.git"
           git push origin "$SOURCE_SHA:refs/heads/release/production"
           {
