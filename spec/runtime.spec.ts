@@ -22,6 +22,40 @@ describe("runtime channel config", () => {
     expect(storageNamespaces.size).toBe(3);
   });
 
+  it("keeps hosted runtime URLs queryless and local URLs channel-explicit", () => {
+    const beta = getRuntimeChannelConfig("beta");
+    const production = getRuntimeChannelConfig("production");
+    const local = getRuntimeChannelConfig("local");
+
+    expect(beta.commandsUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html"
+    );
+    expect(beta.launcheventUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook-beta/launchevent.js"
+    );
+    expect(beta.taskpaneUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html"
+    );
+    expect(production.commandsUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook/commands.html"
+    );
+    expect(production.launcheventUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook/launchevent.js"
+    );
+    expect(production.taskpaneUrl).toBe(
+      "https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html"
+    );
+    expect(local.commandsUrl).toBe(
+      "https://localhost:3000/commands.html?channel=local"
+    );
+    expect(local.launcheventUrl).toBe(
+      "https://localhost:3000/launchevent.js?channel=local"
+    );
+    expect(local.taskpaneUrl).toBe(
+      "https://localhost:3000/taskpane.html?channel=local"
+    );
+  });
+
   it("resolves the explicit channel query before path heuristics", () => {
     expect(
       resolveRuntimeChannelConfig(
