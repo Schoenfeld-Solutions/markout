@@ -147,6 +147,9 @@ GitHub pull requests also require:
 - Dependabot version updates are grouped into one weekly tooling PR across
   `npm` and `github-actions`.
 - Security updates are intentionally separate from normal version updates.
+- Pull request supply-chain blocking uses the repo-native `npm run audit:ci`
+  gate, which fails on moderate or higher npm advisories without depending on
+  the Node 20-based dependency-review action.
 - Because this repository is a fork, Dependabot security updates and grouped
   security updates must be enabled in GitHub settings for the fork.
 - Do not add new runtime dependencies without explicit approval.

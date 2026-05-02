@@ -21,6 +21,7 @@
     "dev-server-port": 3000
   },
   "scripts": {
+    "audit:ci": "npm audit --audit-level=moderate",
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run check:bundle && npm run validate:manifest && npm run check:repo-contracts",

@@ -268,6 +268,9 @@ Architecture decisions and operating procedures for this flow live in:
 
 - Dependabot version updates are grouped into one weekly tooling PR for `npm` and `github-actions`.
 - Security updates are intentionally kept separate from normal version updates.
+- Pull request supply-chain blocking is repo-native: PR CI runs
+  `npm run audit:ci`, which fails on moderate or higher npm advisories without
+  the Node 20 runtime warning from the legacy dependency-review action.
 - Because this repository is a fork, GitHub may disable Dependabot security updates by default for the fork.
   Enable both **Dependabot security updates** and **Grouped security updates** in the repository settings
   if you want grouped security PRs to be created here.

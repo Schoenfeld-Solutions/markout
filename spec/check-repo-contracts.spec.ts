@@ -2,6 +2,7 @@ import {
   checkEnglishDocumentationPolicy,
   checkDeployableManifestInvariants,
   checkOfficeMailManifestInvariants,
+  checkPullRequestSupplyChainPolicy,
   type DocumentationPolicySnapshot,
   type ManifestSnapshot,
   type RuntimeChannelConfigSnapshot,
@@ -220,6 +221,77 @@ describe("repository contract documentation policy checks", () => {
 
     expect(contractErrors).toContain(
       "AGENTS.md must not define German as the repository documentation language."
+    );
+  });
+});
+
+describe("repository contract pull request supply-chain policy checks", () => {
+  const packageJson = {
+    scripts: {
+      "audit:ci": "npm audit --audit-level=moderate",
+    },
+    version: "1.0.1",
+  };
+  const workflowText = `
+name: Pull Request Gates
+
+jobs:
+  validate-pr-title:
+    runs-on: ubuntu-latest
+  quality:
+    needs: [validate-pr-title]
+    steps:
+      - name: Run supply-chain audit gate
+        run: npm run audit:ci
+`;
+
+  it("accepts the repo-native npm audit PR gate", () => {
+    const contractErrors: string[] = [];
+
+    checkPullRequestSupplyChainPolicy(
+      workflowText,
+      packageJson,
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual([]);
+  });
+
+  it("rejects the node20 dependency-review action", () => {
+    const contractErrors: string[] = [];
+
+    checkPullRequestSupplyChainPolicy(
+      `${workflowText}\n        uses: actions/dependency-review-action@v4\n`,
+      packageJson,
+      contractErrors
+    );
+
+    expect(contractErrors).toContain(
+      ".github/workflows/pull-request.yaml must not use actions/dependency-review-action@v4 because it runs on node20."
+    );
+  });
+
+  it("rejects missing audit scripts and separate dependency-review jobs", () => {
+    const contractErrors: string[] = [];
+
+    checkPullRequestSupplyChainPolicy(
+      `
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+  quality:
+    needs: [validate-pr-title, dependency-review]
+`,
+      { scripts: {}, version: "1.0.1" },
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual(
+      expect.arrayContaining([
+        "package.json must define `audit:ci` as `npm audit --audit-level=moderate`.",
+        ".github/workflows/pull-request.yaml must run `npm run audit:ci` in the PR quality gate.",
+        ".github/workflows/pull-request.yaml must not keep a separate dependency-review job.",
+      ])
     );
   });
 });
