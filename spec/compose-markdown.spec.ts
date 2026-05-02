@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import type { BodyAccessor } from "../src/lib/body-accessor";
 import {
   EMPTY_SELECTION_MESSAGE,
   FULL_DRAFT_ALREADY_RENDERED_MESSAGE,
@@ -6,6 +7,7 @@ import {
   SUBJECT_SELECTION_UNSUPPORTED_MESSAGE,
   createComposeMarkdownService,
 } from "../src/lib/compose-markdown";
+import { DefaultHtmlSanitizer } from "../src/lib/html-sanitizer";
 import {
   installDomParser,
   FakeMailboxItem,
@@ -67,6 +69,48 @@ describe("compose markdown service", () => {
     );
   });
 
+  it("falls back to selection text when Outlook does not provide selection html", async () => {
+    const bodyAccessor: BodyAccessor = {
+      getHtml: jest.fn().mockResolvedValue("<div>Original</div>"),
+      getSelection: jest.fn().mockResolvedValue({
+        hasSelection: true,
+        html: null,
+        source: "body",
+        text: "## Fallback heading",
+      }),
+      replaceSelectionWithHtml: jest.fn().mockResolvedValue(undefined),
+      setHtml: jest.fn().mockResolvedValue(undefined),
+    };
+    const markdownRenderer = {
+      render: jest
+        .fn()
+        .mockResolvedValue(
+          '<div class="markout-fragment-host"><div class="mo markout-fragment-rendered"><h2>Fallback heading</h2></div></div>'
+        ),
+    };
+    const composeMarkdownService = createComposeMarkdownService({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    await composeMarkdownService.renderSelection();
+
+    expect(markdownRenderer.render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        markdown: "## Fallback heading",
+      })
+    );
+    expect(bodyAccessor.replaceSelectionWithHtml).toHaveBeenCalledWith(
+      expect.stringContaining("Fallback heading")
+    );
+  });
+
   it("inserts rendered markdown at the current body cursor when no selection exists", async () => {
     const mailboxItem = new FakeMailboxItem("<div>Original</div>");
     mailboxItem.selectionSource = "body";
@@ -80,6 +124,21 @@ describe("compose markdown service", () => {
       composeMarkdownService.insertRenderedMarkdown("## Insert me")
     ).resolves.toBe("inserted");
     expect(mailboxItem.body.lastSelectedHtml).toContain("Insert me");
+  });
+
+  it("replaces an active body selection when inserting rendered markdown", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.selectionSource = "body";
+    mailboxItem.selectionText = "replace me";
+    mailboxItem.selectionHtml = "<p>replace me</p>";
+    installOfficeEnvironment({ mailboxItem });
+
+    const composeMarkdownService = createComposeMarkdownService();
+
+    await expect(
+      composeMarkdownService.insertRenderedMarkdown("## Replacement")
+    ).resolves.toBe("replaced");
+    expect(mailboxItem.body.lastSelectedHtml).toContain("Replacement");
   });
 
   it("still inserts at the body when the host reports a stale subject source without an active selection", async () => {
@@ -107,6 +166,26 @@ describe("compose markdown service", () => {
 
     expect(preview).toContain("markout-fragment-host");
     expect(preview).toContain('data-markout-styles="fragment"');
+  });
+
+  it("returns the current selection and keeps empty preview/insert inputs safe", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Original</div>");
+    mailboxItem.selectionSource = "body";
+    mailboxItem.selectionText = "Selected text";
+    mailboxItem.selectionHtml = "<p>Selected text</p>";
+    installOfficeEnvironment({ mailboxItem });
+
+    const composeMarkdownService = createComposeMarkdownService();
+
+    await expect(composeMarkdownService.getSelection()).resolves.toMatchObject({
+      hasSelection: true,
+      source: "body",
+      text: "Selected text",
+    });
+    await expect(composeMarkdownService.renderPreview("   ")).resolves.toBe("");
+    await expect(
+      composeMarkdownService.insertRenderedMarkdown("   ")
+    ).rejects.toThrow("Paste or drop Markdown content before inserting it.");
   });
 
   it("fails when rendering a selection without selected body text", async () => {

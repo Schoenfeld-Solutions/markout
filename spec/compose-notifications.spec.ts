@@ -340,4 +340,161 @@ describe("compose notification service", () => {
       })
     ).resolves.toBe("pane");
   });
+
+  it("handles missing items and missing sessionData with in-memory dismissal state", async () => {
+    const nullItemService = createComposeNotificationService(null);
+
+    await expect(
+      nullItemService.clearAutoRenderDismissed()
+    ).resolves.toBeUndefined();
+    await expect(
+      nullItemService.markAutoRenderDismissed()
+    ).resolves.toBeUndefined();
+    await expect(nullItemService.hasAutoRenderBeenDismissed()).resolves.toBe(
+      false
+    );
+
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    Reflect.deleteProperty(mailboxItem, "sessionData");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.clearAutoRenderDismissed();
+    await notificationService.markAutoRenderDismissed();
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(true);
+    await notificationService.clearAutoRenderDismissed();
+    await expect(
+      notificationService.hasAutoRenderBeenDismissed()
+    ).resolves.toBe(false);
+  });
+
+  it("swallows Outlook notification removal failures during explicit clears", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.showAutoRenderNotification({
+      message: "MarkOut auto-render is enabled",
+    });
+    mailboxItem.failNextNotificationRemove = true;
+    await expect(
+      notificationService.clearAutoRenderNotification()
+    ).resolves.toBeUndefined();
+
+    await notificationService.showTransientNotification({
+      intent: "info",
+      message: "The current draft was rendered successfully.",
+    });
+    mailboxItem.failNextNotificationRemove = true;
+    await expect(
+      notificationService.clearTransientNotification()
+    ).resolves.toBeUndefined();
+  });
+
+  it("continues when sessionData removal fails during dismissal cleanup", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.markAutoRenderDismissed();
+    mailboxItem.sessionData.nextRemoveError = {
+      message: "Session remove failed.",
+      name: "SessionRemoveError",
+    };
+
+    await expect(
+      notificationService.clearAutoRenderDismissed()
+    ).resolves.toBeUndefined();
+  });
+
+  it("ignores auto-render dismiss registration when host handlers are unavailable", () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const handler = jest.fn();
+
+    delete (globalThis as { Office?: typeof Office }).Office;
+    createComposeNotificationService(mailboxItem).onAutoRenderDismiss(handler);
+    createComposeNotificationService(null).onAutoRenderDismiss(handler);
+
+    expect(mailboxItem.infobarHandlers).toHaveLength(0);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("treats missing removeAsync support as a no-op during notification clears", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    Reflect.deleteProperty(mailboxItem.notificationMessages, "removeAsync");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await expect(
+      notificationService.clearTransientNotification()
+    ).resolves.toBeUndefined();
+  });
+
+  it("ignores stale transient timeout callbacks after newer notifications", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+    jest.spyOn(globalThis, "clearTimeout").mockImplementation(() => undefined);
+
+    await notificationService.showTransientNotification({
+      intent: "info",
+      message: "First transient message.",
+    });
+    await notificationService.showTransientNotification({
+      intent: "info",
+      message: "Second transient message.",
+    });
+
+    jest.runOnlyPendingTimers();
+    await Promise.resolve();
+
+    expect(mailboxItem.notificationMessages.removeAsync).toHaveBeenCalledTimes(
+      1
+    );
+  });
+
+  it("uses addAsync when replaceAsync is unavailable", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    Reflect.deleteProperty(mailboxItem.notificationMessages, "replaceAsync");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await expect(
+      notificationService.showTransientNotification({
+        intent: "success",
+        message: "Rendered Markdown was inserted at the current body cursor.",
+      })
+    ).resolves.toBe("outlook");
+
+    expect(mailboxItem.notificationMessages.addAsync).toHaveBeenCalled();
+  });
+
+  it("falls back cleanly when the current Office item cannot provide notifications", async () => {
+    delete (globalThis as { Office?: typeof Office }).Office;
+    await expect(
+      createComposeNotificationService().showAutoRenderNotification({
+        message: "MarkOut auto-render is enabled",
+      })
+    ).resolves.toBe("pane");
+
+    installOfficeEnvironment({ mailboxItem: undefined });
+
+    await expect(
+      createComposeNotificationService().showTransientNotification({
+        intent: "info",
+        message: "The current draft was rendered successfully.",
+      })
+    ).resolves.toBe("pane");
+  });
+
+  it("normalizes and truncates long Outlook notification messages", async () => {
+    const mailboxItem = new FakeMailboxItem("<div>Draft</div>");
+    const notificationService = createComposeNotificationService(mailboxItem);
+
+    await notificationService.showAutoRenderNotification({
+      message: `  ${"Long message ".repeat(20)}  `,
+    });
+
+    const message = mailboxItem.lastNotificationDetails?.message;
+
+    expect(message).toHaveLength(145);
+    expect(message).toMatch(/\.\.\.$/u);
+    expect(message).not.toContain("  ");
+  });
 });

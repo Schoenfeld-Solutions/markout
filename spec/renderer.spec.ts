@@ -23,6 +23,26 @@ describe("renderer", () => {
     expect(output).toBe(expected);
   });
 
+  it("renders with the default stylesheet when no css override is supplied", async () => {
+    const output = await renderMarkdown({ markdown: "Default styled text" });
+
+    expect(output).toContain('<div class="mo markout-rendered"');
+    expect(output).toContain("Default styled text</p>");
+    expect(output).toContain("line-height: 1.5");
+  });
+
+  it("renders fragment mode with the default stylesheet when no css override is supplied", async () => {
+    const output = await renderMarkdown({
+      markdown: "Default fragment text",
+      mode: "fragment",
+    });
+
+    expect(output).toContain('<div class="markout-fragment-host">');
+    expect(output).toContain('data-markout-styles="fragment"');
+    expect(output).toContain('<div class="mo markout-fragment-rendered">');
+    expect(output).toContain("<p>Default fragment text</p>");
+  });
+
   it("renders supported HTML that is present inside markdown", async () => {
     const input = `# Example\nThis is a test with HTML elements\n<img src="http://example.com/img.png">`;
     const expected =
@@ -41,6 +61,21 @@ describe("renderer", () => {
 
     expect(output).toContain("<p>Emoji 😄 😃</p>");
     expect(output).not.toContain(":smile:");
+  });
+
+  it("highlights known fenced code languages and escapes unknown languages", async () => {
+    const highlighted = await renderMarkdown({
+      css: "html {}",
+      markdown: "```javascript\nconst isSafe = 1 < 2;\n```",
+    });
+    const escapedFallback = await renderMarkdown({
+      css: "html {}",
+      markdown: "```unknown-language\n<div>raw</div>\n```",
+    });
+
+    expect(highlighted).toContain('<pre class="hljs"><code>');
+    expect(highlighted).toContain("isSafe");
+    expect(escapedFallback).toContain("&lt;div&gt;raw&lt;/div&gt;");
   });
 
   it("inlines stylesheet rules that target supported selectors", async () => {
@@ -67,9 +102,19 @@ describe("renderer", () => {
     expect(output).not.toContain("content:");
   });
 
+  it("drops empty inline declarations instead of leaving blank style attributes", async () => {
+    const output = await renderMarkdown({
+      css: "p { color: ; }",
+      markdown: "Paragraph text",
+    });
+
+    expect(output).toContain("<p>Paragraph text</p>");
+    expect(output).not.toContain('style=""');
+  });
+
   it("renders fragment markup with a scoped stylesheet host instead of inline styles", async () => {
     const output = await renderMarkdown({
-      css: ".mo { color: rgb(1, 2, 3); } p { margin-top: 12px; }",
+      css: ".mo { color: rgb(1, 2, 3); } p, span { margin-top: 12px; }",
       markdown: "Paragraph text",
       mode: "fragment",
     });
@@ -77,8 +122,34 @@ describe("renderer", () => {
     expect(output).toContain('<div class="markout-fragment-host">');
     expect(output).toContain('data-markout-styles="fragment"');
     expect(output).toContain(".markout-fragment-host .mo");
+    expect(output).toContain(
+      ".markout-fragment-host p, .markout-fragment-host span"
+    );
     expect(output).toContain('<div class="mo markout-fragment-rendered">');
     expect(output).not.toContain('style="color: rgb(1, 2, 3);"');
+  });
+
+  it("omits inline and fragment styles when the stylesheet cannot apply", async () => {
+    const fullOutput = await renderMarkdown({
+      css: "   ",
+      markdown: "Plain text",
+    });
+    const invalidSelectorOutput = await renderMarkdown({
+      css: "??? { color: rgb(1, 2, 3); }",
+      markdown: "Invalid selector text",
+    });
+    const fragmentOutput = await renderMarkdown({
+      css: ".mo:hover { color: rgb(1, 2, 3); }",
+      markdown: "Unsupported fragment style",
+      mode: "fragment",
+    });
+
+    expect(fullOutput).toBe(
+      '<div class="mo markout-rendered">\n<p>Plain text</p>\n</div>\n'
+    );
+    expect(invalidSelectorOutput).toContain("<p>Invalid selector text</p>");
+    expect(invalidSelectorOutput).not.toContain("rgb(1, 2, 3)");
+    expect(fragmentOutput).not.toContain('data-markout-styles="fragment"');
   });
 
   it("keeps default output host-inherit friendly for base text styles", async () => {

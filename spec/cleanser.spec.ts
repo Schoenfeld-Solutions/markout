@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { cleanse } from "../src/lib/cleanser";
+import { cleanse, extractMarkdownSourceFromHtml } from "../src/lib/cleanser";
 import { readFile } from "./helpers";
 
 const tests: {
@@ -110,6 +110,10 @@ describe("cleanser", () => {
   it("drops script and style nodes", () => {
     expect(cleanse("<script>this is a script</script>")).toBe("");
     expect(cleanse("<style>this is a style</style>")).toBe("");
+    expect(cleanse("<br>")).toBe("");
+    expect(cleanse("<strong>authored html</strong>")).toBe(
+      "<strong>authored html</strong>"
+    );
   });
 
   it("keeps image nodes unchanged", () => {
@@ -145,5 +149,98 @@ describe("cleanser", () => {
     expect(cleanse(`<div><div>a</div><div><br></div><div>b</div></div>`)).toBe(
       "a\n\nb"
     );
+  });
+
+  it("preserves auto-linked anchors as markdown source but leaves authored anchors intact", () => {
+    expect(
+      cleanse(`<a href="https://example.test">https://example.test</a>`)
+    ).toBe("https://example.test");
+    expect(cleanse(`<a href="https://example.test">Example</a>`)).toBe(
+      `<a href="https://example.test">Example</a>`
+    );
+  });
+
+  it("only preserves ascii-id containers as authored html", () => {
+    expect(cleanse(`<div id="safe-id">Keep <strong>HTML</strong></div>`)).toBe(
+      `<div id="safe-id">Keep <strong>HTML</strong></div>`
+    );
+    expect(cleanse(`<div id="ümlaut">Flatten <span>text</span></div>`)).toBe(
+      "Flatten text"
+    );
+  });
+
+  it("extracts structured markdown from Outlook-like html blocks", () => {
+    expect(
+      extractMarkdownSourceFromHtml(`
+        <div class="WordSection1">
+          <!-- Outlook comment -->
+          <h1>Release <span>Notes</span></h1>
+          <p>Intro&nbsp;text<br>continued</p>
+          <script>alert("x")</script>
+          <style>.x { color: red; }</style>
+          <ul>
+            <li>Parent
+              <ol>
+                <li>Child one</li>
+                <li><p>Child two</p></li>
+              </ol>
+            </li>
+            <li>Next</li>
+          </ul>
+          <div><br></div>
+          <h2> </h2>
+          <li>Loose item</li>
+        </div>
+      `)
+    ).toBe(
+      [
+        "# Release Notes",
+        "",
+        "Intro text",
+        "",
+        "continued",
+        "",
+        "- Parent",
+        "  1. Child one",
+        "  2. Child two",
+        "- Next",
+        "",
+        "- Loose item",
+      ].join("\n")
+    );
+  });
+
+  it("extracts markdown from non-paragraph containers, empty list items, and inline heading children", () => {
+    expect(
+      extractMarkdownSourceFromHtml(`
+        <blockquote>Quoted<br>line</blockquote>
+        <ul>
+          <div>ignored list wrapper</div>
+          <li><ul><li>Nested only</li></ul></li>
+          <li>Second</li>
+        </ul>
+        <h2>Inline<!-- hidden --><script>ignored()</script><br>heading</h2>
+      `)
+    ).toBe(
+      [
+        "Quoted",
+        "",
+        "line",
+        "-",
+        "  - Nested only",
+        "- Second",
+        "",
+        "## Inline",
+        "heading",
+      ].join("\n")
+    );
+  });
+
+  it("normalizes text and empty html while extracting markdown source", () => {
+    expect(
+      extractMarkdownSourceFromHtml(
+        `<p>\u007fAlpha&nbsp;Beta\u0085</p><div></div><p></p><p>Gamma</p>`
+      )
+    ).toBe(["Alpha Beta", "", "Gamma"].join("\n"));
   });
 });

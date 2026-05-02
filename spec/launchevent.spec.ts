@@ -32,6 +32,15 @@ describe("launch events", () => {
     );
   });
 
+  it("can be imported before Office.js is available", async () => {
+    delete (globalThis as { Office?: typeof Office }).Office;
+
+    const launchEventModule = await import("../src/launchevent/launchevent");
+
+    expect(typeof launchEventModule.onMessageSendHandler).toBe("function");
+    expect(typeof launchEventModule.onAppointmentSendHandler).toBe("function");
+  });
+
   it("allows send without rendering when auto-render is disabled", async () => {
     installOfficeEnvironment({
       mailboxItem: new FakeMailboxItem("<div>Original</div>"),
