@@ -84,8 +84,8 @@ the unified Microsoft 365 manifest for this scenario. The repo therefore uses:
 - `manifest.beta.xml` for post-merge preview and testing deployments
 - `manifest-localhost.xml` for local sideloading and development
 
-Each manifest is now a distinct add-in with its own add-in ID and explicit
-runtime channel marker.
+Each manifest is now a distinct add-in with its own add-in ID and path-based
+runtime channel.
 No browser settings or restore-state keys are shared across production, beta, and local add-ins.
 
 ## Installation
@@ -149,10 +149,16 @@ not carry the deprecated Office auto-debugging CLI because it adds a large
 transitive maintenance and audit surface for a workflow that is easy to perform
 manually.
 
-For hosted builds, download one of the published manifests first and then use **Add from File**:
+For hosted builds, download one of the published manifests first and then use
+**Add from File**. Browsers may display GitHub Pages XML inline instead of
+downloading it. Use the download buttons on
+`https://schoenfeld-solutions.github.io/markout/`, use the browser's **Save
+Page As** command, or download explicitly with `curl`:
 
-- `https://schoenfeld-solutions.github.io/markout/manifest.xml`
-- `https://schoenfeld-solutions.github.io/markout/manifest.beta.xml`
+```bash
+curl -L -o manifest.xml https://schoenfeld-solutions.github.io/markout/manifest.xml
+curl -L -o manifest.beta.xml https://schoenfeld-solutions.github.io/markout/manifest.beta.xml
+```
 
 Hosted channel semantics:
 
@@ -334,7 +340,7 @@ opened taskpane iframe comes from the intended hosted channel:
 
 - Support and issue tracking live at `https://github.com/Schoenfeld-Solutions/markout`.
 - The published GitHub Pages site is `https://schoenfeld-solutions.github.io/markout/`.
-- The Pages root serves a static MarkOut landing page with links to hosted manifests, task pane runtimes, and the repository.
+- The Pages root serves a static MarkOut landing page with download links to hosted manifests, task pane runtimes, and the repository.
 - Unknown GitHub Pages paths use a custom MarkOut 404 page instead of the default GitHub Pages error screen.
 - Production assets are served from `https://schoenfeld-solutions.github.io/markout/outlook/` and sourced from `release/production`.
 - Beta assets are served from `https://schoenfeld-solutions.github.io/markout/outlook-beta/` and sourced from `main`.

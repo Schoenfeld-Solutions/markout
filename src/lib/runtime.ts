@@ -85,20 +85,14 @@ const RUNTIME_CHANNELS: Record<ChannelId, RuntimeChannelConfig> = {
     addInId: "934e43d2-950c-4cab-8ec0-4ff2808e6c11",
     appBaseUrl: "https://schoenfeld-solutions.github.io/markout/outlook-beta",
     channelId: "beta",
-    commandsUrl: withChannelQuery(
+    commandsUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html",
-      "beta"
-    ),
-    launcheventUrl: withChannelQuery(
+    launcheventUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook-beta/launchevent.js",
-      "beta"
-    ),
     storageNamespace: "markout.beta",
     supportUrl: SUPPORT_URL,
-    taskpaneUrl: withChannelQuery(
+    taskpaneUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html",
-      "beta"
-    ),
   },
   local: {
     addInId: "8a0c8f5a-b1bb-4838-bb0d-dc0732b5d73c",
@@ -123,20 +117,14 @@ const RUNTIME_CHANNELS: Record<ChannelId, RuntimeChannelConfig> = {
     addInId: "05c2e1c9-3e1d-406e-9a91-e9ac64854143",
     appBaseUrl: "https://schoenfeld-solutions.github.io/markout/outlook",
     channelId: "production",
-    commandsUrl: withChannelQuery(
+    commandsUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook/commands.html",
-      "production"
-    ),
-    launcheventUrl: withChannelQuery(
+    launcheventUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook/launchevent.js",
-      "production"
-    ),
     storageNamespace: "markout.production",
     supportUrl: SUPPORT_URL,
-    taskpaneUrl: withChannelQuery(
+    taskpaneUrl:
       "https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html",
-      "production"
-    ),
   },
 };
 

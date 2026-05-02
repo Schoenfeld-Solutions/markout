@@ -266,17 +266,6 @@ async function main(): Promise<void> {
           `${snapshot.path} ${urlId} must equal \`${expectedUrl}\`.`
         );
       }
-
-      if (snapshot.urls[urlId] !== undefined) {
-        const parsedUrl = new URL(snapshot.urls[urlId]);
-        const channelQuery = parsedUrl.searchParams.get("channel");
-
-        if (channelQuery !== runtimeChannelConfig.channelId) {
-          contractErrors.push(
-            `${snapshot.path} ${urlId} must carry \`?channel=${runtimeChannelConfig.channelId}\`.`
-          );
-        }
-      }
     }
 
     const runtimeOrigin = new URL(runtimeChannelConfig.appBaseUrl).origin;
@@ -305,6 +294,11 @@ async function main(): Promise<void> {
       contractErrors
     );
     await checkWorkflowSnippets(contractErrors);
+    checkSiteManifestDownloadLinks(
+      await readText("site/index.html"),
+      await readText("site/404.html"),
+      contractErrors
+    );
     checkReleaseBotDocumentationPolicy(
       await readText("docs/runbooks/release-bot-bootstrap.md"),
       await readText("docs/runbooks/production-promotion.md"),
@@ -411,6 +405,12 @@ export function checkDeployableManifestInvariants(
 
     if (parsedUrl.protocol !== "https:") {
       contractErrors.push(`${snapshot.path} ${label} must use HTTPS.`);
+    }
+
+    if (parsedUrl.search.length > 0) {
+      contractErrors.push(
+        `${snapshot.path} ${label} must not include query strings in deployable manifests.`
+      );
     }
   }
 
@@ -533,6 +533,27 @@ export function checkPullRequestSupplyChainPolicy(
   }
 }
 
+export function checkSiteManifestDownloadLinks(
+  siteIndexText: string,
+  siteNotFoundText: string,
+  contractErrors: string[]
+): void {
+  const pages: Record<string, string> = {
+    "site/404.html": siteNotFoundText,
+    "site/index.html": siteIndexText,
+  };
+
+  for (const [file, content] of Object.entries(pages)) {
+    for (const manifestPath of ["manifest.xml", "manifest.beta.xml"] as const) {
+      if (!hasManifestDownloadLink(content, manifestPath)) {
+        contractErrors.push(
+          `${file} must include a same-origin download link for ${manifestPath}.`
+        );
+      }
+    }
+  }
+}
+
 export function checkReleaseBotDocumentationPolicy(
   releaseBotRunbookText: string,
   productionPromotionRunbookText: string,
@@ -568,6 +589,17 @@ export function checkReleaseBotDocumentationPolicy(
       );
     }
   }
+}
+
+function hasManifestDownloadLink(
+  content: string,
+  manifestPath: string
+): boolean {
+  const escapedManifestPath = escapeRegExp(manifestPath);
+  return new RegExp(
+    `<a\\b(?=[^>]*\\bhref="${escapedManifestPath}")(?=[^>]*\\bdownload="${escapedManifestPath}")[^>]*>`,
+    "u"
+  ).test(content);
 }
 
 async function checkWorkflowSnippets(contractErrors: string[]): Promise<void> {

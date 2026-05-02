@@ -4,6 +4,7 @@ import {
   checkOfficeMailManifestInvariants,
   checkPullRequestSupplyChainPolicy,
   checkReleaseBotDocumentationPolicy,
+  checkSiteManifestDownloadLinks,
   type DocumentationPolicySnapshot,
   type ManifestSnapshot,
   type RuntimeChannelConfigSnapshot,
@@ -14,13 +15,13 @@ const runtimeChannelConfig: RuntimeChannelConfigSnapshot = {
   appBaseUrl: "https://schoenfeld-solutions.github.io/markout/outlook",
   channelId: "production",
   commandsUrl:
-    "https://schoenfeld-solutions.github.io/markout/outlook/commands.html?channel=production",
+    "https://schoenfeld-solutions.github.io/markout/outlook/commands.html",
   launcheventUrl:
-    "https://schoenfeld-solutions.github.io/markout/outlook/launchevent.js?channel=production",
+    "https://schoenfeld-solutions.github.io/markout/outlook/launchevent.js",
   storageNamespace: "markout.production",
   supportUrl: "https://github.com/Schoenfeld-Solutions/markout",
   taskpaneUrl:
-    "https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html?channel=production",
+    "https://schoenfeld-solutions.github.io/markout/outlook/taskpane.html",
 };
 
 function createManifestSnapshot(
@@ -144,7 +145,7 @@ describe("repository contract manifest checks", () => {
       urls: {
         ...createManifestSnapshot().urls,
         "Taskpane.Url":
-          "https://schoenfeld-solutions.github.io/markout/other/taskpane.html?channel=production",
+          "https://schoenfeld-solutions.github.io/markout/other/taskpane.html",
       },
     });
     const contractErrors: string[] = [];
@@ -157,6 +158,67 @@ describe("repository contract manifest checks", () => {
 
     expect(contractErrors).toContain(
       "manifest.xml Taskpane.Url must stay under `/markout/outlook/`."
+    );
+  });
+
+  it("rejects query strings in deployable manifest URLs", () => {
+    const snapshot = createManifestSnapshot({
+      urls: {
+        ...createManifestSnapshot().urls,
+        "Commands.Url":
+          "https://schoenfeld-solutions.github.io/markout/outlook/commands.html?channel=production",
+      },
+    });
+    const contractErrors: string[] = [];
+
+    checkDeployableManifestInvariants(
+      runtimeChannelConfig,
+      snapshot,
+      contractErrors
+    );
+
+    expect(contractErrors).toContain(
+      "manifest.xml Commands.Url must not include query strings in deployable manifests."
+    );
+  });
+});
+
+describe("repository contract site manifest download checks", () => {
+  const siteIndexText = `
+    <a href="manifest.xml" download="manifest.xml">Download production manifest</a>
+    <a href="manifest.beta.xml" download="manifest.beta.xml">Download beta manifest</a>
+  `;
+  const siteNotFoundText = `
+    <a href="manifest.beta.xml" download="manifest.beta.xml">Download beta manifest</a>
+    <a href="manifest.xml" download="manifest.xml">Download production manifest</a>
+  `;
+
+  it("accepts same-origin manifest download links on the static pages", () => {
+    const contractErrors: string[] = [];
+
+    checkSiteManifestDownloadLinks(
+      siteIndexText,
+      siteNotFoundText,
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual([]);
+  });
+
+  it("rejects static manifest links that omit the download attribute", () => {
+    const contractErrors: string[] = [];
+
+    checkSiteManifestDownloadLinks(
+      siteIndexText.replace(' download="manifest.xml"', ""),
+      siteNotFoundText.replace(' download="manifest.beta.xml"', ""),
+      contractErrors
+    );
+
+    expect(contractErrors).toEqual(
+      expect.arrayContaining([
+        "site/index.html must include a same-origin download link for manifest.xml.",
+        "site/404.html must include a same-origin download link for manifest.beta.xml.",
+      ])
     );
   });
 });

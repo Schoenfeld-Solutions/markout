@@ -270,10 +270,18 @@
         </div>
 
         <div class="actions">
-          <a class="action action--primary" href="manifest.beta.xml">
+          <a
+            class="action action--primary"
+            href="manifest.beta.xml"
+            download="manifest.beta.xml"
+          >
             Download beta manifest
           </a>
-          <a class="action action--secondary" href="manifest.xml">
+          <a
+            class="action action--secondary"
+            href="manifest.xml"
+            download="manifest.xml"
+          >
             Download production manifest
           </a>
           <a
@@ -292,16 +300,24 @@
           <p class="eyebrow">Published Assets</p>
           <h2>Use the hosted manifests or inspect the deployed runtimes.</h2>
           <div class="resource-grid">
-            <a class="resource-link" href="manifest.xml">
+            <a
+              class="resource-link"
+              href="manifest.xml"
+              download="manifest.xml"
+            >
               <span class="resource-label">manifest.xml</span>
               <span class="resource-copy">
-                Production Outlook manifest for hosted deployment.
+                Download the production Outlook manifest for hosted deployment.
               </span>
             </a>
-            <a class="resource-link" href="manifest.beta.xml">
+            <a
+              class="resource-link"
+              href="manifest.beta.xml"
+              download="manifest.beta.xml"
+            >
               <span class="resource-label">manifest.beta.xml</span>
               <span class="resource-copy">
-                Beta manifest for validating the latest staged changes.
+                Download the beta manifest for validating staged changes.
               </span>
             </a>
             <a
@@ -358,7 +374,9 @@
               <span class="step-index">3</span>
               <p>
                 Use <strong>manifest.beta.xml</strong> for staged validation or
-                <strong>manifest.xml</strong> for the production deployment.
+                <strong>manifest.xml</strong> for the production deployment. If
+                a browser opens XML inline, use the download buttons on this
+                page or save the linked file before selecting it in Outlook.
               </p>
             </div>
           </div>
