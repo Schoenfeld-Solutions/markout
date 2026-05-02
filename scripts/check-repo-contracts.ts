@@ -40,6 +40,11 @@ export interface DocumentationPolicySnapshot {
   readme: string;
 }
 
+export interface PackageJsonSnapshot {
+  scripts?: Record<string, string>;
+  version: string;
+}
+
 const REPOSITORY_ROOT = process.cwd();
 const DEPLOYABLE_MANIFEST_CHANNELS = new Set<ChannelId>(["beta", "production"]);
 const deployableManifestsOnly = process.argv.includes(
@@ -174,7 +179,7 @@ const EXPECTED_MANIFESTS: Record<ChannelId, ExpectedManifestContract> = {
 };
 
 async function main(): Promise<void> {
-  const packageJson = await readJson<{ version: string }>("package.json");
+  const packageJson = await readJson<PackageJsonSnapshot>("package.json");
   const { getAllRuntimeChannelConfigs } = (await import(
     pathToFileURL(path.join(REPOSITORY_ROOT, "src/lib/runtime.ts")).href
   )) as {
@@ -300,6 +305,11 @@ async function main(): Promise<void> {
       contractErrors
     );
     await checkWorkflowSnippets(contractErrors);
+    checkPullRequestSupplyChainPolicy(
+      await readText(".github/workflows/pull-request.yaml"),
+      packageJson,
+      contractErrors
+    );
   }
 
   if (contractErrors.length > 0) {
@@ -482,6 +492,39 @@ export function checkEnglishDocumentationPolicy(
         );
       }
     }
+  }
+}
+
+export function checkPullRequestSupplyChainPolicy(
+  workflowText: string,
+  packageJson: PackageJsonSnapshot,
+  contractErrors: string[]
+): void {
+  const normalizedWorkflowText = normalizeWhitespace(workflowText);
+  const auditScript = packageJson.scripts?.["audit:ci"];
+
+  if (auditScript !== "npm audit --audit-level=moderate") {
+    contractErrors.push(
+      "package.json must define `audit:ci` as `npm audit --audit-level=moderate`."
+    );
+  }
+
+  if (!normalizedWorkflowText.includes("npm run audit:ci")) {
+    contractErrors.push(
+      ".github/workflows/pull-request.yaml must run `npm run audit:ci` in the PR quality gate."
+    );
+  }
+
+  if (/actions\/dependency-review-action@v4\b/u.test(workflowText)) {
+    contractErrors.push(
+      ".github/workflows/pull-request.yaml must not use actions/dependency-review-action@v4 because it runs on node20."
+    );
+  }
+
+  if (/(^|\n)\s{2}dependency-review:\s*(?:\n|$)/u.test(workflowText)) {
+    contractErrors.push(
+      ".github/workflows/pull-request.yaml must not keep a separate dependency-review job."
+    );
   }
 }
 
