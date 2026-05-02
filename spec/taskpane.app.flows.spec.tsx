@@ -332,6 +332,64 @@ describe("taskpane app flows", () => {
     }
   });
 
+  it("shows and dismisses the auto-render pane fallback notice", async () => {
+    const notificationService = createNotificationService({
+      showAutoRenderNotification: jest.fn().mockResolvedValue("pane"),
+    });
+    const mounted = await mountTaskpaneApp({
+      notificationService,
+      settingsStore: createMutableSettingsStore({
+        autoRender: true,
+        introDismissed: true,
+      }),
+    });
+
+    try {
+      await waitForCondition(() =>
+        mounted.container.textContent.includes("Auto-render is enabled")
+      );
+
+      const dismissButton = findButtonByText(mounted.container, "Dismiss");
+      act(() => {
+        dismissButton.click();
+      });
+      await flushTaskpane();
+
+      expect(notificationService.markAutoRenderDismissed).toHaveBeenCalled();
+      expect(mounted.container.textContent).not.toContain(
+        "Auto-render is enabled"
+      );
+    } finally {
+      mounted.cleanup();
+    }
+  });
+
+  it("surfaces preview render failures through the app message bar", async () => {
+    const services = createTaskpaneServices({
+      renderPreview: jest.fn().mockRejectedValue(new Error("preview failed")),
+    });
+    const mounted = await mountTaskpaneApp({
+      initialMarkdownInput: "# Broken",
+      services,
+      settingsStore: createMutableSettingsStore({ introDismissed: true }),
+    });
+
+    try {
+      await waitForCondition(() =>
+        mounted.container.textContent.includes(
+          "Preview could not be rendered with the current Markdown or stylesheet."
+        )
+      );
+
+      expect(services.composeMarkdown.renderPreview).toHaveBeenCalledWith(
+        "# Broken",
+        ""
+      );
+    } finally {
+      mounted.cleanup();
+    }
+  });
+
   it("handles dropped markdown, unsupported files, missing files, and read failures", async () => {
     const originalFileReader = window.FileReader;
     const notificationService = createNotificationService();
@@ -455,6 +513,71 @@ describe("taskpane app flows", () => {
       );
 
       expect(mounted.container.textContent).toContain(
+        "Stylesheet changes could not be persisted."
+      );
+    } finally {
+      mounted.cleanup();
+    }
+  });
+
+  it("persists migrated stylesheets and reports migration save failures safely", async () => {
+    const migratedStore = createMutableSettingsStore({
+      introDismissed: true,
+      stylesheet: defaultStylesheet,
+      stylesheetMigrationPending: true,
+    });
+    const migrated = await mountTaskpaneApp({ settingsStore: migratedStore });
+
+    try {
+      await waitForCondition(() => migratedStore.save.mock.calls.length > 0);
+
+      expect(migratedStore.setStylesheet).toHaveBeenCalledWith(
+        defaultStylesheet
+      );
+      expect(migratedStore.save).toHaveBeenCalledTimes(1);
+    } finally {
+      migrated.cleanup();
+    }
+
+    const failingStore = createMutableSettingsStore({
+      introDismissed: true,
+      stylesheet: defaultStylesheet,
+      stylesheetMigrationPending: true,
+    });
+    failingStore.save.mockRejectedValueOnce(new Error("migration save failed"));
+    const failing = await mountTaskpaneApp({ settingsStore: failingStore });
+
+    try {
+      await waitForCondition(() => failingStore.save.mock.calls.length > 0);
+
+      expect(failingStore.setStylesheet).toHaveBeenCalledWith(
+        defaultStylesheet
+      );
+      expect(failingStore.save).toHaveBeenCalledTimes(1);
+    } finally {
+      failing.cleanup();
+    }
+  });
+
+  it("persists stylesheet reset successfully after the debounce", async () => {
+    const settingsStore = createMutableSettingsStore({
+      introDismissed: true,
+      stylesheet: ".mo { color: inherit; }",
+    });
+    const mounted = await mountTaskpaneApp({ settingsStore });
+
+    try {
+      await mounted.click("#panel-button-settings");
+      act(() => {
+        findButtonByText(mounted.container, "Reset default stylesheet").click();
+      });
+      await waitForStylesheetDebounce();
+
+      expect(settingsStore.setStylesheet).toHaveBeenCalledWith(
+        defaultStylesheet
+      );
+      expect(settingsStore.save).toHaveBeenCalled();
+      expect(mounted.container.textContent).not.toContain(
         "Stylesheet changes could not be persisted."
       );
     } finally {
