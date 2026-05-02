@@ -12,11 +12,17 @@ Create a dedicated GitHub App named `markout-release-bot`.
 
 - Repository access: only `Schoenfeld-Solutions/markout`
 - Repository permissions: `Contents: Read and write`
+- Repository permissions: `Workflows: Read and write`
 - Organization permissions: none
 - Webhook: disabled
 - External runtime: none
 
 Install the app on this repository only.
+
+The workflow permission is required because a production promotion can move
+`release/production` across commits that changed files under `.github/workflows/`.
+GitHub rejects those updates unless the App installation token has workflow
+write permission, even when the App is the only ruleset bypass actor.
 
 ## Repository secrets
 
@@ -67,6 +73,8 @@ The audit must fail if:
 - `production-promotion` lacks required reviewers
 - release-bot secrets are missing
 - the production ruleset is absent or includes human bypasses
+- the release bot was not granted workflow write permission and promotion
+  history includes workflow-file changes
 
 ## Manual push test
 

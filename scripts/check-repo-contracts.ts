@@ -305,6 +305,11 @@ async function main(): Promise<void> {
       contractErrors
     );
     await checkWorkflowSnippets(contractErrors);
+    checkReleaseBotDocumentationPolicy(
+      await readText("docs/runbooks/release-bot-bootstrap.md"),
+      await readText("docs/runbooks/production-promotion.md"),
+      contractErrors
+    );
     checkPullRequestSupplyChainPolicy(
       await readText(".github/workflows/pull-request.yaml"),
       packageJson,
@@ -525,6 +530,43 @@ export function checkPullRequestSupplyChainPolicy(
     contractErrors.push(
       ".github/workflows/pull-request.yaml must not keep a separate dependency-review job."
     );
+  }
+}
+
+export function checkReleaseBotDocumentationPolicy(
+  releaseBotRunbookText: string,
+  productionPromotionRunbookText: string,
+  contractErrors: string[]
+): void {
+  const releaseBotRunbook = normalizeWhitespace(releaseBotRunbookText);
+  const productionPromotionRunbook = normalizeWhitespace(
+    productionPromotionRunbookText
+  );
+
+  const requiredReleaseBotSnippets = [
+    "`Contents: Read and write`",
+    "`Workflows: Read and write`",
+    "GitHub rejects those updates unless the App installation token has workflow write permission",
+  ];
+  const requiredPromotionSnippets = [
+    "`Contents: Read and write` and `Workflows: Read and write`",
+    "refusing to allow a GitHub App to create or update workflow",
+  ];
+
+  for (const snippet of requiredReleaseBotSnippets) {
+    if (!releaseBotRunbook.includes(normalizeWhitespace(snippet))) {
+      contractErrors.push(
+        `docs/runbooks/release-bot-bootstrap.md is missing the required release-bot permission snippet: ${snippet}`
+      );
+    }
+  }
+
+  for (const snippet of requiredPromotionSnippets) {
+    if (!productionPromotionRunbook.includes(normalizeWhitespace(snippet))) {
+      contractErrors.push(
+        `docs/runbooks/production-promotion.md is missing the required release-bot permission snippet: ${snippet}`
+      );
+    }
   }
 }
 
