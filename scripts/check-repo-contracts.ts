@@ -173,7 +173,7 @@ const EXPECTED_MANIFESTS: Record<ChannelId, ExpectedManifestContract> = {
     manifestPath: "manifest-localhost.xml",
   },
   production: {
-    displayName: "MarkOut",
+    displayName: "MarkOut (Production)",
     manifestPath: "manifest.xml",
   },
 };
