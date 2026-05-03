@@ -7,8 +7,8 @@
   <Version>1.0.1.0</Version>
   <ProviderName>Schoenfeld Solutions</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="MarkOut">
-    <Override Locale="de-de" Value="MarkOut" />
+  <DisplayName DefaultValue="MarkOut (Production)">
+    <Override Locale="de-de" Value="MarkOut (Produktion)" />
   </DisplayName>
   <Description DefaultValue="Write Outlook drafts in Markdown and safely render them into email HTML.">
     <Override Locale="de-de" Value="Outlook-Entwürfe in Markdown schreiben und sicher in E-Mail-HTML rendern." />
