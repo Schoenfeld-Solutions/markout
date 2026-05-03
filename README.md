@@ -162,8 +162,8 @@ curl -L -o manifest.beta.xml https://schoenfeld-solutions.github.io/markout/mani
 
 Hosted channel semantics:
 
-- `manifest.xml` installs as **MarkOut (Production)**, is the stable production
-  channel, and is sourced from the `release/production` branch.
+- `manifest.xml` installs as **MarkOut**, is the stable production channel, and
+  is sourced from the `release/production` branch.
 - `manifest.beta.xml` is the post-merge preview/testing channel and is sourced
   from `main`; it installs as **MarkOut (Beta)**.
 
