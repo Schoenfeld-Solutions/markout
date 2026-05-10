@@ -150,6 +150,16 @@ const OWA_CANVAS_SELECTION_BODY_HTML = [
   "</div>",
   '<div data-testid="signature" class="mock-signature">Kind regards,<br>Gabriel</div>',
 ].join("");
+const OWA_CARRIAGE_RETURN_DRAFT_SAMPLE = [
+  "Hallo",
+  "dfdsf",
+  "ldkfdjf",
+  "[ ] ulala",
+  "",
+  "",
+  "",
+  "# h2",
+].join("\r");
 const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
@@ -779,6 +789,7 @@ async function verifyOwaLikeComposeCanvasScenario(
 ): Promise<void> {
   await verifyOwaLikeCanvasSelectionRender(browser, config);
   await verifyOwaLikeCanvasSelectionSafety(browser, config);
+  await verifyOwaLikeCanvasDraftRender(browser, config);
   await verifyOwaLikeCanvasDropAndInsert(browser, config);
 }
 
@@ -951,6 +962,28 @@ async function verifyOwaLikeCanvasDropAndInsert(
       }, supportedFile.expected);
     }
 
+    await chooseMarkdownFile(
+      taskpane,
+      "picked.markdown",
+      "# Picked markdown\n\n- delta"
+    );
+    await waitForPreviewText(taskpane, {
+      expectedText: "Picked markdown",
+      expectedTextareaValue: "# Picked markdown\n\n- delta",
+      outputDirectory: config.outputDirectory,
+      scenarioName: "owa-like-picked-markdown-preview",
+      timeoutMs: config.timeoutMs,
+    });
+    await scrollElementIntoView(taskpane, "#insert-rendered-markdown-button");
+    await clickElement(taskpane, "#insert-rendered-markdown-button");
+    await page.waitForFunction(() => {
+      return (
+        window.__MARKOUT_OWA_COMPOSE_CANVAS__
+          ?.getBodyHtml()
+          .includes("Picked markdown") ?? false
+      );
+    });
+
     const beforeUnsupportedDrop = {
       bodyHtml: (await readOwaCanvasSnapshot(page)).bodyHtml,
       markdownInput: await taskpane.locator("#markdown-input").inputValue(),
@@ -972,6 +1005,65 @@ async function verifyOwaLikeCanvasDropAndInsert(
       (await readOwaCanvasSnapshot(page)).bodyHtml,
       beforeUnsupportedDrop.bodyHtml,
       "Unsupported file drop changed the compose body."
+    );
+
+    await chooseMarkdownFile(taskpane, "ignored.html", "<h1>Not Markdown</h1>");
+    await waitForMockNotification(
+      taskpane,
+      "Only .md, .markdown, and .txt files",
+      config.timeoutMs
+    );
+
+    assert.equal(
+      await taskpane.locator("#markdown-input").inputValue(),
+      beforeUnsupportedDrop.markdownInput,
+      "Unsupported file picker selection changed the Markdown input."
+    );
+    assert.equal(
+      (await readOwaCanvasSnapshot(page)).bodyHtml,
+      beforeUnsupportedDrop.bodyHtml,
+      "Unsupported file picker selection changed the compose body."
+    );
+  } finally {
+    await page.context().close();
+  }
+}
+
+async function verifyOwaLikeCanvasDraftRender(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(browser, config, {
+    colorScheme: "dark",
+    height: 760,
+    name: "owa-like-draft-render",
+    width: 980,
+  });
+
+  try {
+    await openInsertPanel(taskpane);
+    await setOwaCanvasBodyText(page, OWA_CARRIAGE_RETURN_DRAFT_SAMPLE);
+    await scrollElementIntoView(taskpane, "#render-entire-draft-button");
+    await clickElement(taskpane, "#render-entire-draft-button");
+    await page.waitForFunction(() => {
+      const bodyHtml =
+        window.__MARKOUT_OWA_COMPOSE_CANVAS__?.getBodyHtml() ?? "";
+      return /<h1\b[^>]*>h2<\/h1>/.test(bodyHtml);
+    });
+
+    const renderedSnapshot = await readOwaCanvasSnapshot(page);
+    assert.match(renderedSnapshot.bodyHtml, /<h1\b[^>]*>h2<\/h1>/);
+    assert.ok(
+      renderedSnapshot.bodyHtml.includes("<div>Hallo</div>"),
+      "Draft render did not preserve the plain greeting line."
+    );
+    assert.ok(
+      renderedSnapshot.bodyHtml.includes("<div>[ ] ulala</div>"),
+      "Draft render converted non-Markdown task-list-like text."
+    );
+    assert.ok(
+      !/<p\b[^>]*>Hallo/.test(renderedSnapshot.bodyHtml),
+      "Draft render rendered the non-Markdown prefix as Markdown."
     );
   } finally {
     await page.context().close();
@@ -1133,6 +1225,19 @@ async function setOwaCanvasBodyHtml(page: Page, html: string): Promise<void> {
   await page.evaluate((nextHtml) => {
     window.__MARKOUT_OWA_COMPOSE_CANVAS__?.setBodyHtml(nextHtml);
   }, html);
+}
+
+async function setOwaCanvasBodyText(page: Page, text: string): Promise<void> {
+  await page.evaluate((nextText) => {
+    const body = document.querySelector<HTMLElement>("#owa-compose-body");
+
+    if (body === null) {
+      throw new Error("OWA-like compose body is unavailable.");
+    }
+
+    body.textContent = nextText;
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.clearSelection();
+  }, text);
 }
 
 async function setOwaCanvasSubjectText(
@@ -1481,6 +1586,18 @@ async function dropMarkdownFile(
     },
     { content, name }
   );
+}
+
+async function chooseMarkdownFile(
+  page: TaskpaneSurface,
+  name: string,
+  content: string
+): Promise<void> {
+  await page.locator('[data-testid="taskpane-file-input"]').setInputFiles({
+    buffer: Buffer.from(content, "utf8"),
+    mimeType: name.endsWith(".txt") ? "text/plain" : "text/markdown",
+    name,
+  });
 }
 
 async function waitForPreviewText(

@@ -428,6 +428,70 @@ describe("item renderer", () => {
     expect(await bodyAccessor.getHtml()).toBe(originalHtml);
   });
 
+  it("renders markdown blocks after Outlook-style carriage-return line breaks", async () => {
+    const originalHtml = [
+      "Hallo",
+      "dfdsf",
+      "ldkfdjf",
+      "[ ] ulala",
+      "",
+      "",
+      "",
+      "# h2",
+    ].join("\r");
+    const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
+    const renderStateStore = new InMemoryRenderStateStore();
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: createMarkdownRenderer(),
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.renderItem()).toBe("rendered");
+
+    const renderedHtml = await bodyAccessor.getHtml();
+    expect(renderedHtml).toContain("<div>Hallo</div>");
+    expect(renderedHtml).toContain("<div>dfdsf</div>");
+    expect(renderedHtml).toContain("<div>ldkfdjf</div>");
+    expect(renderedHtml).toContain("<div>[ ] ulala</div>");
+    expect(renderedHtml).toContain("<h1>h2</h1>");
+    expect(renderedHtml).not.toContain("<p>Hallo");
+
+    expect(await itemRenderer.renderItem()).toBe("restored");
+    expect(await bodyAccessor.getHtml()).toBe(originalHtml);
+  });
+
+  it("escapes non-markdown text when rendering a later markdown block", async () => {
+    const originalHtml = ["Team & friends", "", "## Update"].join("\r");
+    const bodyAccessor = new InMemoryBodyAccessor(originalHtml);
+    const renderStateStore = new InMemoryRenderStateStore();
+
+    const itemRenderer = createItemRenderer({
+      bodyAccessor,
+      htmlSanitizer: new DefaultHtmlSanitizer(),
+      markdownRenderer: createMarkdownRenderer(),
+      renderStateStore,
+      settingsStore: {
+        getStylesheet(): string {
+          return "";
+        },
+      },
+    });
+
+    expect(await itemRenderer.renderItem()).toBe("rendered");
+
+    const renderedHtml = await bodyAccessor.getHtml();
+    expect(renderedHtml).toContain("<div>Team &amp; friends</div>");
+    expect(renderedHtml).toContain("<h2>Update</h2>");
+  });
+
   it("leaves non-markdown draft html unchanged", async () => {
     const originalHtml =
       '<div>Hello team,<br>please review the attached file.</div><div class="signature">Kind regards,<br>Gabriel</div>';

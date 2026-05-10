@@ -1,10 +1,4 @@
-import {
-  useDeferredValue,
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { ComposeNotificationService } from "../lib/compose-notifications";
 import type { ComposeMarkdownService } from "../lib/compose-markdown";
 import {
@@ -38,13 +32,10 @@ export function usePreviewController(
   const emitDiagnostic = useEffectEvent((event: DiagnosticEventInput) => {
     recordDiagnostic?.(event);
   });
-  const deferredMarkdownInput = useDeferredValue(markdownInput);
-  const deferredStylesheet = useDeferredValue(stylesheet);
-
   useEffect(() => {
     let ignore = false;
 
-    if (deferredMarkdownInput.trim().length === 0) {
+    if (markdownInput.trim().length === 0) {
       setPreviewHtml("");
       setPreviewState("empty");
       return;
@@ -56,12 +47,12 @@ export function usePreviewController(
       code: "preview.render.started",
       level: "debug",
       metadata: {
-        inputLength: deferredMarkdownInput.length,
-        stylesheetLength: deferredStylesheet.length,
+        inputLength: markdownInput.length,
+        stylesheetLength: stylesheet.length,
       },
     });
     void composeMarkdown
-      .renderPreview(deferredMarkdownInput, deferredStylesheet)
+      .renderPreview(markdownInput, stylesheet)
       .then((html) => {
         if (ignore) {
           return;
@@ -98,12 +89,7 @@ export function usePreviewController(
     return () => {
       ignore = true;
     };
-  }, [
-    composeMarkdown,
-    deferredMarkdownInput,
-    deferredStylesheet,
-    previewFailedMessage,
-  ]);
+  }, [composeMarkdown, markdownInput, previewFailedMessage, stylesheet]);
 
   return { previewHtml, previewState };
 }

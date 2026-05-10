@@ -1,4 +1,7 @@
-import { extractMarkdownSourceFromHtml } from "./cleanser";
+import {
+  extractMarkdownSourceFromHtml,
+  normalizeMarkdownLineEndings,
+} from "./cleanser";
 import { createOfficeBodyAccessor, type BodyAccessor } from "./body-accessor";
 import { createOfficeSettingsStore, type SettingsStore } from "./config";
 import { DefaultHtmlSanitizer, type HtmlSanitizer } from "./html-sanitizer";
@@ -245,6 +248,19 @@ async function renderDraftMarkdownSegments(
     const markdownSource = extractMarkdownSourceFromNode(node);
 
     if (isMarkdownSourceRenderable(markdownSource)) {
+      if (shouldRenderPlainTextMarkdownBlocks(node, markdownSource)) {
+        await appendMarkdownSegments();
+
+        const renderedPlainTextBlocks = await renderPlainTextMarkdownBlocks(
+          dependencies,
+          markdownSource
+        );
+
+        outputSegments.push(renderedPlainTextBlocks);
+        renderedAnySegment = true;
+        continue;
+      }
+
       markdownSegments.push(markdownSource);
       continue;
     }
@@ -267,8 +283,8 @@ function extractMarkdownSourceFromNode(node: Node): string {
 }
 
 function isMarkdownSourceRenderable(markdownSource: string): boolean {
-  const lines = markdownSource
-    .split(/\r?\n/)
+  const lines = normalizeMarkdownLineEndings(markdownSource)
+    .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
@@ -292,6 +308,131 @@ function isMarkdownSourceRenderable(markdownSource: string): boolean {
       /!?\[[^\]]+\]\([^)]+\)/.test(line)
     );
   });
+}
+
+interface MarkdownLineBlock {
+  blankLinesBefore: number;
+  lines: string[];
+}
+
+async function renderPlainTextMarkdownBlocks(
+  dependencies: RenderDependencies,
+  markdownSource: string
+): Promise<string> {
+  const outputSegments: string[] = [];
+
+  for (const block of splitMarkdownLineBlocks(markdownSource)) {
+    outputSegments.push(renderBlankLines(block.blankLinesBefore));
+
+    const blockSource = block.lines.join("\n");
+
+    if (isMarkdownSourceRenderable(blockSource)) {
+      const renderedHtml = await dependencies.markdownRenderer.render({
+        css: dependencies.settingsStore.getStylesheet(),
+        markdown: blockSource,
+        mode: "full",
+      });
+      outputSegments.push(dependencies.htmlSanitizer.sanitize(renderedHtml));
+      continue;
+    }
+
+    outputSegments.push(renderPlainTextLines(block.lines));
+  }
+
+  return outputSegments.join("");
+}
+
+function splitMarkdownLineBlocks(markdownSource: string): MarkdownLineBlock[] {
+  const blocks: MarkdownLineBlock[] = [];
+  const lines = normalizeMarkdownLineEndings(markdownSource).split("\n");
+  let blankLinesBefore = 0;
+  let currentBlockLines: string[] = [];
+  let currentBlockBlankLinesBefore = 0;
+
+  for (const line of lines) {
+    if (line.trim().length === 0) {
+      if (currentBlockLines.length > 0) {
+        blocks.push({
+          blankLinesBefore: currentBlockBlankLinesBefore,
+          lines: currentBlockLines,
+        });
+        currentBlockLines = [];
+      }
+
+      blankLinesBefore += 1;
+      continue;
+    }
+
+    if (currentBlockLines.length === 0) {
+      currentBlockBlankLinesBefore = blankLinesBefore;
+      blankLinesBefore = 0;
+    }
+
+    currentBlockLines.push(line);
+  }
+
+  if (currentBlockLines.length > 0) {
+    blocks.push({
+      blankLinesBefore: currentBlockBlankLinesBefore,
+      lines: currentBlockLines,
+    });
+  }
+
+  return blocks;
+}
+
+function shouldRenderPlainTextMarkdownBlocks(
+  node: Node,
+  markdownSource: string
+): boolean {
+  if (!isPlainTextLineBreakNode(node)) {
+    return false;
+  }
+
+  const blocks = splitMarkdownLineBlocks(markdownSource);
+
+  return (
+    blocks.some((block) =>
+      isMarkdownSourceRenderable(block.lines.join("\n"))
+    ) &&
+    blocks.some((block) => !isMarkdownSourceRenderable(block.lines.join("\n")))
+  );
+}
+
+function isPlainTextLineBreakNode(node: Node): boolean {
+  if (node.nodeType === 3 || node.nodeType === 8) {
+    return true;
+  }
+
+  if (node.nodeType !== 1) {
+    return false;
+  }
+
+  const element = node as Element;
+  const tagName = element.tagName.toLowerCase();
+
+  if (!["br", "div", "p", "span"].includes(tagName)) {
+    return false;
+  }
+
+  return Array.from(element.childNodes).every((childNode) =>
+    isPlainTextLineBreakNode(childNode)
+  );
+}
+
+function renderBlankLines(count: number): string {
+  return Array.from({ length: count }, () => "<div><br></div>").join("");
+}
+
+function renderPlainTextLines(lines: string[]): string {
+  return lines.map((line) => `<div>${escapeHtmlText(line)}</div>`).join("");
+}
+
+function escapeHtmlText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function hasMarkdownTable(lines: string[]): boolean {

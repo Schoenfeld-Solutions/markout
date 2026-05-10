@@ -83,6 +83,7 @@ describe("taskpane panels", () => {
     const strings = getStrings("en-US");
     const callbacks = {
       onDrop: jest.fn(),
+      onFileSelected: jest.fn(),
       onInsertRenderedMarkdown: jest.fn(),
       onMarkdownInputChange: jest.fn(),
       onRenderEntireDraft: jest.fn(),
@@ -96,6 +97,7 @@ describe("taskpane panels", () => {
         isWorking={false}
         markdownInput="## Input"
         onDrop={callbacks.onDrop}
+        onFileSelected={callbacks.onFileSelected}
         onInsertRenderedMarkdown={callbacks.onInsertRenderedMarkdown}
         onMarkdownInputChange={callbacks.onMarkdownInputChange}
         onRenderEntireDraft={callbacks.onRenderEntireDraft}
@@ -145,6 +147,44 @@ describe("taskpane panels", () => {
       expect(callbacks.onRenderSelection).toHaveBeenCalled();
       expect(callbacks.onRenderEntireDraft).toHaveBeenCalled();
       expect(callbacks.onInsertRenderedMarkdown).toHaveBeenCalled();
+
+      const fileInput = container.querySelector<HTMLInputElement>(
+        '[data-testid="taskpane-file-input"]'
+      );
+      const filePickerButton = container.querySelector<HTMLButtonElement>(
+        '[data-testid="taskpane-file-picker-button"]'
+      );
+      expect(fileInput).not.toBeNull();
+      expect(filePickerButton?.textContent).toContain(
+        strings.insert.filePickerButton
+      );
+
+      const fileInputClick = jest
+        .spyOn(fileInput!, "click")
+        .mockImplementation(() => undefined);
+      filePickerButton?.click();
+      expect(fileInputClick).toHaveBeenCalled();
+
+      const markdownFile = new File(["# File"], "file.md", {
+        type: "text/markdown",
+      });
+      Object.defineProperty(fileInput, "files", {
+        configurable: true,
+        value: {
+          item: (index: number) => (index === 0 ? markdownFile : null),
+        },
+      });
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+      expect(callbacks.onFileSelected).toHaveBeenCalledWith(markdownFile);
+
+      Object.defineProperty(fileInput, "files", {
+        configurable: true,
+        value: {
+          item: () => null,
+        },
+      });
+      fileInput?.dispatchEvent(new Event("change", { bubbles: true }));
+      expect(callbacks.onFileSelected).toHaveBeenCalledWith(null);
 
       const dropzone = container.querySelector<HTMLElement>(
         '[data-testid="taskpane-dropzone"]'
@@ -333,6 +373,7 @@ describe("taskpane panels", () => {
           isWorking={true}
           markdownInput=""
           onDrop={() => undefined}
+          onFileSelected={() => undefined}
           onInsertRenderedMarkdown={() => undefined}
           onMarkdownInputChange={() => undefined}
           onRenderEntireDraft={() => undefined}
