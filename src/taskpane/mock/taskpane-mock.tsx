@@ -63,8 +63,20 @@ interface TaskpaneMockController {
   ): void;
 }
 
+interface OwaComposeCanvasBridge {
+  clearSelection(): void;
+  getBodyHtml(): string;
+  getSelection(): ComposeSelection;
+  replaceSelectionWithHtml(html: string): void;
+  selectBodyElement(selector: string): void;
+  selectSubjectText(): void;
+  setBodyHtml(html: string): void;
+  setSubjectText(text: string): void;
+}
+
 declare global {
   interface Window {
+    __MARKOUT_OWA_COMPOSE_CANVAS__?: OwaComposeCanvasBridge;
     __MARKOUT_TASKPANE_MOCK__?: TaskpaneMockController;
   }
 }
@@ -234,24 +246,47 @@ class MockSettingsStore implements SettingsStore {
 }
 
 class MockBodyAccessor implements BodyAccessor {
-  public constructor(private readonly state: MockSnapshot) {}
+  public constructor(
+    private readonly state: MockSnapshot,
+    private readonly owaComposeCanvas: OwaComposeCanvasBridge | null
+  ) {}
 
   public getHtml(): Promise<string> {
+    if (this.owaComposeCanvas !== null) {
+      this.state.bodyHtml = this.owaComposeCanvas.getBodyHtml();
+    }
+
     return Promise.resolve(this.state.bodyHtml);
   }
 
   public getSelection(): Promise<ComposeSelection> {
+    if (this.owaComposeCanvas !== null) {
+      this.state.selection = this.owaComposeCanvas.getSelection();
+    }
+
     return Promise.resolve({ ...this.state.selection });
   }
 
   public replaceSelectionWithHtml(html: string): Promise<void> {
     this.state.lastInsertedHtml = html;
+
+    if (this.owaComposeCanvas !== null) {
+      this.owaComposeCanvas.replaceSelectionWithHtml(html);
+      this.state.bodyHtml = this.owaComposeCanvas.getBodyHtml();
+      this.state.selection = this.owaComposeCanvas.getSelection();
+      return Promise.resolve();
+    }
+
     this.state.bodyHtml = html;
     this.state.selection = createInitialSelection();
     return Promise.resolve();
   }
 
   public setHtml(html: string): Promise<void> {
+    if (this.owaComposeCanvas !== null) {
+      this.owaComposeCanvas.setBodyHtml(html);
+    }
+
     this.state.bodyHtml = html;
     return Promise.resolve();
   }
@@ -351,17 +386,25 @@ function createMockSnapshot(settingsStore: MockSettingsStore): MockSnapshot {
 
 function createController(
   state: MockSnapshot,
-  settingsStore: MockSettingsStore
+  settingsStore: MockSettingsStore,
+  owaComposeCanvas: OwaComposeCanvasBridge | null
 ): TaskpaneMockController {
   return {
-    getState: () => ({
-      autoRenderNotifications: [...state.autoRenderNotifications],
-      bodyHtml: state.bodyHtml,
-      lastInsertedHtml: state.lastInsertedHtml,
-      selection: { ...state.selection },
-      settings: settingsStore.readSnapshot(),
-      transientNotifications: [...state.transientNotifications],
-    }),
+    getState: () => {
+      if (owaComposeCanvas !== null) {
+        state.bodyHtml = owaComposeCanvas.getBodyHtml();
+        state.selection = owaComposeCanvas.getSelection();
+      }
+
+      return {
+        autoRenderNotifications: [...state.autoRenderNotifications],
+        bodyHtml: state.bodyHtml,
+        lastInsertedHtml: state.lastInsertedHtml,
+        selection: { ...state.selection },
+        settings: settingsStore.readSnapshot(),
+        transientNotifications: [...state.transientNotifications],
+      };
+    },
     reset: () => {
       settingsStore.reset();
       state.autoRenderNotifications = [];
@@ -370,9 +413,12 @@ function createController(
       state.selection = createInitialSelection();
       state.settings = settingsStore.readSnapshot();
       state.transientNotifications = [];
+      owaComposeCanvas?.setBodyHtml(INITIAL_BODY_HTML);
+      owaComposeCanvas?.clearSelection();
     },
     setBodyHtml: (html) => {
       state.bodyHtml = html;
+      owaComposeCanvas?.setBodyHtml(html);
     },
     setSelection: (nextSelection) => {
       const source: SelectionSource = nextSelection.source ?? "body";
@@ -388,6 +434,18 @@ function createController(
   };
 }
 
+function getOwaComposeCanvasBridge(): OwaComposeCanvasBridge | null {
+  try {
+    if (window.parent === window) {
+      return null;
+    }
+
+    return window.parent.__MARKOUT_OWA_COMPOSE_CANVAS__ ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function mountMockTaskpane(): void {
   const rootElement = document.getElementById("taskpane-root");
 
@@ -397,7 +455,8 @@ function mountMockTaskpane(): void {
 
   const settingsStore = new MockSettingsStore();
   const state = createMockSnapshot(settingsStore);
-  const bodyAccessor = new MockBodyAccessor(state);
+  const owaComposeCanvas = getOwaComposeCanvasBridge();
+  const bodyAccessor = new MockBodyAccessor(state, owaComposeCanvas);
   const htmlSanitizer = new DefaultHtmlSanitizer();
   const markdownRenderer = createMockMarkdownRenderer();
   const notificationService = new MockNotificationService(state);
@@ -420,7 +479,11 @@ function mountMockTaskpane(): void {
       itemRenderer.renderItem(),
   };
 
-  window.__MARKOUT_TASKPANE_MOCK__ = createController(state, settingsStore);
+  window.__MARKOUT_TASKPANE_MOCK__ = createController(
+    state,
+    settingsStore,
+    owaComposeCanvas
+  );
   document.documentElement.dataset.taskpaneMock = "ready";
 
   createRoot(rootElement).render(

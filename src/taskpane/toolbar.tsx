@@ -111,7 +111,7 @@ export function isRenderSelectionDisabled(
   isBusy: boolean,
   availability: SelectionAvailability
 ): boolean {
-  return isBusy || availability !== "body-selection";
+  return isBusy || availability === "subject";
 }
 
 export function isInsertRenderedMarkdownDisabled(
