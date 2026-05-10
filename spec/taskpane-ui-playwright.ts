@@ -35,6 +35,17 @@ interface MockSnapshot {
   }[];
 }
 
+interface OwaComposeCanvasSnapshot {
+  bodyHtml: string;
+  selection: {
+    hasSelection: boolean;
+    html: string | null;
+    source: "body" | "subject";
+    text: string;
+  };
+  subjectValue: string;
+}
+
 interface OwaHostPage {
   page: Page;
   taskpane: Frame;
@@ -130,6 +141,15 @@ const DRAFT_WITH_SIGNATURE_HTML = [
 ].join("");
 const DRAFT_WITHOUT_MARKDOWN_HTML =
   '<div>Hello team,<br>please review the attached file.</div><div class="signature">Kind regards,<br>Gabriel</div>';
+const OWA_CANVAS_SELECTION_BODY_HTML = [
+  '<div data-testid="markdown-selection">',
+  "<div># Canvas Selection</div>",
+  "<div>Paragraph from the compose canvas</div>",
+  "<div>- parent</div>",
+  "<div>&nbsp;&nbsp;- child</div>",
+  "</div>",
+  '<div data-testid="signature" class="mock-signature">Kind regards,<br>Gabriel</div>',
+].join("");
 const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
@@ -202,6 +222,9 @@ export async function runTaskpaneUiPlaywright(
 
     console.log("Verifying OWA-like drawer host layout regressions.");
     await verifyOwaLikeDrawerHostScenario(browser, config);
+
+    console.log("Verifying OWA-like compose canvas selection and drop flows.");
+    await verifyOwaLikeComposeCanvasScenario(browser, config);
   } finally {
     await browser.close();
   }
@@ -750,6 +773,211 @@ async function verifyOwaLikeDrawerHostScenario(
   }
 }
 
+async function verifyOwaLikeComposeCanvasScenario(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  await verifyOwaLikeCanvasSelectionRender(browser, config);
+  await verifyOwaLikeCanvasSelectionSafety(browser, config);
+  await verifyOwaLikeCanvasDropAndInsert(browser, config);
+}
+
+async function verifyOwaLikeCanvasSelectionRender(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(browser, config, {
+    colorScheme: "dark",
+    height: 760,
+    name: "owa-like-canvas-selection",
+    width: 980,
+  });
+
+  try {
+    await openInsertPanel(taskpane);
+    await setOwaCanvasBodyHtml(page, OWA_CANVAS_SELECTION_BODY_HTML);
+    await selectOwaCanvasBodyElement(
+      page,
+      '[data-testid="markdown-selection"]'
+    );
+
+    await taskpane.locator("#render-selection-button").waitFor({
+      timeout: config.timeoutMs,
+    });
+    await scrollElementIntoView(taskpane, "#render-selection-button");
+    await clickElement(taskpane, "#render-selection-button");
+    await page.waitForFunction(() => {
+      const bodyHtml =
+        window.__MARKOUT_OWA_COMPOSE_CANVAS__?.getBodyHtml() ?? "";
+      return /<h1\b[^>]*>Canvas Selection<\/h1>/.test(bodyHtml);
+    });
+
+    const snapshot = await readOwaCanvasSnapshot(page);
+
+    assert.match(snapshot.bodyHtml, /<h1\b[^>]*>Canvas Selection<\/h1>/);
+    assert.match(
+      snapshot.bodyHtml,
+      /<p\b[^>]*>Paragraph from the compose canvas<\/p>/
+    );
+    assert.match(snapshot.bodyHtml, /<li\b[^>]*>parent/);
+    assert.match(snapshot.bodyHtml, /<li\b[^>]*>child<\/li>/);
+    assert.ok(
+      snapshot.bodyHtml.includes(
+        '<div data-testid="signature" class="mock-signature">Kind regards,<br>Gabriel</div>'
+      ),
+      "Rendering a body selection changed the unselected signature."
+    );
+    assert.ok(
+      !snapshot.bodyHtml.includes("# Canvas Selection"),
+      "The selected Markdown source remained unrendered in the compose canvas."
+    );
+
+    const mockSnapshot = await readMockSnapshot(taskpane);
+    assert.ok(
+      mockSnapshot.lastInsertedHtml?.includes("Canvas Selection"),
+      "Taskpane mock did not record the rendered selection insertion."
+    );
+  } finally {
+    await page.context().close();
+  }
+}
+
+async function verifyOwaLikeCanvasSelectionSafety(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(browser, config, {
+    colorScheme: "dark",
+    height: 760,
+    name: "owa-like-selection-safety",
+    width: 980,
+  });
+
+  try {
+    await openInsertPanel(taskpane);
+    await setOwaCanvasBodyHtml(page, OWA_CANVAS_SELECTION_BODY_HTML);
+    await setOwaCanvasSubjectText(page, "# Subject Markdown");
+    await selectOwaCanvasSubject(page);
+    const originalBodyHtml = (await readOwaCanvasSnapshot(page)).bodyHtml;
+
+    await taskpane.locator("#render-selection-button:disabled").waitFor({
+      timeout: config.timeoutMs,
+    });
+
+    let snapshot = await readOwaCanvasSnapshot(page);
+    assert.equal(
+      snapshot.bodyHtml,
+      originalBodyHtml,
+      "Subject selection rendering mutated the compose body."
+    );
+
+    await clearOwaCanvasSelection(page);
+    await taskpane.locator("#render-selection-button:not([disabled])").waitFor({
+      timeout: config.timeoutMs,
+    });
+    await scrollElementIntoView(taskpane, "#render-selection-button");
+    await clickElement(taskpane, "#render-selection-button");
+    await waitForMockNotification(
+      taskpane,
+      "Select Markdown text",
+      config.timeoutMs
+    );
+
+    snapshot = await readOwaCanvasSnapshot(page);
+    assert.equal(
+      snapshot.bodyHtml,
+      originalBodyHtml,
+      "Empty selection rendering mutated the compose body."
+    );
+  } finally {
+    await page.context().close();
+  }
+}
+
+async function verifyOwaLikeCanvasDropAndInsert(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(browser, config, {
+    colorScheme: "dark",
+    height: 760,
+    name: "owa-like-drop-insert",
+    width: 980,
+  });
+
+  const supportedFiles = [
+    {
+      content: "# Dropped md\n\n- alpha",
+      expected: "Dropped md",
+      name: "drop.md",
+    },
+    {
+      content: "# Dropped markdown\n\n- beta",
+      expected: "Dropped markdown",
+      name: "drop.markdown",
+    },
+    {
+      content: "# Dropped txt\n\n- gamma",
+      expected: "Dropped txt",
+      name: "drop.txt",
+    },
+  ];
+
+  try {
+    await openInsertPanel(taskpane);
+    await setOwaCanvasBodyHtml(page, "<div>Cursor target</div>");
+
+    for (const supportedFile of supportedFiles) {
+      await dropMarkdownFile(
+        taskpane,
+        supportedFile.name,
+        supportedFile.content
+      );
+      await waitForPreviewText(taskpane, {
+        expectedText: supportedFile.expected,
+        expectedTextareaValue: supportedFile.content,
+        outputDirectory: config.outputDirectory,
+        scenarioName: `owa-like-${supportedFile.name}-preview`,
+        timeoutMs: config.timeoutMs,
+      });
+      await scrollElementIntoView(taskpane, "#insert-rendered-markdown-button");
+      await clickElement(taskpane, "#insert-rendered-markdown-button");
+      await page.waitForFunction((expectedText) => {
+        return (
+          window.__MARKOUT_OWA_COMPOSE_CANVAS__
+            ?.getBodyHtml()
+            .includes(expectedText) ?? false
+        );
+      }, supportedFile.expected);
+    }
+
+    const beforeUnsupportedDrop = {
+      bodyHtml: (await readOwaCanvasSnapshot(page)).bodyHtml,
+      markdownInput: await taskpane.locator("#markdown-input").inputValue(),
+    };
+
+    await dropMarkdownFile(taskpane, "ignored.html", "<h1>Not Markdown</h1>");
+    await waitForMockNotification(
+      taskpane,
+      "Only .md, .markdown, and .txt files",
+      config.timeoutMs
+    );
+
+    assert.equal(
+      await taskpane.locator("#markdown-input").inputValue(),
+      beforeUnsupportedDrop.markdownInput,
+      "Unsupported file drop changed the Markdown input."
+    );
+    assert.equal(
+      (await readOwaCanvasSnapshot(page)).bodyHtml,
+      beforeUnsupportedDrop.bodyHtml,
+      "Unsupported file drop changed the compose body."
+    );
+  } finally {
+    await page.context().close();
+  }
+}
+
 async function verifyNestedListSpacing(
   page: TaskpaneSurface,
   config: TaskpaneUiConfig,
@@ -875,6 +1103,86 @@ async function readMockSnapshot(page: TaskpaneSurface): Promise<MockSnapshot> {
 
   assert.ok(snapshot !== null, "Taskpane mock state is unavailable.");
   return snapshot;
+}
+
+async function readOwaCanvasSnapshot(
+  page: Page
+): Promise<OwaComposeCanvasSnapshot> {
+  const snapshot = await page.evaluate(() => {
+    const bridge = window.__MARKOUT_OWA_COMPOSE_CANVAS__;
+    const subject = document.querySelector<HTMLInputElement>(
+      "#owa-compose-subject"
+    );
+
+    if (bridge === undefined || subject === null) {
+      return null;
+    }
+
+    return {
+      bodyHtml: bridge.getBodyHtml(),
+      selection: bridge.getSelection(),
+      subjectValue: subject.value,
+    };
+  });
+
+  assert.ok(snapshot !== null, "OWA-like compose canvas is unavailable.");
+  return snapshot;
+}
+
+async function setOwaCanvasBodyHtml(page: Page, html: string): Promise<void> {
+  await page.evaluate((nextHtml) => {
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.setBodyHtml(nextHtml);
+  }, html);
+}
+
+async function setOwaCanvasSubjectText(
+  page: Page,
+  subject: string
+): Promise<void> {
+  await page.evaluate((nextSubject) => {
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.setSubjectText(nextSubject);
+  }, subject);
+}
+
+async function selectOwaCanvasBodyElement(
+  page: Page,
+  selector: string
+): Promise<void> {
+  await page.evaluate((targetSelector) => {
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.selectBodyElement(targetSelector);
+  }, selector);
+}
+
+async function selectOwaCanvasSubject(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.selectSubjectText();
+  });
+}
+
+async function clearOwaCanvasSelection(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.__MARKOUT_OWA_COMPOSE_CANVAS__?.clearSelection();
+  });
+}
+
+async function waitForMockNotification(
+  taskpane: TaskpaneSurface,
+  messageFragment: string,
+  timeoutMs: number
+): Promise<void> {
+  await taskpane.waitForFunction(
+    (fragment) => {
+      return (
+        window.__MARKOUT_TASKPANE_MOCK__
+          ?.getState()
+          .transientNotifications.some((notification) =>
+            notification.message.includes(fragment)
+          ) ?? false
+      );
+    },
+    messageFragment,
+    { timeout: timeoutMs }
+  );
 }
 
 async function assertOwaHostFrameLayout(
@@ -1148,6 +1456,31 @@ async function setTextareaValueInChunks(
   for (let index = 1; index <= value.length; index += 1) {
     await setTextareaValue(page, selector, value.slice(0, index));
   }
+}
+
+async function dropMarkdownFile(
+  page: TaskpaneSurface,
+  name: string,
+  content: string
+): Promise<void> {
+  await page.locator('[data-testid="taskpane-dropzone"]').evaluate(
+    (node, fileInput) => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(
+        new File([fileInput.content], fileInput.name, {
+          type: "text/markdown",
+        })
+      );
+      const event = new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+      });
+
+      node.dispatchEvent(event);
+    },
+    { content, name }
+  );
 }
 
 async function waitForPreviewText(

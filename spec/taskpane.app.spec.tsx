@@ -197,14 +197,14 @@ describe("taskpane app helpers", () => {
     );
   });
 
-  it("disables render selection unless the body selection is available", () => {
+  it("keeps render selection available for live body selection checks", () => {
     const strings = getStrings("en-US");
 
     expect(isRenderSelectionDisabled(false, "body-selection")).toBe(false);
     expect(isRenderSelectionDisabled(true, "body-selection")).toBe(true);
-    expect(isRenderSelectionDisabled(false, "body-none")).toBe(true);
+    expect(isRenderSelectionDisabled(false, "body-none")).toBe(false);
     expect(isRenderSelectionDisabled(false, "subject")).toBe(true);
-    expect(isRenderSelectionDisabled(false, "unknown")).toBe(true);
+    expect(isRenderSelectionDisabled(false, "unknown")).toBe(false);
 
     expect(getRenderSelectionTooltip(strings, "body-selection")).toContain(
       "currently selected Markdown text"

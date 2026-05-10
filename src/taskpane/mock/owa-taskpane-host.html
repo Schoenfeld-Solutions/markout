@@ -1,5 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html
+  class="dark fui-FluentProviderr0"
+  dir="ltr"
+  lang="en"
+  style="--flexPaneWidth: 320px"
+  translate="no"
+  xmlns="http://www.w3.org/1999/xhtml"
+>
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
@@ -8,6 +15,13 @@
     <style>
       :root {
         color-scheme: dark;
+        --composeNeutralBackground: #242424;
+        --neutralPrimary: #d6d6d6;
+        --neutralPrimaryAlt: #adadad;
+        --neutralPrimarySurface: #292929;
+        --neutralSecondarySurface: #141414;
+        --neutralTertiary: #666666;
+        --themePrimary: #479ef5;
       }
 
       html,
@@ -22,8 +36,8 @@
       }
 
       body {
-        background: #f5f5f5;
-        color: #f5f5f5;
+        background: #111;
+        color: var(--neutralPrimary);
         font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
       }
 
@@ -34,10 +48,9 @@
       }
 
       .owa-shell {
-        background:
-          linear-gradient(90deg, rgba(0, 0, 0, 0.08), transparent 28%), #f5f5f5;
+        background: #0f0f0f;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 320px;
+        grid-template-columns: minmax(0, 1fr) var(--flexPaneWidth);
         height: 100%;
         min-height: 0;
         min-width: 0;
@@ -46,11 +59,115 @@
       }
 
       .owa-main {
+        background: #1f1f1f;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
         min-height: 0;
         min-width: 0;
+        overflow: hidden;
       }
 
-      .owa-drawer {
+      .owa-ribbon {
+        align-items: center;
+        background: #141414;
+        border-bottom: 1px solid #333;
+        display: flex;
+        gap: 8px;
+        height: 44px;
+        padding: 0 16px;
+      }
+
+      .owa-ribbon-button {
+        background: #292929;
+        border: 1px solid #525252;
+        border-radius: 4px;
+        color: var(--neutralPrimary);
+        font: inherit;
+        padding: 4px 10px;
+      }
+
+      .mail-read-compose {
+        display: grid;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        padding: 16px;
+      }
+
+      .owaMailComposeEditorScrollContainer {
+        background: var(--composeNeutralBackground);
+        border: 1px solid #3d3d3d;
+        border-radius: 8px;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .compose-address-row,
+      .compose-subject-row {
+        align-items: center;
+        border-bottom: 1px solid #3d3d3d;
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        min-width: 0;
+        padding: 10px 14px;
+      }
+
+      .compose-label {
+        color: var(--neutralPrimaryAlt);
+        font-size: 14px;
+      }
+
+      .EditorClass {
+        color: var(--neutralPrimary);
+        min-height: 24px;
+        outline: 0;
+      }
+
+      .compose-subject-input {
+        background: transparent;
+        border: 0;
+        color: var(--neutralPrimary);
+        font: inherit;
+        min-width: 0;
+        outline: 0;
+        width: 100%;
+      }
+
+      .OHomZ {
+        display: grid;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .message-body {
+        background: var(--composeNeutralBackground);
+        color: var(--neutralPrimary);
+        font-size: 15px;
+        line-height: 1.45;
+        min-height: 0;
+        min-width: 0;
+        outline: 0;
+        overflow: auto;
+        padding: 18px 22px;
+        white-space: normal;
+      }
+
+      .message-body div {
+        min-height: 1.45em;
+      }
+
+      .mock-signature {
+        border-top: 1px solid #525252;
+        color: var(--neutralPrimaryAlt);
+        margin-top: 18px;
+        padding-top: 12px;
+      }
+
+      .fui-OverlayDrawer.fui-Drawer {
         background: #242424;
         border-left: 1px solid rgba(255, 255, 255, 0.2);
         box-shadow: -6px 0 22px rgba(0, 0, 0, 0.24);
@@ -60,10 +177,10 @@
         min-height: 0;
         min-width: 0;
         overflow: hidden;
-        width: 320px;
+        width: var(--flexPaneWidth);
       }
 
-      .owa-drawer-header {
+      .fui-DrawerHeader {
         align-items: center;
         background: #3c3c3c;
         border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -88,10 +205,11 @@
         width: 54px;
       }
 
-      .owa-title {
+      .fui-DrawerHeaderTitle__heading {
         font-size: 34px;
         font-weight: 300;
         line-height: 1.1;
+        margin: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -112,13 +230,14 @@
         width: 44px;
       }
 
-      .owa-drawer-body {
+      .fui-DrawerBody {
         min-height: 0;
         min-width: 0;
         overflow: hidden;
       }
 
-      .owa-frame-host {
+      .owa-frame-host,
+      .vBHnH {
         height: 100%;
         min-height: 0;
         min-width: 0;
@@ -126,7 +245,7 @@
         width: 100%;
       }
 
-      .addin-iframe {
+      .AddinIframe {
         background: #f5f5f5;
         border: 0;
         display: block;
@@ -137,18 +256,88 @@
   </head>
   <body>
     <div class="owa-shell" data-testid="owa-shell">
-      <main class="owa-main" aria-hidden="true"></main>
+      <main
+        aria-label="Reading Pane"
+        class="owa-main"
+        data-app-section="MailReadCompose"
+        data-testid="owa-compose-region"
+        role="main"
+      >
+        <div class="owa-ribbon" aria-hidden="true">
+          <button class="owa-ribbon-button" type="button">Send</button>
+          <button class="owa-ribbon-button" type="button">Attach</button>
+          <button class="owa-ribbon-button" type="button">Apps</button>
+        </div>
+        <section class="mail-read-compose">
+          <div
+            class="FXtdL jLY8Z UoDR_ owaMailComposeEditorScrollContainer customScrollBar Qmg2Q"
+            id="docking_InitVisiblePart_1"
+          >
+            <div class="compose-address-row">
+              <span class="compose-label">To</span>
+              <div
+                aria-label="To"
+                class="EditorClass"
+                contenteditable="true"
+                id="owa-compose-to"
+                spellcheck="false"
+                tabindex="0"
+              >
+                recipient@example.com
+              </div>
+            </div>
+            <div class="compose-subject-row">
+              <label class="compose-label" for="owa-compose-subject">
+                Subject
+              </label>
+              <input
+                aria-label="Subject"
+                autocomplete="off"
+                class="compose-subject-input"
+                id="owa-compose-subject"
+                maxlength="255"
+                spellcheck="true"
+                type="text"
+                value=""
+              />
+            </div>
+            <div class="OHomZ XnGcL" id="editorParent_2">
+              <div
+                aria-label="Message body"
+                aria-multiline="true"
+                class="dFCbN dnzWM customScrollBar dPKNh z8tsM DziEn Z6_Ux message-body"
+                contenteditable="true"
+                data-ms-editor="true"
+                data-scrollable="true"
+                id="owa-compose-body"
+                role="textbox"
+                spellcheck="false"
+                tabindex="0"
+                writingsuggestions="false"
+              >
+                <div>Mock draft body</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
       <aside
-        aria-labelledby="owa-drawer-title"
+        aria-labelledby="dialog-title-markout"
         aria-modal="false"
-        class="owa-drawer"
+        class="fui-OverlayDrawer fui-Drawer _sc79"
         data-app-section="DrawerPane"
         data-testid="owa-drawer"
         role="complementary"
+        tabindex="-1"
       >
-        <header class="owa-drawer-header">
+        <header class="fui-DrawerHeader" role="none">
           <div aria-hidden="true" class="owa-logo">M</div>
-          <div class="owa-title" id="owa-drawer-title">MarkOut (Beta)</div>
+          <h2
+            class="fui-DrawerHeaderTitle__heading fui-DialogTitle"
+            id="dialog-title-markout"
+          >
+            MarkOut
+          </h2>
           <button
             aria-label="Close add-in pane"
             class="owa-close"
@@ -157,18 +346,20 @@
             &times;
           </button>
         </header>
-        <div class="owa-drawer-body" data-testid="owa-drawer-body">
+        <div class="fui-DrawerBody ri6rvx7" data-testid="owa-drawer-body">
           <div class="owa-frame-host" data-testid="owa-frame-host">
-            <iframe
-              allow="local-network-access"
-              allowfullscreen
-              class="addin-iframe"
-              data-testid="owa-taskpane-frame"
-              frameborder="0"
-              id="owa-taskpane-frame"
-              sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-storage-access-by-user-activation"
-              title="Office Add-in MarkOut (Beta)"
-            ></iframe>
+            <div class="vBHnH" style="pointer-events: auto">
+              <iframe
+                allow="local-network-access"
+                allowfullscreen="true"
+                class="AddinIframe"
+                data-testid="owa-taskpane-frame"
+                frameborder="0"
+                id="owa-taskpane-frame"
+                sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-storage-access-by-user-activation"
+                title="Office Add-in MarkOut"
+              ></iframe>
+            </div>
           </div>
         </div>
       </aside>
@@ -177,10 +368,171 @@
       const taskpaneFrame = document.getElementById("owa-taskpane-frame");
       const taskpaneUrl = new URL("./taskpane-mock.html", window.location.href);
       const hostParameters = new URLSearchParams(window.location.search);
+      const composeBody = document.getElementById("owa-compose-body");
+      const composeSubject = document.getElementById("owa-compose-subject");
+
+      let lastSelection = null;
 
       for (const [key, value] of hostParameters.entries()) {
         taskpaneUrl.searchParams.set(key, value);
       }
+
+      function isNodeWithin(node, root) {
+        return node === root || root.contains(node);
+      }
+
+      function getRangeHtml(range) {
+        const container = document.createElement("div");
+        container.appendChild(range.cloneContents());
+        return container.innerHTML;
+      }
+
+      function getInputSelection(input) {
+        const start = input.selectionStart ?? 0;
+        const end = input.selectionEnd ?? 0;
+        const text = input.value.slice(start, end);
+
+        return text.length > 0
+          ? {
+              html: null,
+              range: null,
+              source: "subject",
+              text,
+            }
+          : null;
+      }
+
+      function getWindowSelectionSnapshot() {
+        const selection = window.getSelection();
+
+        if (selection === null || selection.rangeCount === 0) {
+          return null;
+        }
+
+        const range = selection.getRangeAt(0);
+
+        if (range.collapsed) {
+          return null;
+        }
+
+        const commonAncestor = range.commonAncestorContainer;
+
+        if (isNodeWithin(commonAncestor, composeBody)) {
+          return {
+            html: getRangeHtml(range),
+            range: range.cloneRange(),
+            source: "body",
+            text: selection.toString(),
+          };
+        }
+
+        return null;
+      }
+
+      function captureSelection() {
+        const subjectSelection =
+          document.activeElement === composeSubject
+            ? getInputSelection(composeSubject)
+            : null;
+        const nextSelection = subjectSelection ?? getWindowSelectionSnapshot();
+
+        if (nextSelection !== null && nextSelection.text.trim().length > 0) {
+          lastSelection = nextSelection;
+        }
+      }
+
+      function toComposeSelection(selectionSnapshot) {
+        if (
+          selectionSnapshot === null ||
+          selectionSnapshot.text.trim().length === 0
+        ) {
+          return {
+            hasSelection: false,
+            html: null,
+            source: "body",
+            text: "",
+          };
+        }
+
+        return {
+          hasSelection: true,
+          html: selectionSnapshot.html,
+          source: selectionSnapshot.source,
+          text: selectionSnapshot.text,
+        };
+      }
+
+      function insertHtmlAtRange(range, html) {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        const fragment = template.content;
+
+        range.deleteContents();
+        range.insertNode(fragment);
+      }
+
+      window.__MARKOUT_OWA_COMPOSE_CANVAS__ = {
+        clearSelection() {
+          window.getSelection()?.removeAllRanges();
+          composeSubject.setSelectionRange(0, 0);
+          lastSelection = null;
+        },
+        getBodyHtml() {
+          return composeBody.innerHTML;
+        },
+        getSelection() {
+          captureSelection();
+          return toComposeSelection(lastSelection);
+        },
+        replaceSelectionWithHtml(html) {
+          captureSelection();
+
+          if (
+            lastSelection?.source === "body" &&
+            lastSelection.range !== null
+          ) {
+            insertHtmlAtRange(lastSelection.range, html);
+          } else {
+            composeBody.insertAdjacentHTML("beforeend", html);
+          }
+
+          this.clearSelection();
+        },
+        selectBodyElement(selector) {
+          const target = composeBody.querySelector(selector);
+
+          if (target === null) {
+            throw new Error(`OWA-like body target not found: ${selector}`);
+          }
+
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          composeBody.focus();
+          captureSelection();
+        },
+        selectSubjectText() {
+          composeSubject.focus();
+          composeSubject.setSelectionRange(0, composeSubject.value.length);
+          captureSelection();
+        },
+        setBodyHtml(html) {
+          composeBody.innerHTML = html;
+          this.clearSelection();
+        },
+        setSubjectText(text) {
+          composeSubject.value = text;
+          this.clearSelection();
+        },
+      };
+
+      document.addEventListener("selectionchange", captureSelection);
+      composeBody.addEventListener("keyup", captureSelection);
+      composeBody.addEventListener("mouseup", captureSelection);
+      composeSubject.addEventListener("keyup", captureSelection);
+      composeSubject.addEventListener("select", captureSelection);
 
       taskpaneFrame.src = taskpaneUrl.toString();
     </script>
