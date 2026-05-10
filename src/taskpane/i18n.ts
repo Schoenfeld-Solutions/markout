@@ -65,6 +65,7 @@ export interface LocalizedStrings {
     dropzoneCopy: string;
     dropzoneTitle: string;
     emptyPreview: string;
+    filePickerButton: string;
     insertButton: string;
     inputLabel: string;
     inputPlaceholder: string;
@@ -239,6 +240,7 @@ const EN_US: LocalizedStrings = {
     dropzoneTitle: "Drop a Markdown file here",
     emptyPreview:
       "Paste or drop Markdown to preview the fragment that will be inserted into the draft.",
+    filePickerButton: "Choose Markdown file",
     insertButton: "Insert rendered markdown",
     inputLabel: "Markdown input",
     inputPlaceholder:
@@ -431,6 +433,7 @@ const DE_DE: LocalizedStrings = {
     dropzoneTitle: "Markdown-Datei hier ablegen",
     emptyPreview:
       "Markdown einfügen oder droppen, um das Fragment zu sehen, das in den Entwurf eingefügt wird.",
+    filePickerButton: "Markdown-Datei auswählen",
     insertButton: "Gerendertes Markdown einfügen",
     inputLabel: "Markdown-Eingabe",
     inputPlaceholder:

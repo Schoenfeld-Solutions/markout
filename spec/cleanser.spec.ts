@@ -243,4 +243,15 @@ describe("cleanser", () => {
       )
     ).toBe(["Alpha Beta", "", "Gamma"].join("\n"));
   });
+
+  it("normalizes Outlook-style carriage returns while extracting markdown source", () => {
+    expect(
+      extractMarkdownSourceFromHtml(
+        ["Hallo", "dfdsf", "", "", "# h2"].join("\r")
+      )
+    ).toBe(["Hallo", "dfdsf", "", "# h2"].join("\n"));
+    expect(
+      extractMarkdownSourceFromHtml(["Hallo", "dfdsf", "", "# h2"].join("\r\n"))
+    ).toBe(["Hallo", "dfdsf", "", "# h2"].join("\n"));
+  });
 });

@@ -428,9 +428,40 @@ describe("taskpane app flows", () => {
         })
       );
 
+      await dispatchFileInputChange(
+        mounted.container.querySelector('[data-testid="taskpane-file-input"]'),
+        new File(["ignored"], "picked.markdown")
+      );
+      expect(
+        mounted.container.querySelector<HTMLTextAreaElement>("#markdown-input")
+          ?.value
+      ).toBe("## Loaded");
+      expect(
+        notificationService.showTransientNotification
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intent: "success",
+          message: "picked.markdown loaded into the insert pane.",
+        })
+      );
+
       await dispatchDrop(
         mounted.container.querySelector('[data-testid="taskpane-dropzone"]'),
         new File(["ignored"], "loaded.html")
+      );
+      expect(
+        notificationService.showTransientNotification
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          intent: "error",
+          message:
+            "Only .md, .markdown, and .txt files are supported in the insert pane.",
+        })
+      );
+
+      await dispatchFileInputChange(
+        mounted.container.querySelector('[data-testid="taskpane-file-input"]'),
+        new File(["ignored"], "picked.html")
       );
       expect(
         notificationService.showTransientNotification
@@ -645,6 +676,29 @@ async function dispatchDrop(
 
   act(() => {
     dropzone.dispatchEvent(event);
+  });
+  await flushTaskpane();
+}
+
+async function dispatchFileInputChange(
+  fileInput: Element | null,
+  file: File
+): Promise<void> {
+  if (!(fileInput instanceof HTMLInputElement)) {
+    throw new Error("Expected file input to exist.");
+  }
+
+  Object.defineProperty(fileInput, "files", {
+    configurable: true,
+    value: {
+      item: (index: number) => (index === 0 ? file : null),
+    },
+  });
+
+  act(() => {
+    fileInput.dispatchEvent(
+      new Event("change", { bubbles: true, cancelable: true })
+    );
   });
   await flushTaskpane();
 }

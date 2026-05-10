@@ -9,7 +9,12 @@ import {
   ToolbarRadioGroup,
   mergeClasses,
 } from "@fluentui/react-components";
-import type { DragEvent, ReactElement } from "react";
+import {
+  useRef,
+  type ChangeEvent,
+  type DragEvent,
+  type ReactElement,
+} from "react";
 import type { StylesheetLintResult } from "../lib/stylesheet-lint";
 import type { LanguagePreference, ThemeMode } from "../lib/config";
 import type { LocalizedStrings } from "./i18n";
@@ -89,6 +94,7 @@ export function InsertPanel(props: {
   isWorking: boolean;
   markdownInput: string;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  onFileSelected: (file: File | null) => void;
   onInsertRenderedMarkdown: () => void;
   onMarkdownInputChange: (value: string) => void;
   onRenderEntireDraft: () => void;
@@ -108,6 +114,7 @@ export function InsertPanel(props: {
     isWorking,
     markdownInput,
     onDrop,
+    onFileSelected,
     onInsertRenderedMarkdown,
     onMarkdownInputChange,
     onRenderEntireDraft,
@@ -121,6 +128,12 @@ export function InsertPanel(props: {
     strings,
     styles,
   } = props;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    onFileSelected(event.target.files?.item(0) ?? null);
+    event.target.value = "";
+  };
 
   const renderPreview = (): ReactElement => {
     if (previewState === "loading") {
@@ -192,6 +205,24 @@ export function InsertPanel(props: {
         <InsertIcon />
         <p className={styles.dropzoneTitle}>{strings.insert.dropzoneTitle}</p>
         <p className={styles.dropzoneCopy}>{strings.insert.dropzoneCopy}</p>
+        <Button
+          appearance="secondary"
+          data-testid="taskpane-file-picker-button"
+          onClick={() => {
+            fileInputRef.current?.click();
+          }}
+          type="button"
+        >
+          {strings.insert.filePickerButton}
+        </Button>
+        <input
+          accept=".md,.markdown,.txt,text/markdown,text/plain"
+          className={styles.hiddenFileInput}
+          data-testid="taskpane-file-input"
+          onChange={handleFileChange}
+          ref={fileInputRef}
+          type="file"
+        />
       </div>
       <div className={styles.card}>
         <div className={styles.sectionHeading}>

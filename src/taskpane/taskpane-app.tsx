@@ -164,6 +164,9 @@ const useStyles = makeStyles({
     margin: 0,
     maxWidth: "26rem",
   },
+  hiddenFileInput: {
+    display: "none",
+  },
   textLabel: {
     fontSize: tokens.fontSizeBase300,
     fontWeight: tokens.fontWeightSemibold,
@@ -756,6 +759,10 @@ export function TaskpaneApp({
     );
   }
 
+  async function handleFileSelected(file: File | null): Promise<void> {
+    await actionHandlers.loadDroppedMarkdownFile(file);
+  }
+
   const toolbarPanels = buildToolbarPanels(preferences, localizedStrings);
   const renderSelectionDisabled = isRenderSelectionDisabled(
     isWorking !== null,
@@ -850,6 +857,9 @@ export function TaskpaneApp({
                     markdownInput={markdownInput}
                     onDrop={(event) => {
                       void handleDrop(event);
+                    }}
+                    onFileSelected={(file) => {
+                      void handleFileSelected(file);
                     }}
                     onInsertRenderedMarkdown={() => {
                       void actionHandlers.insertRenderedMarkdown();

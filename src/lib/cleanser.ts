@@ -20,6 +20,10 @@ export function extractMarkdownSourceFromHtml(html: string): string {
   return normalizeMarkdownLines(lines);
 }
 
+export function normalizeMarkdownLineEndings(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 function cleanseNode(documentFragment: Document, node: Node): string[] {
   switch (node.nodeType) {
     case ELEMENT_NODE:
@@ -257,11 +261,12 @@ function collectInlineText(element: Element): string {
 
 function splitTextLines(text: string): string[] {
   const normalizedText = text
+    .replace(/\r\n?/g, "\n")
     .replace(/[\u007F-\u009F]/g, "")
     .replace(/[\u00a0]/g, " ");
 
   return normalizedText
-    .split(/\r?\n/)
+    .split("\n")
     .map((line) => normalizeMarkdownTextLine(line))
     .filter((line, index, lines) => {
       if (line.length > 0) {
@@ -281,7 +286,9 @@ function normalizeMarkdownTextLine(text: string): string {
 }
 
 function normalizeMarkdownLines(lines: string[]): string {
-  const normalizedLines = lines.map((line) => line.replace(/[ \t\f\v]+$/g, ""));
+  const normalizedLines = lines
+    .flatMap((line) => normalizeMarkdownLineEndings(line).split("\n"))
+    .map((line) => line.replace(/[ \t\f\v]+$/g, ""));
 
   while (
     normalizedLines.length > 0 &&
@@ -297,5 +304,8 @@ function normalizeMarkdownLines(lines: string[]): string {
     normalizedLines.pop();
   }
 
-  return normalizedLines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return normalizeMarkdownLineEndings(normalizedLines.join("\n")).replace(
+    /\n{3,}/g,
+    "\n\n"
+  );
 }
