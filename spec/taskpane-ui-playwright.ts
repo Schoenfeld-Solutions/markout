@@ -160,6 +160,16 @@ const OWA_CARRIAGE_RETURN_DRAFT_SAMPLE = [
   "",
   "# h2",
 ].join("\r");
+const OWA_EDITOR_INTERACTIVITY_SELECTION_TEXT =
+  "Select this compose line while MarkOut is open";
+const OWA_EDITOR_INTERACTIVITY_BODY_HTML = [
+  "<div>Editable draft body before MarkOut interaction</div>",
+  `<div data-testid="editor-interactivity-selection">${OWA_EDITOR_INTERACTIVITY_SELECTION_TEXT}</div>`,
+].join("");
+const OWA_EDITOR_INTERACTIVITY_INITIAL_TEXT = "Typed while MarkOut is open";
+const OWA_EDITOR_INTERACTIVITY_AFTER_WAIT_TEXT =
+  "Typed after the former polling window";
+const FORMER_SELECTION_REFRESH_INTERVAL_MS = 1600;
 const PREVIEW_LOADING_TEXT = "Rendering preview...";
 
 export async function runTaskpaneUiPlaywright(
@@ -232,6 +242,11 @@ export async function runTaskpaneUiPlaywright(
 
     console.log("Verifying OWA-like drawer host layout regressions.");
     await verifyOwaLikeDrawerHostScenario(browser, config);
+
+    console.log(
+      "Verifying OWA-like compose editor interactivity while the taskpane is open."
+    );
+    await verifyOwaLikeComposeEditorInteractivityScenario(browser, config);
 
     console.log("Verifying OWA-like compose canvas selection and drop flows.");
     await verifyOwaLikeComposeCanvasScenario(browser, config);
@@ -783,6 +798,51 @@ async function verifyOwaLikeDrawerHostScenario(
   }
 }
 
+async function verifyOwaLikeComposeEditorInteractivityScenario(
+  browser: Browser,
+  config: TaskpaneUiConfig
+): Promise<void> {
+  const { page, taskpane } = await openOwaHostPage(browser, config, {
+    colorScheme: "dark",
+    height: 760,
+    name: "owa-like-editor-interactivity",
+    width: 644,
+  });
+
+  try {
+    await openInsertPanel(taskpane);
+    await setOwaCanvasBodyHtml(page, OWA_EDITOR_INTERACTIVITY_BODY_HTML);
+
+    await typeIntoOwaComposeBody(
+      page,
+      OWA_EDITOR_INTERACTIVITY_INITIAL_TEXT,
+      config.timeoutMs,
+      "owa-like-editor-initial-insert"
+    );
+    await assertOwaComposeBodySelection(page, config.timeoutMs);
+
+    await openSettingsPanel(taskpane);
+    await taskpane
+      .locator("#theme-mode-system")
+      .waitFor({ timeout: config.timeoutMs });
+    await openInsertPanel(taskpane);
+    await taskpane.locator("#markdown-input").waitFor({
+      timeout: config.timeoutMs,
+    });
+
+    await page.waitForTimeout(FORMER_SELECTION_REFRESH_INTERVAL_MS + 250);
+    await typeIntoOwaComposeBody(
+      page,
+      OWA_EDITOR_INTERACTIVITY_AFTER_WAIT_TEXT,
+      config.timeoutMs,
+      "owa-like-editor-after-former-poll-window"
+    );
+    await assertOwaComposeBodySelection(page, config.timeoutMs);
+  } finally {
+    await page.context().close();
+  }
+}
+
 async function verifyOwaLikeComposeCanvasScenario(
   browser: Browser,
   config: TaskpaneUiConfig
@@ -1268,6 +1328,120 @@ async function clearOwaCanvasSelection(page: Page): Promise<void> {
   await page.evaluate(() => {
     window.__MARKOUT_OWA_COMPOSE_CANVAS__?.clearSelection();
   });
+}
+
+async function typeIntoOwaComposeBody(
+  page: Page,
+  text: string,
+  timeoutMs: number,
+  scenarioName: string
+): Promise<void> {
+  await assertOwaComposeBodyHitTarget(page, scenarioName);
+  await page.locator("#owa-compose-body").click({ timeout: timeoutMs });
+  await page.waitForFunction(
+    () => document.activeElement?.id === "owa-compose-body",
+    undefined,
+    { timeout: timeoutMs }
+  );
+  await page.keyboard.type(text);
+
+  const snapshot = await readOwaCanvasSnapshot(page);
+  assert.ok(
+    snapshot.bodyHtml.includes(text),
+    `OWA-like compose body did not accept typed text in ${scenarioName}.`
+  );
+}
+
+async function assertOwaComposeBodySelection(
+  page: Page,
+  timeoutMs: number
+): Promise<void> {
+  await page
+    .locator('[data-testid="editor-interactivity-selection"]')
+    .selectText({ timeout: timeoutMs });
+  await page.waitForFunction(
+    (expectedText) => {
+      const selection = window.__MARKOUT_OWA_COMPOSE_CANVAS__?.getSelection();
+      return (
+        selection?.source === "body" &&
+        selection.hasSelection &&
+        selection.text.includes(expectedText)
+      );
+    },
+    OWA_EDITOR_INTERACTIVITY_SELECTION_TEXT,
+    { timeout: timeoutMs }
+  );
+
+  const snapshot = await readOwaCanvasSnapshot(page);
+  assert.equal(snapshot.selection.source, "body");
+  assert.ok(
+    snapshot.selection.hasSelection,
+    "OWA-like compose body selection was not captured."
+  );
+  assert.ok(
+    snapshot.selection.text.includes(OWA_EDITOR_INTERACTIVITY_SELECTION_TEXT),
+    "OWA-like compose body selected the wrong text."
+  );
+}
+
+async function assertOwaComposeBodyHitTarget(
+  page: Page,
+  scenarioName: string
+): Promise<void> {
+  const metrics = await page.evaluate(() => {
+    const composeBody =
+      document.querySelector<HTMLElement>("#owa-compose-body");
+
+    if (composeBody === null) {
+      throw new Error("OWA-like compose body is unavailable.");
+    }
+
+    const bodyRect = composeBody.getBoundingClientRect();
+    const x = bodyRect.left + bodyRect.width / 2;
+    const y = bodyRect.top + bodyRect.height / 2;
+    const elementAtPoint = document.elementFromPoint(x, y);
+
+    return {
+      bodyHeight: bodyRect.height,
+      bodyWidth: bodyRect.width,
+      hitTestTarget:
+        elementAtPoint === null
+          ? null
+          : {
+              id: elementAtPoint.id,
+              tagName: elementAtPoint.tagName,
+            },
+      isHitTarget:
+        elementAtPoint !== null &&
+        (composeBody === elementAtPoint ||
+          composeBody.contains(elementAtPoint)),
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+      x,
+      y,
+    };
+  });
+
+  assert.ok(
+    metrics.bodyWidth > 0,
+    `OWA-like compose body has no width in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.bodyHeight > 0,
+    `OWA-like compose body has no height in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.x >= 0 && metrics.x <= metrics.viewportWidth,
+    `OWA-like compose body hit point is outside the viewport horizontally in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.y >= 0 && metrics.y <= metrics.viewportHeight,
+    `OWA-like compose body hit point is outside the viewport vertically in ${scenarioName}.`
+  );
+  assert.ok(
+    metrics.isHitTarget,
+    `OWA-like compose body is covered by ${JSON.stringify(metrics.hitTestTarget)} in ${scenarioName}.`
+  );
 }
 
 async function waitForMockNotification(
