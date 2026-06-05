@@ -279,7 +279,7 @@ describe("taskpane selection state controller", () => {
     });
   });
 
-  it("polls selection only on the insert panel and skips hidden refreshes", () => {
+  it("refreshes selection without background polling on the insert panel", () => {
     const getSelection = jest.fn(
       () =>
         new Promise<{
@@ -290,6 +290,7 @@ describe("taskpane selection state controller", () => {
         }>(() => undefined)
     );
     const service = createComposeMarkdownService({ getSelection });
+    const setIntervalSpy = jest.spyOn(window, "setInterval");
 
     function SelectionProbe({
       activePanel,
@@ -309,6 +310,7 @@ describe("taskpane selection state controller", () => {
         root.render(<SelectionProbe activePanel="insert" />);
       });
       expect(getSelection).toHaveBeenCalledTimes(1);
+      expect(setIntervalSpy).not.toHaveBeenCalled();
 
       act(() => {
         window.dispatchEvent(new Event("focus"));
@@ -323,6 +325,16 @@ describe("taskpane selection state controller", () => {
         document.dispatchEvent(new Event("visibilitychange"));
       });
       expect(getSelection).toHaveBeenCalledTimes(2);
+
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "visible",
+      });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(getSelection).toHaveBeenCalledTimes(3);
+      expect(setIntervalSpy).not.toHaveBeenCalled();
     } finally {
       act(() => {
         root.unmount();

@@ -7,8 +7,6 @@ import {
 } from "../lib/runtime";
 import type { PanelKey, SelectionState } from "./types";
 
-const SELECTION_REFRESH_INTERVAL_MS = 1600;
-
 export type TaskpaneDiagnosticRecorder = (event: DiagnosticEventInput) => void;
 
 export function usePreviewController(
@@ -172,13 +170,8 @@ export function useSelectionStateController(
     refreshSelection();
     window.addEventListener("focus", refreshSelection);
     document.addEventListener("visibilitychange", refreshSelection);
-    const intervalId = window.setInterval(
-      refreshSelection,
-      SELECTION_REFRESH_INTERVAL_MS
-    );
 
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshSelection);
       document.removeEventListener("visibilitychange", refreshSelection);
     };
