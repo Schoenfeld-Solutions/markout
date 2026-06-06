@@ -22,6 +22,8 @@ import {
 import { defaultStylesheet } from "../lib/config";
 import {
   createInMemoryDiagnosticSink,
+  resolveRuntimeBuildInfo,
+  resolveRuntimeChannelConfig,
   type DiagnosticEventInput,
 } from "../lib/runtime";
 import type { StylesheetLintResult } from "../lib/stylesheet-lint";
@@ -523,6 +525,8 @@ export function TaskpaneApp({
   initialMarkdownInput = "",
   locale,
   notificationService,
+  runtimeBuildInfo,
+  runtimeChannelConfig,
   services,
   settingsStore,
 }: TaskpaneAppProps): ReactElement {
@@ -562,6 +566,10 @@ export function TaskpaneApp({
   const resolvedColorMode = useResolvedColorMode(preferences.themeMode);
   const currentTheme =
     resolvedColorMode === "dark" ? webDarkTheme : webLightTheme;
+  const resolvedRuntimeBuildInfo =
+    runtimeBuildInfo ?? resolveRuntimeBuildInfo();
+  const resolvedRuntimeChannelConfig =
+    runtimeChannelConfig ?? resolveRuntimeChannelConfig();
   const previewFrameStyle = {
     colorScheme: resolvedColorMode,
   } as const;
@@ -837,6 +845,8 @@ export function TaskpaneApp({
                       void actionHandlers.inspectSelection();
                     }}
                     resolvedColorMode={resolvedColorMode}
+                    runtimeBuildInfo={resolvedRuntimeBuildInfo}
+                    runtimeChannelConfig={resolvedRuntimeChannelConfig}
                     selectionDebug={selectionState.debug}
                     strings={localizedStrings}
                     styles={styles}

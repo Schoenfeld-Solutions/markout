@@ -1,12 +1,29 @@
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const { execFileSync } = require("child_process");
+const packageJson = require("./package.json");
 const path = require("path");
 const webpack = require("webpack");
+
+function readGitValue(args) {
+  try {
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
 
 module.exports = (_env, options) => {
   const env = _env ?? {};
   const isProduction = options.mode === "production";
   const includeTaskpaneMock =
     env.taskpaneMock === true || env.taskpaneMock === "true";
+  const buildSha =
+    process.env.GITHUB_SHA ?? readGitValue(["rev-parse", "HEAD"]);
+  const buildRef =
+    process.env.GITHUB_REF_NAME ?? readGitValue(["branch", "--show-current"]);
 
   const entry = {
     commands: "./src/commands/commands.ts",
@@ -20,6 +37,9 @@ module.exports = (_env, options) => {
 
   const plugins = [
     new webpack.DefinePlugin({
+      "process.env.MARKOUT_APP_VERSION": JSON.stringify(packageJson.version),
+      "process.env.MARKOUT_BUILD_REF": JSON.stringify(buildRef),
+      "process.env.MARKOUT_BUILD_SHA": JSON.stringify(buildSha),
       "process.env.NODE_DEBUG": JSON.stringify(""),
     }),
     new HtmlWebpackPlugin({

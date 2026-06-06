@@ -8,7 +8,12 @@ import type {
   ThemeMode,
 } from "../lib/config";
 import type { RenderItemResult } from "../lib/item";
-import type { DiagnosticEventRecord, DiagnosticSink } from "../lib/runtime";
+import type {
+  DiagnosticEventRecord,
+  DiagnosticSink,
+  RuntimeBuildInfo,
+  RuntimeChannelConfig,
+} from "../lib/runtime";
 import type { SupportedLocale } from "./i18n";
 
 export type PanelKey =
@@ -72,8 +77,10 @@ export interface TaskpaneAppProps {
   initialMarkdownInput?: string;
   locale?: SupportedLocale;
   notificationService?: ComposeNotificationService;
+  runtimeBuildInfo?: RuntimeBuildInfo;
+  runtimeChannelConfig?: RuntimeChannelConfig;
   services: TaskpaneServices;
   settingsStore: SettingsStore;
 }
 
-export type { DiagnosticEventRecord };
+export type { DiagnosticEventRecord, RuntimeBuildInfo, RuntimeChannelConfig };

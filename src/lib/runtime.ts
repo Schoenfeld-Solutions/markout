@@ -11,6 +11,12 @@ export interface RuntimeChannelConfig {
   taskpaneUrl: string;
 }
 
+export interface RuntimeBuildInfo {
+  appVersion: string;
+  buildRef: string;
+  buildSha: string;
+}
+
 export type MarkOutErrorCode =
   | "office-compose-item-missing"
   | "office-selection-api-unavailable"
@@ -73,6 +79,7 @@ const MAX_DIAGNOSTIC_METADATA_VALUE_LENGTH = 120;
 const SENSITIVE_DIAGNOSTIC_METADATA_KEY_PATTERN =
   /(auth|body|cookie|draft|email|html|mail|markdown|message|password|recipient|secret|selection|session|state|storage|text|token)/i;
 const SUPPORT_URL = "https://github.com/Schoenfeld-Solutions/markout";
+const UNKNOWN_BUILD_VALUE = "unknown";
 
 function withChannelQuery(url: string, channelId: ChannelId): string {
   const parsedUrl = new URL(url);
@@ -158,6 +165,19 @@ export function getRuntimeChannelConfig(
 
 export function getAllRuntimeChannelConfigs(): RuntimeChannelConfig[] {
   return Object.values(RUNTIME_CHANNELS);
+}
+
+function normalizeBuildValue(value: string | undefined): string {
+  const trimmedValue = value?.trim() ?? "";
+  return trimmedValue.length > 0 ? trimmedValue : UNKNOWN_BUILD_VALUE;
+}
+
+export function resolveRuntimeBuildInfo(): RuntimeBuildInfo {
+  return {
+    appVersion: normalizeBuildValue(process.env.MARKOUT_APP_VERSION),
+    buildRef: normalizeBuildValue(process.env.MARKOUT_BUILD_REF),
+    buildSha: normalizeBuildValue(process.env.MARKOUT_BUILD_SHA),
+  };
 }
 
 export function resolveRuntimeChannelConfig(

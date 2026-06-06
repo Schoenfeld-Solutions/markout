@@ -16,6 +16,7 @@ import { createLazyMarkdownRenderer } from "../lib/lazy-markdown-renderer";
 import { createOfficeBodyAccessor } from "../lib/body-accessor";
 import { createOfficeRenderStateStore } from "../lib/render-state-store";
 import {
+  resolveRuntimeBuildInfo,
   resolveRuntimeChannelConfig,
   type RuntimeChannelConfig,
 } from "../lib/runtime";
@@ -146,6 +147,7 @@ export class TaskpaneRuntimeErrorBoundary extends Component<
 
 export function mountTaskpane(rootElement: HTMLElement): void {
   const root = createRoot(rootElement);
+  const runtimeBuildInfo = resolveRuntimeBuildInfo();
   const runtimeChannelConfig = resolveRuntimeChannelConfig();
   const settingsStore = createOfficeSettingsStore(
     undefined,
@@ -162,8 +164,11 @@ export function mountTaskpane(rootElement: HTMLElement): void {
   );
 
   console.info("[MarkOut] taskpane runtime mounted", {
+    buildRef: runtimeBuildInfo.buildRef,
+    buildSha: runtimeBuildInfo.buildSha,
     channel: runtimeChannelConfig.channelId,
     locale,
+    version: runtimeBuildInfo.appVersion,
   });
 
   root.render(
@@ -174,6 +179,8 @@ export function mountTaskpane(rootElement: HTMLElement): void {
           undefined,
           runtimeChannelConfig
         )}
+        runtimeBuildInfo={runtimeBuildInfo}
+        runtimeChannelConfig={runtimeChannelConfig}
         services={services}
         settingsStore={settingsStore}
       />
