@@ -31,6 +31,8 @@ import {
 import type {
   DiagnosticEventRecord,
   PanelKey,
+  RuntimeBuildInfo,
+  RuntimeChannelConfig,
   SelectionDebugState,
 } from "./types";
 
@@ -86,6 +88,10 @@ function renderLintResult(
       ))}
     </ul>
   );
+}
+
+function formatBuildSha(buildSha: string): string {
+  return buildSha === "unknown" ? buildSha : buildSha.slice(0, 12);
 }
 
 export function InsertPanel(props: {
@@ -687,6 +693,8 @@ export function DeveloperPanel(props: {
   isInspectingSelection: boolean;
   onInspectSelection: () => void;
   resolvedColorMode: "dark" | "light";
+  runtimeBuildInfo: RuntimeBuildInfo;
+  runtimeChannelConfig: RuntimeChannelConfig;
   selectionDebug: SelectionDebugState | null;
   strings: LocalizedStrings;
   styles: Record<string, string>;
@@ -697,6 +705,8 @@ export function DeveloperPanel(props: {
     isInspectingSelection,
     onInspectSelection,
     resolvedColorMode,
+    runtimeBuildInfo,
+    runtimeChannelConfig,
     selectionDebug,
     strings,
     styles,
@@ -729,6 +739,25 @@ export function DeveloperPanel(props: {
             {strings.developer.inspectSelection}
           </Button>
         </div>
+        <div className={styles.sectionHeading}>
+          <h3 className={styles.sectionTitle}>
+            {strings.developer.runtimeTitle}
+          </h3>
+        </div>
+        <pre className={styles.developerCode}>
+          {JSON.stringify(
+            {
+              addInId: runtimeChannelConfig.addInId,
+              appVersion: runtimeBuildInfo.appVersion,
+              buildRef: runtimeBuildInfo.buildRef,
+              buildSha: formatBuildSha(runtimeBuildInfo.buildSha),
+              channel: runtimeChannelConfig.channelId,
+              taskpaneUrl: runtimeChannelConfig.taskpaneUrl,
+            },
+            null,
+            2
+          )}
+        </pre>
         <pre className={styles.developerCode}>
           {selectionDebug === null
             ? strings.developer.noSelectionSnapshot

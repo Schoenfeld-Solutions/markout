@@ -6,8 +6,18 @@ import {
   getChannelScopedKey,
   getRuntimeChannelConfig,
   isMarkOutErrorCode,
+  resolveRuntimeBuildInfo,
   resolveRuntimeChannelConfig,
 } from "../src/lib/runtime";
+
+function restoreProcessEnvValue(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 describe("runtime channel config", () => {
   it("defines three unique runtime channels", () => {
@@ -94,6 +104,50 @@ describe("runtime channel config", () => {
     expect(
       getChannelScopedKey(getRuntimeChannelConfig("beta"), "notification")
     ).toBe("markout.beta.notification");
+  });
+
+  it("resolves build metadata from injected environment values", () => {
+    const originalAppVersion = process.env.MARKOUT_APP_VERSION;
+    const originalBuildRef = process.env.MARKOUT_BUILD_REF;
+    const originalBuildSha = process.env.MARKOUT_BUILD_SHA;
+
+    process.env.MARKOUT_APP_VERSION = " 1.2.3 ";
+    process.env.MARKOUT_BUILD_REF = " main ";
+    process.env.MARKOUT_BUILD_SHA = " abcdef1234567890 ";
+
+    try {
+      expect(resolveRuntimeBuildInfo()).toEqual({
+        appVersion: "1.2.3",
+        buildRef: "main",
+        buildSha: "abcdef1234567890",
+      });
+    } finally {
+      restoreProcessEnvValue("MARKOUT_APP_VERSION", originalAppVersion);
+      restoreProcessEnvValue("MARKOUT_BUILD_REF", originalBuildRef);
+      restoreProcessEnvValue("MARKOUT_BUILD_SHA", originalBuildSha);
+    }
+  });
+
+  it("falls back to unknown build metadata when injected values are absent", () => {
+    const originalAppVersion = process.env.MARKOUT_APP_VERSION;
+    const originalBuildRef = process.env.MARKOUT_BUILD_REF;
+    const originalBuildSha = process.env.MARKOUT_BUILD_SHA;
+
+    delete process.env.MARKOUT_APP_VERSION;
+    delete process.env.MARKOUT_BUILD_REF;
+    delete process.env.MARKOUT_BUILD_SHA;
+
+    try {
+      expect(resolveRuntimeBuildInfo()).toEqual({
+        appVersion: "unknown",
+        buildRef: "unknown",
+        buildSha: "unknown",
+      });
+    } finally {
+      restoreProcessEnvValue("MARKOUT_APP_VERSION", originalAppVersion);
+      restoreProcessEnvValue("MARKOUT_BUILD_REF", originalBuildRef);
+      restoreProcessEnvValue("MARKOUT_BUILD_SHA", originalBuildSha);
+    }
   });
 
   it("recognizes typed MarkOut errors", () => {

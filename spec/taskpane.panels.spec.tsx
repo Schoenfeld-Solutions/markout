@@ -13,6 +13,10 @@ import {
   SettingsPanel,
   renderActivePanel,
 } from "../src/taskpane/panels";
+import type {
+  RuntimeBuildInfo,
+  RuntimeChannelConfig,
+} from "../src/taskpane/types";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -47,6 +51,26 @@ function mount(element: ReactElement): { container: HTMLElement; root: Root } {
 function readPanelText(element: ReactElement): ReactNode {
   return (element as ReactElement<{ children: ReactNode }>).props.children;
 }
+
+const TEST_RUNTIME_BUILD_INFO: RuntimeBuildInfo = {
+  appVersion: "1.2.3",
+  buildRef: "dev/test-runtime",
+  buildSha: "abcdef1234567890",
+};
+
+const TEST_RUNTIME_CHANNEL_CONFIG: RuntimeChannelConfig = {
+  addInId: "934e43d2-950c-4cab-8ec0-4ff2808e6c11",
+  appBaseUrl: "https://schoenfeld-solutions.github.io/markout/outlook-beta",
+  channelId: "beta",
+  commandsUrl:
+    "https://schoenfeld-solutions.github.io/markout/outlook-beta/commands.html",
+  launcheventUrl:
+    "https://schoenfeld-solutions.github.io/markout/outlook-beta/launchevent.js",
+  storageNamespace: "markout.beta",
+  supportUrl: "https://github.com/Schoenfeld-Solutions/markout",
+  taskpaneUrl:
+    "https://schoenfeld-solutions.github.io/markout/outlook-beta/taskpane.html",
+};
 
 describe("taskpane panels", () => {
   let originalResizeObserver: typeof window.ResizeObserver | undefined;
@@ -280,6 +304,8 @@ describe("taskpane panels", () => {
         isInspectingSelection={false}
         onInspectSelection={() => undefined}
         resolvedColorMode="dark"
+        runtimeBuildInfo={TEST_RUNTIME_BUILD_INFO}
+        runtimeChannelConfig={TEST_RUNTIME_CHANNEL_CONFIG}
         selectionDebug={{
           hasSelection: true,
           source: "body",
@@ -315,6 +341,12 @@ describe("taskpane panels", () => {
       expect(container.textContent).toContain(
         strings.developer.inspectSelection
       );
+      expect(container.textContent).toContain(strings.developer.runtimeTitle);
+      expect(container.textContent).toContain("1.2.3");
+      expect(container.textContent).toContain("dev/test-runtime");
+      expect(container.textContent).toContain("abcdef123456");
+      expect(container.textContent).toContain("beta");
+      expect(container.textContent).toContain("outlook-beta/taskpane.html");
       expect(container.textContent).toContain("Preview text");
       expect(container.textContent).toContain(
         strings.developer.diagnosticsTitle
@@ -440,6 +472,8 @@ describe("taskpane panels", () => {
           isInspectingSelection={true}
           onInspectSelection={() => undefined}
           resolvedColorMode="light"
+          runtimeBuildInfo={TEST_RUNTIME_BUILD_INFO}
+          runtimeChannelConfig={TEST_RUNTIME_CHANNEL_CONFIG}
           selectionDebug={null}
           strings={strings}
           styles={styles}

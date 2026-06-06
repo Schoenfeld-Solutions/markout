@@ -23,6 +23,7 @@ export interface LocalizedStrings {
     panelTitle: string;
     resolvedTheme: string;
     ribbonHint: string;
+    runtimeTitle: string;
     subjectHint: string;
     taskpaneHint: string;
   };
@@ -192,6 +193,7 @@ const EN_US: LocalizedStrings = {
     resolvedTheme: "Preference: {mode}. Effective theme: {resolvedMode}.",
     ribbonHint:
       "Outlook decides whether the command appears directly on the ribbon or in Apps.",
+    runtimeTitle: "Runtime version",
     subjectHint:
       "MarkOut can only update the message body. Move the cursor into the body or select text there first.",
     taskpaneHint:
@@ -385,6 +387,7 @@ const DE_DE: LocalizedStrings = {
     resolvedTheme: "Präferenz: {mode}. Effektives Theme: {resolvedMode}.",
     ribbonHint:
       "Outlook entscheidet, ob der Befehl direkt im Ribbon oder nur unter Apps erscheint.",
+    runtimeTitle: "Runtime-Version",
     subjectHint:
       "MarkOut kann nur den Nachrichten-Body aktualisieren. Setze den Cursor in den Body oder markiere dort Text.",
     taskpaneHint:
